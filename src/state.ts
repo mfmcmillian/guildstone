@@ -92,8 +92,24 @@ export interface GuildTechNode {
 export const GUILD_TECH_COSTS = [2000, 4000, 7000, 11000, 16000, 24000, 35000, 50000, 70000, 100000]
 
 export const GUILD_HQ_MAX = 200
-export const GUILD_DAILY_HQ_CAP = { coins: 40, wood: 80, rock: 80 }
-export const GUILD_DAILY_TECH_CAP = 1000
+// Daily donation caps come from the server (guild.dailyCaps); these mirror its formula as a fallback.
+const GUILD_DAILY_HQ_CAP_BASE = { coins: 40, wood: 80, rock: 80 }
+const GUILD_DAILY_HQ_CAP_PER_LEVEL = { coins: 5, wood: 20, rock: 20 }
+const GUILD_DAILY_TECH_CAP_DEFAULT = 1000
+
+export function guildDailyHqCap(guild: GuildInfo | null): { coins: number; wood: number; rock: number } {
+  if (guild?.dailyCaps?.hq) return guild.dailyCaps.hq
+  const hq = Math.max(0, guild?.hqLevel ?? 0)
+  return {
+    coins: GUILD_DAILY_HQ_CAP_BASE.coins + GUILD_DAILY_HQ_CAP_PER_LEVEL.coins * hq,
+    wood: GUILD_DAILY_HQ_CAP_BASE.wood + GUILD_DAILY_HQ_CAP_PER_LEVEL.wood * hq,
+    rock: GUILD_DAILY_HQ_CAP_BASE.rock + GUILD_DAILY_HQ_CAP_PER_LEVEL.rock * hq
+  }
+}
+
+export function guildDailyTechCap(guild: GuildInfo | null): number {
+  return guild?.dailyCaps?.tech ?? GUILD_DAILY_TECH_CAP_DEFAULT
+}
 
 export interface GuildDailyProgress {
   day: string
@@ -113,6 +129,8 @@ export interface GuildInfo {
   hqLevel: number
   hqProgress: { coins: number; wood: number; rock: number }
   hqCost: { coins: number; wood: number; rock: number } | null
+  /** Per-member daily donation caps, computed server-side from HQ level. */
+  dailyCaps?: { hq: { coins: number; wood: number; rock: number }; tech: number }
   motto: string
   motd: string
   motdAuthor: string

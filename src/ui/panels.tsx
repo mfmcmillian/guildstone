@@ -41,8 +41,8 @@ import {
   GUILD_TECH,
   GUILD_TECH_KEYS,
   GUILD_HQ_MAX,
-  GUILD_DAILY_HQ_CAP,
-  GUILD_DAILY_TECH_CAP,
+  guildDailyHqCap,
+  guildDailyTechCap,
   GUILD_TECH_COSTS,
   GuildTechKey,
   guildRole,
@@ -1068,11 +1068,14 @@ export function GuildPanel() {
     player.guildDaily.day === today
       ? player.guildDaily.hq
       : { coins: 0, wood: 0, rock: 0 }
-  const dailyWoodGive = Math.min(10, Math.max(0, GUILD_DAILY_HQ_CAP.wood - daily.wood), player.storage.wood)
-  const dailyRockGive = Math.min(10, Math.max(0, GUILD_DAILY_HQ_CAP.rock - daily.rock), player.storage.rock)
-  const dailyCoinGive = Math.min(5, Math.max(0, GUILD_DAILY_HQ_CAP.coins - daily.coins), player.coins)
+  // Caps scale with HQ level (server-driven); each GIVE press hands over a tenth of the cap so maxing out is ~10 taps.
+  const hqCap = guildDailyHqCap(guild)
+  const techCap = guildDailyTechCap(guild)
+  const dailyWoodGive = Math.min(Math.ceil(hqCap.wood / 10), Math.max(0, hqCap.wood - daily.wood), player.storage.wood)
+  const dailyRockGive = Math.min(Math.ceil(hqCap.rock / 10), Math.max(0, hqCap.rock - daily.rock), player.storage.rock)
+  const dailyCoinGive = Math.min(Math.ceil(hqCap.coins / 10), Math.max(0, hqCap.coins - daily.coins), player.coins)
   const techDailyGiven = player.guildDaily.day === today ? player.guildDaily.tech.coins : 0
-  const techDailyGive = Math.max(0, GUILD_DAILY_TECH_CAP - techDailyGiven)
+  const techDailyGive = Math.max(0, techCap - techDailyGiven)
   const leaderboard = Object.entries(guild?.contributions ?? {})
     .filter(([, entry]) => entry.points > 0)
     .sort((a, b) => b[1].points - a[1].points)
@@ -1144,7 +1147,7 @@ export function GuildPanel() {
                   <UiEntity uiTransform={{ width: S(330), flexDirection: 'column', margin: { right: S(20) } }}>
                     <Text value="YOUR SHARE TODAY" size={S(20)} color={C.textMuted} />
                     <Text
-                      value={todayDone ? 'DONE FOR TODAY' : `${daily.wood}/${GUILD_DAILY_HQ_CAP.wood} Wood  ${daily.rock}/${GUILD_DAILY_HQ_CAP.rock} Rock  ${daily.coins}/${GUILD_DAILY_HQ_CAP.coins} Coins`}
+                      value={todayDone ? 'DONE FOR TODAY' : `${daily.wood}/${hqCap.wood} Wood  ${daily.rock}/${hqCap.rock} Rock  ${daily.coins}/${hqCap.coins} Coins`}
                       size={todayDone ? S(30) : S(21)}
                       color={todayDone ? C.green : C.text}
                     />
@@ -1298,7 +1301,7 @@ export function GuildPanel() {
                       guildHave={guild.hqProgress.wood}
                       guildNeed={guild.hqCost?.wood ?? 0}
                       todayGiven={daily.wood}
-                      todayCap={GUILD_DAILY_HQ_CAP.wood}
+                      todayCap={hqCap.wood}
                       owned={player.storage.wood}
                       ownedLabel="In storage"
                       giveAmount={dailyWoodGive}
@@ -1311,7 +1314,7 @@ export function GuildPanel() {
                       guildHave={guild.hqProgress.rock}
                       guildNeed={guild.hqCost?.rock ?? 0}
                       todayGiven={daily.rock}
-                      todayCap={GUILD_DAILY_HQ_CAP.rock}
+                      todayCap={hqCap.rock}
                       owned={player.storage.rock}
                       ownedLabel="In storage"
                       giveAmount={dailyRockGive}
@@ -1324,7 +1327,7 @@ export function GuildPanel() {
                       guildHave={guild.hqProgress.coins}
                       guildNeed={guild.hqCost?.coins ?? 0}
                       todayGiven={daily.coins}
-                      todayCap={GUILD_DAILY_HQ_CAP.coins}
+                      todayCap={hqCap.coins}
                       owned={player.coins}
                       ownedLabel="In wallet"
                       giveAmount={dailyCoinGive}
@@ -1333,7 +1336,7 @@ export function GuildPanel() {
                     />
                   </UiEntity>
                   <Text
-                    value={`Limits reset daily: ${GUILD_DAILY_HQ_CAP.wood} Wood, ${GUILD_DAILY_HQ_CAP.rock} Rock, ${GUILD_DAILY_HQ_CAP.coins} Coins per member.  HQ levels up the moment all three goals are met.`}
+                    value={`Limits reset daily and grow with HQ level: ${hqCap.wood} Wood, ${hqCap.rock} Rock, ${hqCap.coins} Coins per member.  HQ levels up the moment all three goals are met.`}
                     size={S(24)}
                     color={C.textMuted}
                     uiTransform={{ margin: { top: S(22) } }}
@@ -1408,7 +1411,7 @@ export function GuildPanel() {
                 value={
                   techComplete
                     ? 'Every unlocked technology is at max level. Raise the HQ to unlock more.'
-                    : `Fund a technology with Coins and every member gets the bonus.  You today: ${techDailyGiven} / ${GUILD_DAILY_TECH_CAP} Coins`
+                    : `Fund a technology with Coins and every member gets the bonus.  You today: ${techDailyGiven} / ${techCap} Coins`
                 }
                 size={S(26)}
                 color={C.textMuted}
