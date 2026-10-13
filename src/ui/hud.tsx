@@ -64,13 +64,10 @@ export function Hud() {
           {player.rationUntil > Date.now() ? <BoostPill icon="images/icons/jerky.png" label="+50% GATHER" until={player.rationUntil} color={C.orange} /> : null}
           {player.luckyUntil > Date.now() ? <BoostPill icon="images/icons/lumberjack.png" label="2x CLICKS" until={player.luckyUntil} color={C.green} /> : null}
           {player.bigBagUntil > Date.now() ? <BoostPill icon="images/icons/backpack.png" label="+100 CAPACITY" until={player.bigBagUntil} color={C.blue} /> : null}
-        </UiEntity>
-      )}
 
-      {/* Zone banner + work bar: top-center */}
+      {/* Zone banner + work bar: under the pills in the top-right corner */}
       {zone && info && skill ? (
-        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + edgeY, left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
-          <UiEntity uiTransform={{ width: S(460), flexDirection: 'column', alignItems: 'center' }}>
+          <UiEntity uiTransform={{ width: S(460), flexShrink: 0, flexDirection: 'column', alignItems: 'center', margin: { top: S(10) } }}>
             <UiEntity
               uiTransform={{ width: '100%', height: S(64), flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
               uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: zoneColor }}
@@ -111,15 +108,16 @@ export function Hud() {
               ) : null
             })()}
           </UiEntity>
-        </UiEntity>
       ) : null}
+        </UiEntity>
+      )}
 
-      {/* What to do next: one line, derived from state (see guide.tsx). Sits under the zone block, above the toast. */}
+      {/* What to do next: one line, derived from state (see guide.tsx). Top-center, above the toast. */}
       {!menuOpen ? (() => {
         const step = nextStep()
         return step ? (
-          <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 206 : 40), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
-            <Panel flat color={C.navySoft} uiTransform={{ width: S(980), height: S(52), alignItems: 'center', justifyContent: 'center', padding: { left: S(20), right: S(20) } }}>
+          <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(40), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+            <Panel flat color={C.navySoft} uiTransform={{ width: S(980), height: S(52), flexShrink: 0, alignItems: 'center', justifyContent: 'center', padding: { left: S(20), right: S(20) } }}>
               <OutlinedText value={step.text} size={S(24)} color={step.color} uiTransform={{ width: S(940), height: S(40) }} />
             </Panel>
           </UiEntity>
@@ -128,7 +126,7 @@ export function Hud() {
 
       {/* Toast */}
       {toast ? (
-        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 272 : 104), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(104), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
           <OutlinedText value={toast} size={S(FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(800) }} />
         </UiEntity>
       ) : null}

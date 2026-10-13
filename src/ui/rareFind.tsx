@@ -41,9 +41,10 @@ export function RareFindBanner() {
   const H = 420 * k
 
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(levelUpShowing ? 660 : 300), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(levelUpShowing ? 760 : 340), left: '50%' }, width: 0, height: 0, alignItems: 'flex-start', justifyContent: 'center' }}>
+      {/* flexShrink 0: the zero-width anchor above would otherwise squash the panel down to its padding */}
       <UiEntity
-        uiTransform={{ width: S(W), height: S(H), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(26 * k) }}
+        uiTransform={{ width: S(W), height: S(H), flexShrink: 0, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(26 * k) }}
         uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panel }, textureSlices: SLICE_128, color: withAlpha(C.navy, alpha) }}
       >
         {/* Ribbon */}
