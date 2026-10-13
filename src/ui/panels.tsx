@@ -32,7 +32,6 @@ import {
   skillLadder,
   nextRung,
   gatherMult,
-  SUIT_MULT,
   SUIT_CAP,
   BaseResource,
   Material,
@@ -98,7 +97,7 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
         uiTransform={{ margin: { top: S(6) } }}
       />
       <Text
-        value={set ? `Piece ${level} of 4` : `x${SUIT_MULT[level]} gather  •  +${SUIT_CAP[level]} bag`}
+        value={set ? `Piece ${level} of 4` : `Unlocks Tier ${level} drops  •  +${SUIT_CAP[level]} bag`}
         size={S(15)}
         color={owned ? C.text : C.textMuted}
         nowrap
@@ -147,7 +146,7 @@ function SuitRow(props: { key?: string; skill: Skill }) {
         </UiEntity>
         <OutlinedText value={info.name.toUpperCase()} size={S(21)} uiTransform={{ margin: { top: S(4) } }} />
         <OutlinedText value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(26)} color={st.suit > 0 ? C.yellow : C.textMuted} />
-        <Text value={`x${SUIT_MULT[st.suit]} ${info.resource} per gather`} size={S(14)} color={st.suit > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(18) }} />
+        <Text value={st.suit > 0 ? `Tier ${st.suit} drops unlocked` : `Base ${info.resource} only`} size={S(14)} color={st.suit > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(18) }} />
         <Text value={st.suit > 0 ? `+${suitBag(st.suit)} backpack` : `no backpack bonus`} size={S(14)} color={C.textMuted} nowrap uiTransform={{ height: S(18) }} />
         {set ? (
           <Text
@@ -274,7 +273,7 @@ export function SkillsPanel() {
                   />
                 ))}
               </UiEntity>
-              <Text value={`x${SUIT_MULT[st.suit]} gather`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+              <Text value={st.suit > 0 ? `Tier ${st.suit} drops` : 'Base drops'} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
             </UiEntity>
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', margin: { left: S(26) } }}>
               <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(24)} color={player.tools[s] > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(32) }} />

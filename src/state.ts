@@ -38,8 +38,10 @@ export const SKILL_ICON: Record<Skill, string> = {
   assassin: 'images/icons/assassin.png'
 }
 
-// Suit level -> gather multiplier / backpack cap
-export const SUIT_MULT = [1, 2, 3, 5, 8]
+// Suit level -> gather multiplier / backpack cap.
+// Suits no longer multiply yield: they are keys that unlock rarer drops (see the Guildstone catalogue).
+// The table is kept at 1 so the client/server rounding chain stays identical.
+export const SUIT_MULT = [1, 1, 1, 1, 1]
 export const SUIT_CAP = [200, 500, 1000, 2000, 4000]
 export const WORK_CYCLE_SECS = 3 // demo speed (design: 5s)
 export const CRAFT_SECS = 2 // demo speed
