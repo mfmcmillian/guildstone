@@ -294,10 +294,10 @@ export function requestWork(skill: Skill, stop = false) {
         return
       }
 
+      // The per-cycle ticks already announced these items; the claim only reconciles the backpack with the
+      // server's numbers, so flashing the window total here would read like a second, bigger gain.
       const got = Math.max(0, Math.floor(result.got))
-      const name = RESOURCE_INFO[SKILL_INFO[skill].resource].name
-      if (got > 0) flash(`+${got} ${name}`)
-      else if (result.capped) flash(ringStationsEnabled() ? 'BACKPACK FULL - tap the bag to bank it!' : `BACKPACK FULL - bank it at ${campHint()}!`)
+      if (got <= 0 && result.capped) flash(ringStationsEnabled() ? 'BACKPACK FULL - tap the bag to bank it!' : `BACKPACK FULL - bank it at ${campHint()}!`)
       applyRareFields(result)
       if (result.masteryUp && MASTERY_ENABLED) {
         flash(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
