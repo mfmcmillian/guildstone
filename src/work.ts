@@ -3,6 +3,7 @@ import { addXp, cycleXp, flash, gather, gatherMult, MASTERY_MAX, masteryXpForLev
 import { refreshGuild, requestWork } from './transactions'
 import { profileState } from './playerProfile'
 import { playButtonSound } from './uiSounds'
+import { refreshRemoteConfig } from './remoteConfig'
 
 /**
  * The wearable has no zones to walk into: the player picks a profession from the dock and the same
@@ -62,6 +63,7 @@ function afkSystem(dt: number) {
     guildElapsed = 0
     // Background guild refresh so HQ level-ups from other members get announced even with the panel closed.
     refreshGuild(3 * 60_000)
+    refreshRemoteConfig()
   }
   const skill = activeSkill()
   if (!skill) return

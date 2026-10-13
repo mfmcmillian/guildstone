@@ -4,7 +4,8 @@ import { C, FONT, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Panel, Button, Icon } from './components'
 import { isMuted, setMuted, playButtonSound } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
-import { ui } from './uiState'
+import { togglePanel, ui } from './uiState'
+import { campHint, remoteConfig, ringDepotEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
@@ -113,8 +114,16 @@ export function Dock() {
             />
           )
         })}
-        {/* Economy stays on the land: the ring only fills the backpack */}
-        <OutlinedText value="Bank, craft, tools & shop: at the Antrom camp" size={S(15)} color={C.gray} uiTransform={{ height: S(22), margin: { top: S(4) } }} />
+        {/* Economy stays on the land. Until the camp opens (remote config) the ring carries the Depot itself. */}
+        {ringDepotEnabled() ? (
+          <Button label="DEPOT  (SELL / STORE)" icon="images/icons/backpack.png" color={C.green} size={S(20)} uiTransform={{ width: '100%', height: S(70), margin: { top: S(4) } }} onClick={() => togglePanel('bank')} />
+        ) : null}
+        <OutlinedText
+          value={remoteConfig.camp.open ? `Bank, craft, tools & shop: ${campHint()}` : `Craft, tools & shop: ${campHint()}`}
+          size={S(15)}
+          color={C.gray}
+          uiTransform={{ height: S(22), margin: { top: S(8) } }}
+        />
       </Panel>
     </UiEntity>
   )

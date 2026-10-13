@@ -1,5 +1,6 @@
 import { executeTask } from '@dcl/sdk/ecs'
 import { signedFetch } from '~system/SignedFetch'
+import { campHint, ringDepotEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
 import { BaseResource, Boost, flash, GuildInfo, GuildTechKey, Material, player, RESOURCE_INFO, SKILL_INFO, Skill, TOOL_NAME, toolPct } from './state'
@@ -213,7 +214,7 @@ export function requestWork(skill: Skill, stop = false) {
       const got = Math.max(0, Math.floor(result.got))
       const name = RESOURCE_INFO[SKILL_INFO[skill].resource].name
       if (got > 0) flash(`+${got} ${name}`)
-      else if (result.capped) flash('BACKPACK FULL - bank it at the Antrom camp!')
+      else if (result.capped) flash(ringDepotEnabled() ? 'BACKPACK FULL - open the Depot!' : `BACKPACK FULL - bank it at ${campHint()}!`)
       if (result.masteryUp) {
         flash(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
         playSuccessSound()

@@ -1,7 +1,7 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Hud } from './hud'
 import { Dock, ShowUiButton } from './dock'
-import { SkillsPanel, GuildPanel, AwayPanel } from './panels'
+import { SkillsPanel, BankPanel, GuildPanel, AwayPanel } from './panels'
 import { ui } from './uiState'
 
 function Root() {
@@ -11,6 +11,7 @@ function Root() {
       <Hud />
       <Dock />
       {ui.open === 'skills' ? <SkillsPanel /> : null}
+      {ui.open === 'bank' ? <BankPanel /> : null}
       {ui.open === 'guild' ? <GuildPanel /> : null}
       {ui.open === 'away' ? <AwayPanel /> : null}
     </UiEntity>
