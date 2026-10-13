@@ -23,6 +23,7 @@ import {
   nextMasteryMilestone,
   RECIPES,
   canCraft,
+  craftMax,
   toolCost,
   canUpgradeTool,
   toolPct,
@@ -610,6 +611,17 @@ function gateText(gate: Partial<Record<Skill, number>>): string {
   return entries.map(([s, lv]) => `${SKILL_INFO[s].name} L${lv}`).join(' + ')
 }
 
+/** One recipe input: icon, amount needed (green when covered), and what the player holds. */
+function Ingredient(props: { key?: string; icon: string; need: number; have: number; dim: boolean }) {
+  return (
+    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(280), height: S(52) }}>
+      <Icon src={props.icon} size={S(46)} uiTransform={{ flexShrink: 0 }} />
+      <Text value={`${props.need}`} size={S(28)} color={props.dim ? C.gray : props.have >= props.need ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: S(60), height: S(52), margin: { left: S(8) } }} />
+      <Text value={`have ${props.have}`} size={S(22)} color={props.dim ? C.gray : C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(160), height: S(52) }} />
+    </UiEntity>
+  )
+}
+
 export function WorkshopPanel() {
   const job = player.craftQueue[0]
   const recipes = RECIPES.filter((r) => r.skill === workshopSkill)
@@ -634,7 +646,8 @@ export function WorkshopPanel() {
           {recipes.map((r) => {
             const have = player.storage[r.from]
             const ok = canCraft(r)
-            const maxTimes = Math.floor(have / r.amount)
+            const maxTimes = craftMax(r)
+            const extras = Object.entries(r.extra) as Array<[MaterialKey, number]>
             // Tier recipes stay dim until the player wears the unlocking suit or already holds some of the raw.
             const locked = r.tier > 0 && have <= 0 && player.materials[r.out] <= 0 && player.skills[r.skill].suit < r.tier
             return (
@@ -643,14 +656,14 @@ export function WorkshopPanel() {
                 <Icon src={RESOURCE_INFO[r.out].icon} size={S(130)} uiTransform={{ margin: { top: S(6) } }} />
                 <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(28)} color={locked ? C.gray : C.white} uiTransform={{ margin: { top: S(8) } }} />
                 <Text value={`you have ${player.materials[r.out]}`} size={S(22)} color={locked ? C.gray : C.textMuted} nowrap uiTransform={{ height: S(30) }} />
-                <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(14), bottom: S(6) } }}>
-                  <Icon src={RESOURCE_INFO[r.from].icon} size={S(56)} />
-                  <Text value={`${r.amount}`} size={S(30)} color={have >= r.amount ? C.greenDark : C.red} uiTransform={{ width: 'auto', minWidth: S(54) }} />
-                  <Text value="->" size={S(28)} color={locked ? C.gray : C.textMuted} uiTransform={{ width: 'auto', minWidth: S(44) }} />
-                  <Icon src={RESOURCE_INFO[r.out].icon} size={S(56)} />
-                  <Text value="1" size={S(30)} color={locked ? C.gray : C.text} uiTransform={{ width: 'auto', minWidth: S(32) }} />
-                </UiEntity>
-                <Text value={`storage: ${have} ${RESOURCE_INFO[r.from].name}`} size={S(22)} color={locked ? C.gray : C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+                <Text value="MAKE 1 FROM" size={S(20)} color={locked ? C.gray : C.textMuted} nowrap uiTransform={{ height: S(26), margin: { top: S(12) } }} />
+                <Ingredient icon={RESOURCE_INFO[r.from].icon} need={r.amount} have={have} dim={locked} />
+                {extras.map(([id, n]) => (
+                  <Ingredient key={id} icon={RESOURCE_INFO[id].icon} need={n} have={player.materials[id]} dim={locked} />
+                ))}
+                {r.tier === 0 ? (
+                  <Text value="Also feeds every tier recipe ->" size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(26), margin: { top: S(8) } }} />
+                ) : null}
                 <Spacer />
                 {locked ? (
                   <Text value={`Wear ${SKILL_INFO[r.skill].name} L${r.tier}+ in the ${SKILL_INFO[r.skill].zoneName} to find ${RESOURCE_INFO[r.from].name}`} size={S(22)} color={C.gray} uiTransform={{ height: S(150) }} />

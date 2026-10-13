@@ -640,14 +640,34 @@ export function flash(text: string) {
 
 // --- Recipes ---------------------------------------------------------------
 
-export interface Recipe { out: MaterialKey; from: StorageKey; amount: number; berries: number; level: number; skill: Skill; tier: number }
-/** Base refines are 10:1, tier refines 5:1 (mirrors the server). Ordered base first, then by tier. */
+export interface Recipe {
+  out: MaterialKey
+  from: StorageKey
+  amount: number
+  berries: number
+  level: number
+  skill: Skill
+  tier: number
+  /** Second input taken from materials: tier refines burn the profession's base material (planks, bricks...). */
+  extra: Partial<Record<MaterialKey, number>>
+}
+/** Base material per tier refine: 10 / 20 / 40 / 80 (mirrors the server's AFK_TIER_BASE_COST). */
+export const TIER_BASE_COST = [0, 10, 20, 40, 80]
+/** Base refines are 10:1; tier refines are 5 rare raw + base material -> 1 (mirrors the server). Ordered base first, then by tier. */
 export const RECIPES: Recipe[] = [0, 1, 2, 3, 4].flatMap((tier) =>
   SKILLS.map((skill): Recipe => {
     const [from, , out] = LADDER[skill][tier]
-    return { out, from, amount: tier === 0 ? 10 : 5, berries: 0, level: 1, skill, tier }
+    const base = LADDER[skill][0][2]
+    return { out, from, amount: tier === 0 ? 10 : 5, berries: 0, level: 1, skill, tier, extra: tier === 0 ? {} : { [base]: TIER_BASE_COST[tier] } }
   })
 )
+/** How many times a recipe can run right now, counting every input. */
+export function craftMax(r: Recipe): number {
+  let max = Math.floor(player.storage[r.from] / r.amount)
+  if (r.berries > 0) max = Math.min(max, Math.floor(player.berries / r.berries))
+  for (const [id, n] of Object.entries(r.extra) as Array<[MaterialKey, number]>) max = Math.min(max, Math.floor(player.materials[id] / n))
+  return Math.max(0, max)
+}
 /** Recipes worth showing: base ones always, tier ones once the player has any of that raw or wears the unlocking suit. */
 export function visibleRecipes(): Recipe[] {
   return RECIPES.filter((r) => r.tier === 0 || player.storage[r.from] > 0 || player.materials[r.out] > 0 || player.skills[r.skill].suit >= r.tier)
@@ -686,7 +706,7 @@ export function canAffordSuit(recipe: SuitRecipe): boolean {
 }
 
 export function canCraft(r: Recipe): boolean {
-  return player.storage[r.from] >= r.amount && player.berries >= r.berries && player.skills[r.skill].level >= r.level
+  return craftMax(r) >= 1 && player.skills[r.skill].level >= r.level
 }
 
 export function queueCraft(r: Recipe, times: number) {
@@ -694,10 +714,12 @@ export function queueCraft(r: Recipe, times: number) {
   while (n < times && canCraft(r)) {
     player.storage[r.from] -= r.amount
     player.berries -= r.berries
+    for (const [id, k] of Object.entries(r.extra) as Array<[MaterialKey, number]>) player.materials[id] -= k
     n++
   }
   if (n > 0) {
     storageChanged()
+    materialsChanged()
     currencyChanged()
     player.craftQueue.push({ material: r.out, remaining: n, elapsed: 0 })
     craftQueueChanged()
