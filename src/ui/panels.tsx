@@ -309,16 +309,17 @@ function SuitsTab() {
 let expandedSkill: Skill | null = null
 
 /** One rung of a profession's unlock ladder: lit when reached, greyed until then, yellow when it's the next one. */
-function LadderChip(props: { key?: string; rung: LadderRung; reached: boolean; next: boolean }) {
-  const bg = props.reached ? C.greenDark : props.next ? C.yellow : C.gray
-  const fg = props.reached || props.next ? C.white : C.textMuted
+/** One box in the unlock track: top line (level or heading), bottom line (what it gives). */
+function LadderChip(props: { key?: string; top: string; bottom: string; tone: 'reached' | 'next' | 'locked'; width?: number }) {
+  const bg = props.tone === 'reached' ? C.greenDark : props.tone === 'next' ? C.yellow : C.navySoft
+  const fg = props.tone === 'locked' ? C.textMuted : C.white
   return (
     <UiEntity
-      uiTransform={{ width: S(106), height: S(78), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(2), right: S(2) } }}
+      uiTransform={{ width: S(props.width ?? 200), height: S(84), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(4), right: S(4) } }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: bg }}
     >
-      <Text value={`Lv ${props.rung.level}`} size={S(22)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(30) }} />
-      <Text value={props.rung.label} size={S(20)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(28) }} />
+      <Text value={props.top} size={S(props.tone === 'next' ? 24 : 21)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(32) }} />
+      <Text value={props.bottom} size={S(props.tone === 'next' ? 24 : 21)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(32) }} />
     </UiEntity>
   )
 }
@@ -395,9 +396,21 @@ export function SkillsPanel() {
           </UiEntity>
           {expanded ? (
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(8) } }}>
-              {skillLadder(s).map((r, i) => (
-                <LadderChip key={`${s}-${i}`} rung={r} reached={st.level >= r.level} next={rung !== null && r.level === rung.level && r.label === rung.label} />
-              ))}
+              {/* Unlock track: what you already have (one green box), the next unlock (big, yellow), then what follows. */}
+              {(() => {
+                const ladder = skillLadder(s)
+                const reachedCount = ladder.filter((r) => st.level >= r.level).length
+                const latest = reachedCount > 0 ? ladder[reachedCount - 1] : null
+                const upcoming = ladder.slice(reachedCount, reachedCount + 6)
+                const more = ladder.length - reachedCount - upcoming.length
+                return [
+                  <LadderChip key={`${s}-have`} top={latest ? `${reachedCount} UNLOCKED  ✓` : 'NOTHING YET'} bottom={latest ? `latest: Lv ${latest.level} ${latest.label}` : 'first unlock at Lv 1'} tone="reached" width={300} />,
+                  ...upcoming.map((r, i) => (
+                    <LadderChip key={`${s}-${r.level}-${i}`} top={i === 0 ? `NEXT  •  Lv ${r.level}` : `Lv ${r.level}`} bottom={r.label} tone={i === 0 ? 'next' : 'locked'} width={i === 0 ? 260 : 170} />
+                  )),
+                  more > 0 ? <Text key={`${s}-more`} value={`+${more} more`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ width: S(110), height: S(32), margin: { left: S(6) } }} /> : null
+                ]
+              })()}
             </UiEntity>
           ) : (
             <Text value={rung ? `Tap for unlocks  •  Next: Lv ${rung.level} ${rung.label}` : 'Tap for unlocks  •  All unlocked'} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(32), margin: { top: S(4) } }} />
