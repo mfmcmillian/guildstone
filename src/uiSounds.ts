@@ -56,13 +56,13 @@ export function playErrorSound() {
 
 let levelUpEntity: Entity | null = null
 export function playLevelUpSound() {
-  if (!levelUpEntity) levelUpEntity = createSound('sounds/ui/level_up.wav', 0.7)
-  play(levelUpEntity, 'sounds/ui/level_up.wav', 0.7)
+  if (!levelUpEntity) levelUpEntity = createSound('sounds/ui/level_up.mp3', 0.7)
+  play(levelUpEntity, 'sounds/ui/level_up.mp3', 0.7)
 }
 
 // Own entity so a rare find never cuts off (or gets cut off by) the coin/level-up sounds.
 let rareFindEntity: Entity | null = null
 export function playRareFindSound() {
-  if (!rareFindEntity) rareFindEntity = createSound('sounds/loot/rare_find.wav', 0.8)
-  play(rareFindEntity, 'sounds/loot/rare_find.wav', 0.8)
+  if (!rareFindEntity) rareFindEntity = createSound('sounds/loot/rare_find.mp3', 0.8)
+  play(rareFindEntity, 'sounds/loot/rare_find.mp3', 0.8)
 }
