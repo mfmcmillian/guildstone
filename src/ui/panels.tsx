@@ -684,7 +684,8 @@ const guildForm = {
   settingsSeededFor: '',
   seeded: false
 }
-let guildTab: 'home' | 'donate' | 'hq' | 'tech' | 'manage' = 'home'
+type GuildTabId = 'home' | 'donate' | 'hq' | 'tech' | 'manage'
+let guildTab: GuildTabId = 'home'
 /** Two-tap confirmation for destructive officer actions: first tap arms, second tap within 5s fires. */
 let armedManage: { op: string; member: string; at: number } | null = null
 function manageArmed(op: string, member: string) {
@@ -762,6 +763,35 @@ function guildTechBenefit(key: GuildTechKey, level: number): string {
 }
 
 const GUILD_ROLE_RANK: Record<string, number> = { leader: 0, 'royal guard': 1, knight: 2, squire: 3, member: 4 }
+
+/** Painted fantasy icon set (images/icons/guild, 128 px). Rank icons are keyed by the server role string. */
+const GICON = {
+  rank: {
+    leader: 'images/icons/guild/rank_leader.png',
+    'royal guard': 'images/icons/guild/rank_royal_guard.png',
+    knight: 'images/icons/guild/rank_knight.png',
+    squire: 'images/icons/guild/rank_squire.png',
+    member: 'images/icons/guild/rank_initiate.png'
+  } as Record<string, string>,
+  settings: 'images/icons/guild/act_settings.png',
+  disband: 'images/icons/guild/act_disband.png',
+  transfer: 'images/icons/guild/act_transfer.png',
+  kick: 'images/icons/guild/act_kick.png',
+  motd: 'images/icons/guild/motd.png',
+  treasury: 'images/icons/guild/treasury.png',
+  hq: 'images/icons/guild/hq.png',
+  tech: 'images/icons/guild/tech.png',
+  leave: 'images/icons/guild/leave.png',
+  contribution: 'images/icons/guild/contribution.png',
+  crown: 'images/icons/guild/crown_small.png',
+  status: {
+    open: 'images/icons/guild/status_open.png',
+    apply: 'images/icons/guild/status_apply.png',
+    invite_only: 'images/icons/guild/status_invite_only.png',
+    full: 'images/icons/guild/status_full.png'
+  }
+}
+const guildRoleIcon = (role: string) => GICON.rank[role] ?? GICON.rank.member
 
 function guildRoleColor(role: string): Color4 {
   if (role === 'leader') return C.yellow
@@ -879,6 +909,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
           />
           <Button
             label="SAVE SETTINGS"
+            icon={GICON.settings}
             color={C.purple}
             size={S(24)}
             uiTransform={{ width: S(300), height: S(60), flexShrink: 0 }}
@@ -903,6 +934,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
               />
               <Button
                 label="DISBAND"
+                icon={GICON.disband}
                 color={C.red}
                 disabled={guildForm.confirmTag !== guild.tag}
                 size={S(22)}
@@ -935,10 +967,11 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
             const kickArmed = manageArmed('kick', id)
             const crownArmed = manageArmed('transfer', id)
             return (
-              <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(74), flexDirection: 'row', alignItems: 'center', padding: { left: S(14), right: S(10) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
-                <UiEntity uiTransform={{ width: S(300), flexDirection: 'column' }}>
-                  <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(24)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(300), height: S(30) }} />
-                  <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(15)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(300), height: S(20) }} />
+              <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(74), flexDirection: 'row', alignItems: 'center', padding: { left: S(10), right: S(10) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
+                <Icon src={guildRoleIcon(role)} size={S(56)} uiTransform={{ margin: { right: S(8) } }} />
+                <UiEntity uiTransform={{ width: S(240), flexDirection: 'column' }}>
+                  <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(24)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(240), height: S(30) }} />
+                  <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(15)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(240), height: S(20) }} />
                 </UiEntity>
                 <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
                   {GUILD_RANK_LADDER.map((option) => {
@@ -965,19 +998,21 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
                 {isLeader ? (
                   <Button
                     label={crownArmed ? 'CONFIRM?' : 'CROWN'}
+                    icon={GICON.transfer}
                     color={crownArmed ? C.yellow : C.navySoft}
                     size={S(16)}
-                    uiTransform={{ width: S(120), height: S(46), margin: { right: S(6) } }}
+                    uiTransform={{ width: S(136), height: S(46), margin: { right: S(6) } }}
                     onClick={() => manageTap('transfer', id)}
                   />
                 ) : null}
                 <Button
                   label={kickArmed ? 'CONFIRM?' : 'KICK'}
+                  icon={GICON.kick}
                   color={kickArmed ? C.red : C.gray}
                   textColor={kickArmed ? C.white : C.textMuted}
                   disabled={!canKick}
                   size={S(16)}
-                  uiTransform={{ width: S(110), height: S(46) }}
+                  uiTransform={{ width: S(128), height: S(46) }}
                   onClick={() => manageTap('kick', id)}
                 />
               </Panel>
@@ -990,10 +1025,13 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
   )
 }
 
-function GuildTab(props: { id: typeof guildTab; label: string }) {
+const GUILD_TAB_ICON: Record<GuildTabId, string> = { home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, manage: GICON.settings }
+
+function GuildTab(props: { id: GuildTabId; label: string }) {
   return (
     <Button
       label={props.label}
+      icon={GUILD_TAB_ICON[props.id]}
       color={guildTab === props.id ? C.purple : C.navySoft}
       size={S(32)}
       uiTransform={{ width: S(330), height: S(78), margin: { left: S(8), right: S(8) } }}
@@ -1221,7 +1259,7 @@ export function GuildPanel() {
                 </Panel>
               </UiEntity>
               <UiEntity uiTransform={{ width: S(1720), flexDirection: 'row', justifyContent: 'flex-end', margin: { top: S(10) } }}>
-                <Button label="LEAVE GUILD" color={C.gray} textColor={C.textMuted} size={S(20)} uiTransform={{ width: S(190), height: S(46) }} onClick={() => requestGuild('leave')} />
+                <Button label="LEAVE GUILD" icon={GICON.leave} color={C.gray} textColor={C.textMuted} size={S(20)} uiTransform={{ width: S(230), height: S(46) }} onClick={() => requestGuild('leave')} />
               </UiEntity>
             </UiEntity>
           ) : null}
@@ -1523,6 +1561,7 @@ export function GuildPanel() {
                 const full = g.memberCount >= g.maxMembers
                 const closed = g.recruitMode === 'invite_only' || g.recruitMode === 'apply'
                 const label = closed ? (g.recruitMode === 'apply' ? 'APPLY IN KOA' : 'INVITE ONLY') : full ? 'FULL' : 'JOIN'
+                const statusIcon = closed ? (g.recruitMode === 'apply' ? GICON.status.apply : GICON.status.invite_only) : full ? GICON.status.full : GICON.status.open
                 return (
                   <Panel key={g.id} flat color={C.paper} uiTransform={{ width: '100%', height: S(112), flexDirection: 'row', alignItems: 'center', padding: { left: S(14), right: S(14) }, margin: { bottom: S(10) }, flexShrink: 0 }}>
                     <UiEntity
@@ -1546,10 +1585,11 @@ export function GuildPanel() {
                     <Spacer />
                     <Button
                       label={label}
+                      icon={statusIcon}
                       color={closed ? C.gray : C.blue}
                       disabled={full || closed}
                       size={S(closed ? 18 : 26)}
-                      uiTransform={{ width: S(190), height: S(66) }}
+                      uiTransform={{ width: S(230), height: S(66) }}
                       onClick={() => requestGuild('join', { tag: g.tag })}
                     />
                   </Panel>
