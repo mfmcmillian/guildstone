@@ -6,6 +6,10 @@ import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_S
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
+import { openStorage } from './panels'
+import { playButtonSound } from '../uiSounds'
+
+let bagHover = false
 
 function CurrencyPill(props: { icon: string; value: number; color: Color4 }) {
   return (
@@ -135,7 +139,19 @@ export function Hud() {
           >
             {full ? <OutlinedText value={ringStationsEnabled() ? "BACKPACK FULL - OPEN THE DEPOT!" : `BACKPACK FULL - BANK IT AT ${campHint().toUpperCase()}!`} size={S(FONT.body + 2)} color={C.red} uiTransform={{ margin: { bottom: S(4) } }} /> : null}
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon src="images/icons/backpack.png" size={S(94)} uiTransform={{ margin: { right: S(14) } }} />
+              {/* Tap the bag to open Storage */}
+              <UiEntity
+                uiTransform={{ width: S(104), height: S(104), alignItems: 'center', justifyContent: 'center', margin: { right: S(10) } }}
+                uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: bagHover ? C.blue : C.navySoft }}
+                onMouseEnter={() => { bagHover = true }}
+                onMouseLeave={() => { bagHover = false }}
+                onMouseDown={() => {
+                  playButtonSound()
+                  openStorage()
+                }}
+              >
+                <Icon src="images/icons/backpack.png" size={S(90)} />
+              </UiEntity>
               <UiEntity uiTransform={{ width: S(550), flexDirection: 'column' }}>
                 <Bar value={count / Math.max(1, cap)} color={full ? C.red : C.blue} height={S(46)} label={`BACKPACK  ${count} / ${cap}`} labelSize={S(24)} />
                 <UiEntity uiTransform={{ width: '100%', height: S(48), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(6) } }}>

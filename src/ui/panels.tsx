@@ -63,7 +63,8 @@ import {
   craftSecs,
   boostMinutes, MAX_LEVEL, MASTERY_ENABLED
 } from '../state'
-import { closePanel, ui } from './uiState'
+import { closePanel, openPanel, ui } from './uiState'
+import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
@@ -421,6 +422,17 @@ const DEPOT_ITEMS: DepotItem[] = [...BASE_RESOURCES, ...MATERIALS]
 let depotView: 'backpack' | 'storage' = 'backpack'
 const depotSelection = new Set<DepotItem>()
 const backpackSelection = new Set<BaseResource>()
+
+/** HUD bag icon: jump straight to the Storage view of the Depot. */
+export function openStorage() {
+  if (!ringStationsEnabled()) {
+    flash(`YOUR STORAGE IS AT ${campHint().toUpperCase()}`)
+    return
+  }
+  depotView = 'storage'
+  depotSelection.clear()
+  openPanel('bank')
+}
 
 function storedAmount(item: DepotItem): number {
   return isStorageKey(item) ? player.storage[item] : player.materials[item as MaterialKey]
@@ -1783,7 +1795,7 @@ export function AwayPanel() {
   const color = skillColor(away.skill)
   const leveled = away.levelAfter > away.levelBefore
   const rare = Object.entries(away.rareDrops) as Array<[RareRaw, number]>
-  const extras = rare.length > 0 || away.antromPelts > 0
+  const extras = rare.length > 0 || away.antromPelts > 0 || away.berries > 0
   const designH = 470 + (extras ? 110 : 0)
   fitModal(760, designH)
   return (
@@ -1822,7 +1834,7 @@ export function AwayPanel() {
         {extras ? (
           <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: S(660), margin: { top: S(10) } }}>
             <Text
-              value={rare.length > 0 ? (away.rareDoubles > 0 ? `RARE FINDS  •  ${away.rareDoubles} doubled!` : 'RARE FINDS') : 'A GIFT FROM ANTROM'}
+              value={rare.length > 0 ? (away.rareDoubles > 0 ? `RARE FINDS  •  ${away.rareDoubles} doubled!` : 'RARE FINDS') : away.antromPelts > 0 ? 'A GIFT FROM ANTROM' : 'ALSO FOUND'}
               size={S(FONT.small)}
               color={C.yellow}
               align="middle-center"
@@ -1842,8 +1854,14 @@ export function AwayPanel() {
                   <Text value={`+${away.antromPelts} Beast Pelt from Antrom`} size={S(FONT.small)} color={C.text} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(4) } }} />
                 </UiEntity>
               ) : null}
+              {away.berries > 0 ? (
+                <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: S(8), right: S(8) }, height: S(40) }}>
+                  <Icon src={RESOURCE_INFO.berry.icon} size={S(34)} />
+                  <Text value={`+${away.berries} ${away.berries === 1 ? 'Berry' : 'Berries'}`} size={S(FONT.small)} color={C.text} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(4) } }} />
+                </UiEntity>
+              ) : null}
             </UiEntity>
-            <Text value="Sent straight to your Depot storage." size={S(13)} color={C.textMuted} align="middle-center" nowrap uiTransform={{ height: S(18) }} />
+            <Text value={rare.length > 0 || away.antromPelts > 0 ? 'Materials went straight to your Depot storage.' : 'Berries are ready to spend in the Shop.'} size={S(13)} color={C.textMuted} align="middle-center" nowrap uiTransform={{ height: S(18) }} />
           </UiEntity>
         ) : null}
         {away.capped ? (

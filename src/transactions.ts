@@ -38,6 +38,9 @@ interface RareFields {
   rareDoubles?: number
   rareProgress?: Record<string, number>
   antromPelts?: number
+  /** Berries that dropped at random while working. */
+  berries?: number
+  currency?: { coins: number; berries: number }
 }
 
 /** The most recent rare find, for the HUD flash + sound. */
@@ -47,6 +50,11 @@ export const lastRareFind = { text: '', at: 0, doubled: false }
 function applyRareFields(result: RareFields) {
   if (result.storage) player.storage = sanitizeStorage(result.storage)
   if (result.rareProgress) player.rareProgress = sanitizeRareProgress(result.rareProgress)
+  if (result.currency) {
+    player.coins = result.currency.coins
+    player.berries = result.currency.berries
+  }
+  if ((result.berries ?? 0) > 0) flash(`FOUND ${result.berries} ${result.berries === 1 ? 'BERRY' : 'BERRIES'}!`)
   const drops = Object.entries(result.rareDrops ?? {}) as Array<[RareRaw, number]>
   if (drops.length > 0) {
     const text = drops.map(([id, n]) => `+${n} ${RESOURCE_INFO[id]?.name ?? id}`).join('  ')
@@ -93,6 +101,8 @@ export interface AwaySummary {
   rareDoubles: number
   /** Beast Pelts gifted from Antrom on this sync. */
   antromPelts: number
+  /** Berries that dropped while away. */
+  berries: number
 }
 
 interface AwayResponse extends Partial<AwaySummary>, RareFields {
@@ -123,10 +133,14 @@ export async function claimAwayProgress(): Promise<AwaySummary | null> {
       if (result.mastery) player.mastery = result.mastery
       if (result.storage) player.storage = sanitizeStorage(result.storage)
       if (result.rareProgress) player.rareProgress = sanitizeRareProgress(result.rareProgress)
+      if (result.currency) {
+        player.coins = result.currency.coins
+        player.berries = result.currency.berries
+      }
     }
     if ((result.antromPelts ?? 0) > 0) player.antromPelts = result.antromPelts ?? 0
     const rareDrops = result.rareDrops ?? {}
-    const hasRare = Object.keys(rareDrops).length > 0 || (result.antromPelts ?? 0) > 0
+    const hasRare = Object.keys(rareDrops).length > 0 || (result.antromPelts ?? 0) > 0 || (result.berries ?? 0) > 0
     if ((result.got <= 0 && !hasRare) || !result.skill || !result.resource) return null
     return {
       skill: result.skill,
@@ -141,7 +155,8 @@ export async function claimAwayProgress(): Promise<AwaySummary | null> {
       capped: result.capped ?? false,
       rareDrops,
       rareDoubles: result.rareDoubles ?? 0,
-      antromPelts: result.antromPelts ?? 0
+      antromPelts: result.antromPelts ?? 0,
+      berries: result.berries ?? 0
     }
   } catch (error) {
     console.error('[transaction] Away progress failed:', error instanceof Error ? error.message : String(error))
