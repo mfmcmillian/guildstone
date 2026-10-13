@@ -3,7 +3,27 @@ import { signedFetch } from '~system/SignedFetch'
 import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
-import { BaseResource, Boost, flash, GuildInfo, GuildTechKey, Material, player, RESOURCE_INFO, SKILL_INFO, Skill, TOOL_NAME, toolPct, setSkills, MASTERY_ENABLED } from './state'
+import {
+  BaseResource,
+  Boost,
+  flash,
+  GuildInfo,
+  GuildTechKey,
+  ItemId,
+  MaterialKey,
+  PendingCraft,
+  player,
+  RareRaw,
+  RESOURCE_INFO,
+  SKILL_INFO,
+  Skill,
+  StorageKey,
+  TOOL_NAME,
+  toolPct,
+  setSkills,
+  MASTERY_ENABLED
+} from './state'
+import { sanitizeCraftedSuits, sanitizeMaterials, sanitizePendingCraft, sanitizeRareProgress, sanitizeStorage } from './backpackPersistence'
 import { playErrorSound, playSuccessSound } from './uiSounds'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -11,7 +31,40 @@ const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 type GatherTarget = Skill | 'berry'
 type GatherMode = 'cycle' | 'click'
 
-interface GatherResponse {
+/** Rare-drop fields every gather/work/away response may carry. */
+interface RareFields {
+  storage?: Record<string, number>
+  rareDrops?: Partial<Record<RareRaw, number>>
+  rareDoubles?: number
+  rareProgress?: Record<string, number>
+  antromPelts?: number
+}
+
+/** The most recent rare find, for the HUD flash + sound. */
+export const lastRareFind = { text: '', at: 0, doubled: false }
+
+/** Apply storage/progress from a server response and announce any rare finds (Depot-bound, so they never fill the bag). */
+function applyRareFields(result: RareFields) {
+  if (result.storage) player.storage = sanitizeStorage(result.storage)
+  if (result.rareProgress) player.rareProgress = sanitizeRareProgress(result.rareProgress)
+  const drops = Object.entries(result.rareDrops ?? {}) as Array<[RareRaw, number]>
+  if (drops.length > 0) {
+    const text = drops.map(([id, n]) => `+${n} ${RESOURCE_INFO[id]?.name ?? id}`).join('  ')
+    const doubled = (result.rareDoubles ?? 0) > 0
+    lastRareFind.text = doubled ? `DOUBLE!  ${text}` : text
+    lastRareFind.at = Date.now()
+    lastRareFind.doubled = doubled
+    flash(`RARE FIND  ${lastRareFind.text}  (sent to Depot)`)
+    playSuccessSound()
+  }
+  if ((result.antromPelts ?? 0) > 0) {
+    player.antromPelts = result.antromPelts ?? 0
+    flash(`A GIFT FROM ANTROM: +${result.antromPelts} Beast Pelt in your Depot`)
+    playSuccessSound()
+  }
+}
+
+interface GatherResponse extends RareFields {
   got: number
   /** True when the mastery double-drop roll hit this cycle. */
   doubled?: boolean
@@ -35,9 +88,14 @@ export interface AwaySummary {
   elapsed: number
   /** True when the backpack filled up before the away time ran out. */
   capped: boolean
+  /** Rare raws found while away (already in Depot storage). */
+  rareDrops: Partial<Record<RareRaw, number>>
+  rareDoubles: number
+  /** Beast Pelts gifted from Antrom on this sync. */
+  antromPelts: number
 }
 
-interface AwayResponse extends Partial<AwaySummary> {
+interface AwayResponse extends Partial<AwaySummary>, RareFields {
   got: number
   updatedAt: number
   backpack?: typeof player.backpack
@@ -63,8 +121,13 @@ export async function claimAwayProgress(): Promise<AwaySummary | null> {
       if (result.backpack) player.backpack = result.backpack
       if (result.skills) setSkills(result.skills)
       if (result.mastery) player.mastery = result.mastery
+      if (result.storage) player.storage = sanitizeStorage(result.storage)
+      if (result.rareProgress) player.rareProgress = sanitizeRareProgress(result.rareProgress)
     }
-    if (result.got <= 0 || !result.skill || !result.resource) return null
+    if ((result.antromPelts ?? 0) > 0) player.antromPelts = result.antromPelts ?? 0
+    const rareDrops = result.rareDrops ?? {}
+    const hasRare = Object.keys(rareDrops).length > 0 || (result.antromPelts ?? 0) > 0
+    if ((result.got <= 0 && !hasRare) || !result.skill || !result.resource) return null
     return {
       skill: result.skill,
       resource: result.resource,
@@ -75,7 +138,10 @@ export async function claimAwayProgress(): Promise<AwaySummary | null> {
       masteryBefore: result.masteryBefore ?? player.mastery[result.skill].level,
       masteryAfter: result.masteryAfter ?? player.mastery[result.skill].level,
       elapsed: result.elapsed ?? 0,
-      capped: result.capped ?? false
+      capped: result.capped ?? false,
+      rareDrops,
+      rareDoubles: result.rareDoubles ?? 0,
+      antromPelts: result.antromPelts ?? 0
     }
   } catch (error) {
     console.error('[transaction] Away progress failed:', error instanceof Error ? error.message : String(error))
@@ -83,7 +149,7 @@ export async function claimAwayProgress(): Promise<AwaySummary | null> {
   }
 }
 
-export type DepotItem = BaseResource | Material
+export type DepotItem = ItemId
 export type DepotAction = 'storeBackpack' | 'sellBackpack' | 'sellStorage'
 
 interface DepotResponse {
@@ -91,8 +157,8 @@ interface DepotResponse {
   coins: number
   updatedAt: number
   backpack: typeof player.backpack
-  storage: typeof player.storage
-  materials: typeof player.materials
+  storage: Record<string, number>
+  materials: Record<string, number>
   currency: { coins: number; berries: number }
 }
 
@@ -100,8 +166,8 @@ interface CraftResponse {
   queued: number
   updatedAt: number
   craftUpdatedAt: number
-  storage: typeof player.storage
-  materials: typeof player.materials
+  storage: Record<string, number>
+  materials: Record<string, number>
   currency: { coins: number; berries: number }
   craftQueue: typeof player.craftQueue
 }
@@ -157,6 +223,7 @@ export function requestGather(
       } else if (target !== 'berry') {
         flash('BACKPACK FULL - go DEPOT!')
       }
+      applyRareFields(result)
       if (masteryUp && MASTERY_ENABLED) {
         flash(masteryUp)
         playSuccessSound()
@@ -168,7 +235,7 @@ export function requestGather(
   })
 }
 
-interface WorkResponse {
+interface WorkResponse extends RareFields {
   started: boolean
   stopped?: boolean
   got: number
@@ -209,12 +276,16 @@ export function requestWork(skill: Skill, stop = false) {
         if (result.skills) setSkills(result.skills)
         if (result.mastery) player.mastery = result.mastery
       }
-      if (result.started) return
+      if (result.started) {
+        applyRareFields(result) // marker plant may carry the Antrom pelt gift
+        return
+      }
 
       const got = Math.max(0, Math.floor(result.got))
       const name = RESOURCE_INFO[SKILL_INFO[skill].resource].name
       if (got > 0) flash(`+${got} ${name}`)
       else if (result.capped) flash(ringStationsEnabled() ? 'BACKPACK FULL - open the Depot!' : `BACKPACK FULL - bank it at ${campHint()}!`)
+      applyRareFields(result)
       if (result.masteryUp && MASTERY_ENABLED) {
         flash(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
         playSuccessSound()
@@ -244,8 +315,8 @@ export function requestDepot(action: DepotAction, items: DepotItem[] = []) {
       if (result.updatedAt >= lastServerUpdateAt) {
         lastServerUpdateAt = result.updatedAt
         player.backpack = result.backpack
-        player.storage = result.storage
-        player.materials = result.materials
+        player.storage = sanitizeStorage(result.storage)
+        player.materials = sanitizeMaterials(result.materials)
         player.coins = result.currency.coins
         player.berries = result.currency.berries
       }
@@ -258,7 +329,7 @@ export function requestDepot(action: DepotAction, items: DepotItem[] = []) {
   })
 }
 
-function requestCraftAction(action: 'enqueue' | 'sync', material?: Material, amount?: number) {
+function requestCraftAction(action: 'enqueue' | 'sync', material?: MaterialKey, amount?: number) {
   if (craftRequestInFlight || profileState.status !== 'ready' || !profileState.walletAddress) return
   craftRequestInFlight = true
 
@@ -277,8 +348,8 @@ function requestCraftAction(action: 'enqueue' | 'sync', material?: Material, amo
       const result = JSON.parse(response.body) as CraftResponse
       if (result.updatedAt >= lastServerUpdateAt) {
         lastServerUpdateAt = result.updatedAt
-        player.storage = result.storage
-        player.materials = result.materials
+        player.storage = sanitizeStorage(result.storage)
+        player.materials = sanitizeMaterials(result.materials)
         player.coins = result.currency.coins
         player.berries = result.currency.berries
         player.craftQueue = result.craftQueue
@@ -292,8 +363,101 @@ function requestCraftAction(action: 'enqueue' | 'sync', material?: Material, amo
   })
 }
 
-export function requestCraft(material: Material, amount: number) {
+export function requestCraft(material: MaterialKey, amount: number) {
   requestCraftAction('enqueue', material, amount)
+}
+
+// --- Suit crafting (server mints the wearable through Decentraland Rewards) ----------------------------------
+
+interface CraftSuitResponse {
+  error?: string
+  /** Items still missing, by id (400 only). */
+  short?: Partial<Record<ItemId | 'coins', number>>
+  /** The craft record: status pending | minting | done | failed. */
+  craft?: PendingCraft | null
+  craftedSuits?: typeof player.craftedSuits
+  storage?: Record<string, number>
+  materials?: Record<string, number>
+  currency?: { coins: number; berries: number }
+  updatedAt?: number
+}
+
+let craftSuitInFlight = false
+let lastCraftSuitPollAt = 0
+
+function applyCraftSuitResponse(result: CraftSuitResponse) {
+  if (result.updatedAt !== undefined && result.updatedAt >= lastServerUpdateAt) lastServerUpdateAt = result.updatedAt
+  if (result.storage) player.storage = sanitizeStorage(result.storage)
+  if (result.materials) player.materials = sanitizeMaterials(result.materials)
+  if (result.currency) applyCurrency(result.currency)
+  if (result.craft !== undefined) player.pendingCraft = sanitizePendingCraft(result.craft)
+  if (result.craftedSuits) player.craftedSuits = sanitizeCraftedSuits(result.craftedSuits)
+}
+
+/** Craft a profession suit: the server checks level + ownership, takes the materials and coins, then mints. */
+export function requestCraftSuit(skill: Skill, level: number) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || craftSuitInFlight) return
+  craftSuitInFlight = true
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/craft-suit`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ skill, level }) }
+      })
+      const result = (response.body ? JSON.parse(response.body) : {}) as CraftSuitResponse
+      applyCraftSuitResponse(result)
+      if (!response.ok) {
+        const short = Object.entries(result.short ?? {}) as Array<[ItemId | 'coins', number]>
+        if (short.length > 0) flash(`NEED ${short.map(([id, n]) => `${n} more ${id === 'coins' ? 'Coins' : RESOURCE_INFO[id].name}`).join(', ')}`)
+        else flash((result.error ?? `Craft failed (${response.status})`).toUpperCase())
+        playErrorSound()
+        return
+      }
+      const name = `${SKILL_INFO[skill].name} L${level}`.toUpperCase()
+      flash(result.craft?.status === 'done' ? `${name} MINTED - check your backpack!` : `${name} IS BEING MINTED...`)
+      playSuccessSound()
+    } catch (error) {
+      console.error('[transaction] Craft suit failed:', error instanceof Error ? error.message : String(error))
+      flash('CRAFT FAILED - try again')
+      playErrorSound()
+    } finally {
+      craftSuitInFlight = false
+    }
+  })
+}
+
+/** While a suit is minting, ask the server to reconcile with Rewards every 15 s (refunds on rejection). */
+export function pollCraftSuit() {
+  const pending = player.pendingCraft
+  if (!pending || pending.status === 'done' || pending.status === 'failed') return
+  if (craftSuitInFlight || Date.now() - lastCraftSuitPollAt < 15000) return
+  if (profileState.status !== 'ready' || !profileState.walletAddress) return
+  lastCraftSuitPollAt = Date.now()
+  craftSuitInFlight = true
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/craft-suit`,
+        init: { method: 'GET', headers: {} }
+      })
+      if (!response.ok || !response.body) return
+      const result = JSON.parse(response.body) as CraftSuitResponse
+      const before = player.pendingCraft?.status
+      applyCraftSuitResponse(result)
+      const after = player.pendingCraft?.status
+      if (before !== after && after === 'done') {
+        flash(`${SKILL_INFO[pending.skill].name.toUpperCase()} L${pending.level} MINTED - check your backpack!`)
+        playSuccessSound()
+      } else if (before !== after && after === 'failed') {
+        flash('MINT FAILED - your materials were refunded')
+        playErrorSound()
+      }
+    } catch (error) {
+      console.error('[transaction] Craft suit poll failed:', error instanceof Error ? error.message : String(error))
+    } finally {
+      craftSuitInFlight = false
+    }
+  })
 }
 
 export function syncCraftQueue() {

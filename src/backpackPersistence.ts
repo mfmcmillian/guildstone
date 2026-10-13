@@ -7,12 +7,31 @@ import {
   CurrencyData,
   GuildDailyData,
   MaterialsData,
+  PendingCraftData,
   profileState,
   SkillsData,
   StorageData,
   AfkPlayerProfile
 } from './playerProfile'
-import { CRAFT_SECS, MASTERY_MAX, player, TOOL_MAX, MAX_LEVEL } from './state'
+import {
+  CRAFT_SECS,
+  emptyMaterials,
+  emptyRareProgress,
+  emptyStorage,
+  MASTERY_MAX,
+  MATERIAL_KEYS,
+  MaterialKey,
+  MAX_LEVEL,
+  PendingCraft,
+  player,
+  RARE_RAWS,
+  RareRaw,
+  Skill,
+  SKILLS,
+  STORAGE_KEYS,
+  StorageKey,
+  TOOL_MAX
+} from './state'
 import { claimAwayProgress, loadGuild } from './transactions'
 import { sanitizeAssassinPieces } from './suits'
 import { showAwaySummary } from './ui/uiState'
@@ -33,22 +52,38 @@ function sanitizeBackpack(value: BackpackData | undefined): BackpackData {
   }
 }
 
-function sanitizeStorage(value: StorageData | undefined): StorageData {
-  return {
-    wood: cleanAmount(value?.wood),
-    rock: cleanAmount(value?.rock),
-    meat: cleanAmount(value?.meat),
-    bone: cleanAmount(value?.bone)
-  }
+export function sanitizeStorage(value: StorageData | undefined): Record<StorageKey, number> {
+  const out = emptyStorage()
+  for (const key of STORAGE_KEYS) out[key] = cleanAmount(value?.[key])
+  return out
 }
 
-function sanitizeMaterials(value: MaterialsData | undefined): MaterialsData {
-  return {
-    plank: cleanAmount(value?.plank),
-    brick: cleanAmount(value?.brick),
-    jerky: cleanAmount(value?.jerky),
-    bonedust: cleanAmount(value?.bonedust)
+export function sanitizeMaterials(value: MaterialsData | undefined): Record<MaterialKey, number> {
+  const out = emptyMaterials()
+  for (const key of MATERIAL_KEYS) out[key] = cleanAmount(value?.[key])
+  return out
+}
+
+export function sanitizeRareProgress(value: Record<string, number> | undefined): Record<RareRaw, number> {
+  const out = emptyRareProgress()
+  for (const key of RARE_RAWS) {
+    const v = Number(value?.[key])
+    out[key] = Number.isFinite(v) && v > 0 ? Math.min(1, v) : 0
   }
+  return out
+}
+
+export function sanitizePendingCraft(value: PendingCraftData | null | undefined): PendingCraft | null {
+  if (!value || typeof value !== 'object' || !(SKILLS as string[]).includes(value.skill)) return null
+  const status = ['pending', 'minting', 'done', 'failed'].includes(value.status) ? (value.status as PendingCraft['status']) : 'pending'
+  return { id: String(value.id ?? ''), skill: value.skill as Skill, level: Math.min(4, Math.max(1, cleanAmount(value.level))), status, rewardId: value.rewardId, at: cleanAmount(value.at) }
+}
+
+export function sanitizeCraftedSuits(value: Array<{ skill: string; level: number; at: number }> | undefined): typeof player.craftedSuits {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((s) => s && (SKILLS as string[]).includes(s.skill))
+    .map((s) => ({ skill: s.skill as Skill, level: Math.min(4, Math.max(1, cleanAmount(s.level))), at: cleanAmount(s.at) }))
 }
 
 function sanitizeCurrency(value: CurrencyData | undefined): CurrencyData {
@@ -93,13 +128,13 @@ function sanitizeBoosts(value: BoostsData | undefined): BoostsData {
   }
 }
 
-function sanitizeCraftQueue(value: CraftQueueItemData[] | undefined): CraftQueueItemData[] {
+function sanitizeCraftQueue(value: CraftQueueItemData[] | undefined): typeof player.craftQueue {
   if (!Array.isArray(value)) return []
-  const materials = new Set(['plank', 'brick', 'jerky', 'bonedust'])
+  const materials = new Set<string>(MATERIAL_KEYS)
   return value
     .filter((job) => materials.has(job.material) && cleanAmount(job.remaining) > 0)
     .map((job) => ({
-      material: job.material,
+      material: job.material as MaterialKey,
       remaining: cleanAmount(job.remaining),
       elapsed: Math.min(CRAFT_SECS, Math.max(0, Number.isFinite(job.elapsed) ? job.elapsed : 0))
     }))
@@ -140,6 +175,9 @@ export function initializeBackpackPersistence() {
     player.luckyUntil = boosts.luckyUntil
     player.bigBagUntil = boosts.bigBagUntil
     player.craftQueue = sanitizeCraftQueue(profileState.profile.craftQueue)
+    player.rareProgress = sanitizeRareProgress(profileState.profile.rareProgress)
+    player.pendingCraft = sanitizePendingCraft(profileState.profile.pendingCraft)
+    player.craftedSuits = sanitizeCraftedSuits(profileState.profile.craftedSuits)
     player.guildDaily = sanitizeGuildDaily(profileState.profile.guildDaily)
     initialized = true
     executeTask(async () => {

@@ -21,19 +21,11 @@ export interface BackpackData {
   bone: number
 }
 
-export interface StorageData {
-  wood: number
-  rock: number
-  meat: number
-  bone: number
-}
+/** Every raw (base + rare) by id; the server owns the key list. */
+export type StorageData = Record<string, number>
 
-export interface MaterialsData {
-  plank: number
-  brick: number
-  jerky: number
-  bonedust: number
-}
+/** Every refined material by id; the server owns the key list. */
+export type MaterialsData = Record<string, number>
 
 export interface CurrencyData {
   coins: number
@@ -60,9 +52,18 @@ export interface BoostsData {
 }
 
 export interface CraftQueueItemData {
-  material: 'plank' | 'brick' | 'jerky' | 'bonedust'
+  material: string
   remaining: number
   elapsed: number
+}
+
+export interface PendingCraftData {
+  id: string
+  skill: string
+  level: number
+  status: string
+  rewardId?: string
+  at: number
 }
 
 export interface GuildDailyData {
@@ -94,6 +95,12 @@ export interface AfkPlayerProfile {
   mastery?: Partial<Record<string, { level?: number; xp?: number }>>
   /** Tool tier per profession (0-5). */
   tools?: Partial<Record<string, number>>
+  /** Progress (0..1) toward the next unit of each rare drop. */
+  rareProgress?: Record<string, number>
+  /** Suit craft in flight (Rewards mint), if any. */
+  pendingCraft?: PendingCraftData | null
+  /** Suits the server has minted for this player. */
+  craftedSuits?: Array<{ skill: string; level: number; at: number }>
   legacyGuildMigrationVersion?: number
   legacyGuildImportedAt?: number
   legacyStorageMigrationVersion?: number
@@ -207,15 +214,16 @@ async function migrateLegacyStorage(profile: AfkPlayerProfile): Promise<AfkPlaye
   const response = await fetch(`${BACKEND_URL}/player/${profile.walletAddress}`)
   if (!response.ok) throw new Error(`Legacy profile read failed (${response.status})`)
   const legacy = (await response.json()) as Record<string, unknown>
-  const current = profile.storage ?? { wood: 0, rock: 0, meat: 0, bone: 0 }
+  const current: StorageData = profile.storage ?? {}
   const now = Date.now()
   const updated: AfkPlayerProfile = {
     ...profile,
     storage: {
-      wood: current.wood + legacyAmount(legacy.wood),
-      rock: current.rock + legacyAmount(legacy.stone),
-      meat: current.meat + legacyAmount(legacy.meat),
-      bone: current.bone + legacyAmount(legacy.bones)
+      ...current,
+      wood: legacyAmount(current.wood) + legacyAmount(legacy.wood),
+      rock: legacyAmount(current.rock) + legacyAmount(legacy.stone),
+      meat: legacyAmount(current.meat) + legacyAmount(legacy.meat),
+      bone: legacyAmount(current.bone) + legacyAmount(legacy.bones)
     },
     legacyStorageMigrationVersion: LEGACY_STORAGE_MIGRATION_VERSION,
     legacyStorageImportedAt: now,

@@ -35,6 +35,20 @@ import {
   SUIT_CAP,
   BaseResource,
   Material,
+  ItemId,
+  MaterialKey,
+  isStorageKey,
+  RareRaw,
+  RARE_RAWS,
+  RARE_MATERIALS,
+  LADDER,
+  activeRareDrops,
+  rareDoublePct,
+  RARE_DOUBLE_BASE,
+  PROSPECTOR_PCT_PER_LEVEL,
+  suitRecipe,
+  haveItem,
+  canAffordSuit,
   flash,
   Skill,
   GUILD_TECH,
@@ -52,7 +66,7 @@ import {
 import { closePanel, ui } from './uiState'
 import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
-import { refreshGuild, requestBoost, requestCraft, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
+import { refreshGuild, requestBoost, requestCraft, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
 import { canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, pieceThumbnail, refreshOwnedSuits, suitPieces } from '../suits'
 
 const skillColor = (s: Skill) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
@@ -76,9 +90,19 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
     const next = on ? [...player.equippedAssassinPieces, piece.urn] : player.equippedAssassinPieces.filter((urn) => urn !== piece.urn)
     requestEquipSuit(skill, next.length, [...new Set(next)])
   }
+  // Crafting (tiered lines only): the server takes the materials and mints the wearable through Rewards.
+  const recipe = !owned && !set ? suitRecipe(skill, level) : null
+  const pending = player.pendingCraft
+  const mintingThis = pending !== null && pending.skill === skill && pending.level === level && (pending.status === 'pending' || pending.status === 'minting')
+  const mintingOther = pending !== null && !mintingThis && (pending.status === 'pending' || pending.status === 'minting')
+  const minted = !owned && player.craftedSuits.some((c) => c.skill === skill && c.level === level)
+  const prevOwned = level === 1 || ownsPiece(suitPieces(skill)[index - 1])
+  const levelOk = recipe !== null && player.skills[skill].level >= recipe.level
+  const craftable = recipe !== null && levelOk && prevOwned && canAffordSuit(recipe) && !mintingThis && !mintingOther && !minted
+  const costEntries = recipe ? (Object.entries(recipe.cost) as Array<[ItemId | 'coins', number]>) : []
   return (
     <UiEntity
-      uiTransform={{ width: S(210), height: S(244), flexDirection: 'column', alignItems: 'center', padding: S(16), margin: { left: S(6), right: S(6) } }}
+      uiTransform={{ width: S(210), height: S(SUIT_CARD_H), flexDirection: 'column', alignItems: 'center', padding: S(16), margin: { left: S(6), right: S(6) } }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: equipped ? C.yellow : owned ? C.paper2 : C.navySoft }}
     >
       <UiEntity
@@ -103,8 +127,40 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
         nowrap
         uiTransform={{ height: S(20) }}
       />
+      {recipe ? (
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(4) } }}>
+          <Text value={`Lv ${recipe.level}${prevOwned ? '' : `  •  own L${level - 1} first`}`} size={S(13)} color={levelOk && prevOwned ? C.greenDark : C.red} nowrap uiTransform={{ height: S(16) }} />
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {costEntries.map(([id, need]) => {
+              const have = haveItem(id)
+              const icon = id === 'coins' ? RESOURCE_INFO.coin.icon : RESOURCE_INFO[id].icon
+              return (
+                <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(88), height: S(24), margin: { left: S(1), right: S(1) } }}>
+                  <Icon src={icon} size={S(20)} />
+                  <Text value={`${compact(have)}/${compact(need)}`} size={S(12)} color={have >= need ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: S(64), height: S(24), margin: { left: S(2) } }} />
+                </UiEntity>
+              )
+            })}
+          </UiEntity>
+        </UiEntity>
+      ) : null}
       <Spacer />
-      {equipped ? (
+      {recipe ? (
+        mintingThis ? (
+          <Text value="MINTING…" size={S(16)} color={C.yellow} uiTransform={{ height: S(44) }} />
+        ) : minted ? (
+          <Text value={checking ? 'CHECKING…' : 'MINTED - checking wallet…'} size={S(13)} color={C.greenDark} uiTransform={{ height: S(44) }} />
+        ) : (
+          <Button
+            label="CRAFT"
+            color={C.orange}
+            size={S(20)}
+            disabled={!craftable}
+            uiTransform={{ width: S(160), height: S(44) }}
+            onClick={() => requestCraftSuit(skill, level)}
+          />
+        )
+      ) : equipped ? (
         <Button
           label="EQUIPPED"
           color={C.green}
@@ -121,10 +177,18 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
           onClick={() => (set ? toggleSet(true) : requestEquipSuit(skill, level))}
         />
       ) : (
-        <Text value={checking ? 'CHECKING…' : 'NOT OWNED'} size={S(15)} color={C.textMuted} uiTransform={{ height: S(44) }} />
+        <Text value={checking ? 'CHECKING…' : set ? 'NOT OWNED  •  buy it in the Marketplace' : 'NOT OWNED'} size={S(14)} color={C.textMuted} uiTransform={{ height: S(44) }} />
       )}
     </UiEntity>
   )
+}
+
+const SUIT_CARD_H = 330
+/** 150000 -> "150k", 2000 -> "2k", 600 -> "600". */
+function compact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0)}m`
+  if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 ? 1 : 0)}k`
+  return `${n}`
 }
 
 function SuitRow(props: { key?: string; skill: Skill }) {
@@ -137,7 +201,7 @@ function SuitRow(props: { key?: string; skill: Skill }) {
   const wornPieces = player.equippedAssassinPieces.length
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
-      <Panel flat color={C.paper2} uiTransform={{ width: S(250), height: S(244), alignItems: 'center', justifyContent: 'center', padding: S(16), margin: { right: S(6) } }}>
+      <Panel flat color={C.paper2} uiTransform={{ width: S(250), height: S(SUIT_CARD_H), alignItems: 'center', justifyContent: 'center', padding: S(16), margin: { right: S(6) } }}>
         <UiEntity
           uiTransform={{ width: S(64), height: S(64), alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color }}
@@ -193,7 +257,7 @@ function SuitsTab() {
       </Panel>
       {SKILLS.map((s) => <SuitRow key={s} skill={s} />)}
       <Text
-        value="Equip a suit you own to apply its bonus. Assassin level = Ether Assassin pieces worn. Every equipped suit adds its bag to your backpack."
+        value="Craft Lumberjack, Miner and Butcher suits here with materials and coins: the wearable is minted to your wallet. Assassin pieces are bought in the Marketplace. Wear a suit to unlock the next tier of drops in its zone; every worn suit also adds bag space."
         size={S(15)}
         color={C.textMuted}
         uiTransform={{ margin: { top: S(8) } }}
@@ -222,7 +286,7 @@ function LadderChip(props: { key?: string; rung: LadderRung; reached: boolean; n
 export function SkillsPanel() {
   const suits = skillsTab === 'suits'
   const designW = suits ? 1220 : 1340
-  const designH = suits ? 1300 : 940 + (expandedSkill ? 80 : 0)
+  const designH = suits ? 1300 + 4 * (SUIT_CARD_H - 244) : 940 + (expandedSkill ? 80 : 0)
   fitModal(designW, designH)
   return (
     <Modal title={suits ? 'SUITS' : 'PROFESSIONS'} color={C.blue} width={designW} height={designH} onClose={closePanel}>
@@ -275,6 +339,7 @@ export function SkillsPanel() {
               </UiEntity>
               <Text value={st.suit > 0 ? `Tier ${st.suit} drops` : 'Base drops'} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
             </UiEntity>
+            <RareDropColumn skill={s} />
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', margin: { left: S(26) } }}>
               <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(24)} color={player.tools[s] > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(32) }} />
               <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(4), bottom: S(4) } }}>
@@ -305,6 +370,30 @@ export function SkillsPanel() {
   )
 }
 
+/** Rare drops rolling in this profession's zone right now, with progress toward the next one (steady: 1/rate per cycle). */
+function RareDropColumn(props: { key?: string; skill: Skill }) {
+  const active = activeRareDrops(props.skill)
+  const next = LADDER[props.skill][player.skills[props.skill].suit + 1]
+  return (
+    <UiEntity uiTransform={{ flexDirection: 'column', width: S(230), margin: { left: S(22) } }}>
+      <Text value={active.length > 0 ? `RARE FINDS  •  ${Math.round(rareDoublePct() * 100)}% double` : 'RARE FINDS'} size={S(16)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(22) }} />
+      {active.length === 0 ? (
+        <Text value={next ? `Wear the L1 suit to find ${next[1]}` : 'Everything unlocked'} size={S(14)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(40) }} />
+      ) : (
+        active.slice(0, 3).map((id) => (
+          <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(28) }}>
+            <Icon src={RESOURCE_INFO[id].icon} size={S(24)} />
+            <UiEntity uiTransform={{ width: S(190), margin: { left: S(6) } }}>
+              <Bar value={player.rareProgress[id]} color={C.purple} height={S(22)} label={`${RESOURCE_INFO[id].name}  ${Math.round(player.rareProgress[id] * 100)}%`} labelSize={S(13)} />
+            </UiEntity>
+          </UiEntity>
+        ))
+      )}
+      {active.length > 3 ? <Text value={`+${active.length - 3} more`} size={S(13)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(16) }} /> : null}
+    </UiEntity>
+  )
+}
+
 /** Zone Mastery column on a profession row: level, progress, current bonus and the next milestone. */
 function MasteryColumn(props: { key?: string; skill: Skill }) {
   const m = player.mastery[props.skill]
@@ -326,19 +415,36 @@ function MasteryColumn(props: { key?: string; skill: Skill }) {
 }
 
 // ---------------------------------------------------------------- DEPOT
-type DepotItem = BaseResource | Material
-const CRAFTED_MATERIALS: Material[] = RECIPES.map((recipe) => recipe.out)
-const DEPOT_ITEMS: DepotItem[] = [...BASE_RESOURCES, ...CRAFTED_MATERIALS]
+type DepotItem = ItemId
+/** Sellable base items: the four raws and their refined forms. */
+const DEPOT_ITEMS: DepotItem[] = [...BASE_RESOURCES, ...MATERIALS]
 let depotView: 'backpack' | 'storage' = 'backpack'
 const depotSelection = new Set<DepotItem>()
 const backpackSelection = new Set<BaseResource>()
 
-function isBaseResource(item: DepotItem): item is BaseResource {
-  return BASE_RESOURCES.includes(item as BaseResource)
+function storedAmount(item: DepotItem): number {
+  return isStorageKey(item) ? player.storage[item] : player.materials[item as MaterialKey]
 }
 
-function storedAmount(item: DepotItem): number {
-  return isBaseResource(item) ? player.storage[item] : player.materials[item]
+/** Rare raws + tier materials the player holds. Craft-only, so the Depot just shows them. */
+function rareHoldings(): Array<{ id: ItemId; amount: number }> {
+  const out: Array<{ id: ItemId; amount: number }> = []
+  for (const id of RARE_RAWS) if (player.storage[id] > 0) out.push({ id, amount: player.storage[id] })
+  for (const id of RARE_MATERIALS) if (player.materials[id] > 0) out.push({ id, amount: player.materials[id] })
+  return out
+}
+
+function RareChip(props: { key?: string; id: ItemId; amount: number }) {
+  return (
+    <UiEntity
+      uiTransform={{ width: S(118), height: S(132), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(8), margin: S(4) }}
+      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: C.navySoft }}
+    >
+      <Icon src={RESOURCE_INFO[props.id].icon} size={S(56)} />
+      <Text value={RESOURCE_INFO[props.id].name} size={S(13)} color={C.textMuted} nowrap uiTransform={{ height: S(18) }} />
+      <OutlinedText value={`${props.amount}`} size={S(22)} color={C.yellow} />
+    </UiEntity>
+  )
 }
 
 function sellSelectedStorage() {
@@ -453,16 +559,29 @@ function StorageDepotView() {
   const selectedCoins = Math.round(selectedItems.reduce((sum, item) => sum + storedAmount(item) * RESOURCE_INFO[item].value, 0) * guildSellMult())
   const availableItems = DEPOT_ITEMS.filter((item) => storedAmount(item) > 0)
   const allSelected = availableItems.length > 0 && availableItems.every((item) => depotSelection.has(item))
+  const rare = rareHoldings()
+  const rareRows = Math.max(1, Math.ceil(rare.length / 6))
+  const designH = 650 + 60 + rareRows * 140
 
-  fitModal(820, 650)
+  fitModal(820, designH)
   return (
-    <Modal title="STORAGE" color={C.blue} width={820} height={650} onClose={closeDepot}>
+    <Modal title="STORAGE" color={C.blue} width={820} height={designH} onClose={closeDepot}>
       <Text value="Tap materials to select what you want to sell." size={S(FONT.body)} color={C.textMuted} />
       <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(8) } }}>
         {DEPOT_ITEMS.slice(0, 4).map((item) => <StorageCard key={item} item={item} />)}
       </UiEntity>
       <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
         {DEPOT_ITEMS.slice(4).map((item) => <StorageCard key={item} item={item} />)}
+      </UiEntity>
+      <OutlinedText value="RARE FINDS" size={S(20)} color={C.yellow} uiTransform={{ margin: { top: S(10) } }} />
+      <Text
+        value={rare.length > 0 ? 'Craft-only: refine them at the Workshop and use them for suits. They cannot be sold.' : 'Wear a suit in its zone and rare materials land here on their own. Nothing yet.'}
+        size={S(14)}
+        color={C.textMuted}
+        uiTransform={{ height: S(20) }}
+      />
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', minHeight: S(140) }}>
+        {rare.map((r) => <RareChip key={r.id} id={r.id} amount={r.amount} />)}
       </UiEntity>
       <Spacer />
       <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
@@ -497,22 +616,41 @@ export function BankPanel() {
 }
 
 // ---------------------------------------------------------------- WORKSHOP
+let workshopSkill: Skill = 'lumberjack'
+
 export function WorkshopPanel() {
   const job = player.craftQueue[0]
-  fitModal(960, 620)
+  const recipes = RECIPES.filter((r) => r.skill === workshopSkill)
+  fitModal(1120, 720)
   return (
-    <Modal title="WORKSHOP" color={C.orange} width={960} height={620} onClose={closePanel}>
+    <Modal title="WORKSHOP" color={C.orange} width={1120} height={720} onClose={closePanel}>
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(10) } }}>
+        {SKILLS.map((s) => (
+          <Button
+            key={s}
+            label={SKILL_INFO[s].name.toUpperCase()}
+            icon={SKILL_ICON[s]}
+            color={workshopSkill === s ? skillColor(s) : C.navySoft}
+            size={S(20)}
+            uiTransform={{ width: S(250), height: S(58), margin: { left: S(5), right: S(5) } }}
+            onClick={() => { workshopSkill = s }}
+          />
+        ))}
+      </UiEntity>
       <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
-        {RECIPES.map((r) => {
-          const ok = canCraft(r)
+        {recipes.map((r) => {
           const have = player.storage[r.from]
+          const ok = canCraft(r)
           const maxTimes = Math.floor(have / r.amount)
+          // Tier recipes stay dim until the player wears the unlocking suit or already holds some of the raw.
+          const locked = r.tier > 0 && have <= 0 && player.materials[r.out] <= 0 && player.skills[r.skill].suit < r.tier
           return (
-            <Panel key={r.out} flat color={C.paper2} uiTransform={{ width: S(206), height: S(390), alignItems: 'center', padding: S(16), margin: { left: S(6), right: S(6) } }}>
-              <Icon src={RESOURCE_INFO[r.out].icon} size={S(96)} />
-              <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(FONT.body + 2)} color={C.white} />
+            <Panel key={r.out} flat color={locked ? C.navySoft : C.paper2} uiTransform={{ width: S(206), height: S(420), alignItems: 'center', padding: S(16), margin: { left: S(5), right: S(5) } }}>
+              <Text value={r.tier === 0 ? 'BASE' : `TIER ${r.tier}`} size={S(14)} color={locked ? C.textMuted : C.yellow} nowrap uiTransform={{ height: S(18) }} />
+              <Icon src={RESOURCE_INFO[r.out].icon} size={S(88)} />
+              <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(FONT.body)} color={locked ? C.textMuted : C.white} />
               <Text value={`you have ${player.materials[r.out]}`} size={S(FONT.small)} color={C.textMuted} />
-              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(10), bottom: S(4) } }}>
+              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(8), bottom: S(4) } }}>
                 <Icon src={RESOURCE_INFO[r.from].icon} size={S(40)} />
                 <Text value={`${r.amount}`} size={S(FONT.body + 2)} color={have >= r.amount ? C.greenDark : C.red} uiTransform={{ width: 'auto', minWidth: S(40) }} />
                 <Text value="->" size={S(FONT.body)} color={C.textMuted} uiTransform={{ width: 'auto', minWidth: S(34) }} />
@@ -521,8 +659,14 @@ export function WorkshopPanel() {
               </UiEntity>
               <Text value={`storage: ${have} ${RESOURCE_INFO[r.from].name}`} size={S(FONT.small)} color={C.textMuted} />
               <Spacer />
-              <Button label="MAKE 1" color={C.orange} disabled={!ok} uiTransform={{ width: S(170), height: S(56) }} onClick={() => requestCraft(r.out, 1)} />
-              <Button label={`MAKE ALL (${maxTimes})`} color={C.green} disabled={!ok} size={S(FONT.body)} uiTransform={{ width: S(170), height: S(56), margin: { top: S(8) } }} onClick={() => requestCraft(r.out, maxTimes)} />
+              {locked ? (
+                <Text value={`Wear ${SKILL_INFO[r.skill].name} L${r.tier}+ in the ${SKILL_INFO[r.skill].zoneName} to find ${RESOURCE_INFO[r.from].name}`} size={S(14)} color={C.textMuted} uiTransform={{ height: S(120) }} />
+              ) : (
+                <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
+                  <Button label="MAKE 1" color={C.orange} disabled={!ok} uiTransform={{ width: S(170), height: S(56) }} onClick={() => requestCraft(r.out, 1)} />
+                  <Button label={`MAKE ALL (${maxTimes})`} color={C.green} disabled={!ok} size={S(FONT.body)} uiTransform={{ width: S(170), height: S(56), margin: { top: S(8) } }} onClick={() => requestCraft(r.out, maxTimes)} />
+                </UiEntity>
+              )}
             </Panel>
           )
         })}
@@ -720,20 +864,21 @@ function shortWallet(address: string) {
 const GUILD_TECH_ICON: Record<GuildTechKey, string> = {
   woodBoost: RESOURCE_INFO.wood.icon,
   stoneBoost: RESOURCE_INFO.rock.icon,
-  goldBoost: RESOURCE_INFO.meat.icon,
+  meatBoost: RESOURCE_INFO.meat.icon,
   xpBoost: 'images/icons/suit.png',
   craftDiscount: RESOURCE_INFO.plank.icon,
   lootLuck: RESOURCE_INFO.bone.icon,
   merchant: RESOURCE_INFO.coin.icon,
   architect: RESOURCE_INFO.brick.icon,
   quartermaster: 'images/icons/backpack.png',
-  forager: RESOURCE_INFO.berry.icon
+  forager: RESOURCE_INFO.berry.icon,
+  prospector: RESOURCE_INFO.deepwood_amber.icon
 }
 
 const GUILD_HQ_MILESTONES: { level: number; memberCap: number; unlock?: string }[] = [
   { level: 10, memberCap: 22 },
   { level: 25, memberCap: 25 },
-  { level: 50, memberCap: 30 },
+  { level: 50, memberCap: 30, unlock: 'Prospector tech' },
   { level: 75, memberCap: 35 },
   { level: 100, memberCap: 50, unlock: 'Advanced Tech (levels 6–10)' },
   { level: 110, memberCap: 50, unlock: 'Merchant tech' },
@@ -750,13 +895,14 @@ function formatPercent(value: number): string {
 function guildTechBenefit(key: GuildTechKey, level: number): string {
   if (key === 'woodBoost') return `+${level * 5}% Wood gathering`
   if (key === 'stoneBoost') return `+${level * 5}% Rock gathering`
-  if (key === 'goldBoost') return `+${level * 2}% Meat gathering`
+  if (key === 'meatBoost') return `+${level * 2}% Meat gathering`
   if (key === 'xpBoost') return `+${level * 2}% Profession XP`
   if (key === 'craftDiscount') return `${Math.min(5, level) * 10 + Math.max(0, level - 5) * 8}% Faster crafting`
   if (key === 'lootLuck') return `+${level}% Bone gathering  •  +${level * 10} Backpack`
   if (key === 'merchant') return `+${level * 3}% Coins on every sale`
   if (key === 'architect') return `HQ donations count +${level * 5}% more`
   if (key === 'quartermaster') return `Boosts last +${level * 10}% longer`
+  if (key === 'prospector') return `${Math.round((RARE_DOUBLE_BASE + level * PROSPECTOR_PCT_PER_LEVEL) * 100)}% Chance a rare drop doubles`
   return `${level * 5}% Chance of double berries`
 }
 
@@ -1636,9 +1782,12 @@ export function AwayPanel() {
   const res = RESOURCE_INFO[away.resource]
   const color = skillColor(away.skill)
   const leveled = away.levelAfter > away.levelBefore
-  fitModal(760, 470)
+  const rare = Object.entries(away.rareDrops) as Array<[RareRaw, number]>
+  const extras = rare.length > 0 || away.antromPelts > 0
+  const designH = 470 + (extras ? 110 : 0)
+  fitModal(760, designH)
   return (
-    <Modal title="WHILE YOU WERE AWAY" color={C.green} width={760} height={470} titleWidth={620} onClose={closePanel}>
+    <Modal title="WHILE YOU WERE AWAY" color={C.green} width={760} height={designH} titleWidth={620} onClose={closePanel}>
       <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', padding: { top: S(26), bottom: S(6) } }}>
         <Text value={`Your ${info.name} kept working for ${formatAway(away.elapsed)}`} size={S(FONT.body + 2)} color={C.text} align="middle-center" nowrap />
 
@@ -1669,6 +1818,33 @@ export function AwayPanel() {
 
         {away.masteryAfter > away.masteryBefore ? (
           <Text value={`${SKILL_INFO[away.skill].zoneName} Mastery ${away.masteryBefore} -> ${away.masteryAfter}`} size={S(FONT.small)} color={C.purple} align="middle-center" nowrap uiTransform={{ margin: { top: S(6) } }} />
+        ) : null}
+        {extras ? (
+          <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: S(660), margin: { top: S(10) } }}>
+            <Text
+              value={rare.length > 0 ? (away.rareDoubles > 0 ? `RARE FINDS  •  ${away.rareDoubles} doubled!` : 'RARE FINDS') : 'A GIFT FROM ANTROM'}
+              size={S(FONT.small)}
+              color={C.yellow}
+              align="middle-center"
+              nowrap
+              uiTransform={{ height: S(22) }}
+            />
+            <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
+              {rare.map(([id, n]) => (
+                <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: S(8), right: S(8) }, height: S(40) }}>
+                  <Icon src={RESOURCE_INFO[id].icon} size={S(34)} />
+                  <Text value={`+${n} ${RESOURCE_INFO[id].name}`} size={S(FONT.small)} color={C.text} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(4) } }} />
+                </UiEntity>
+              ))}
+              {away.antromPelts > 0 ? (
+                <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: S(8), right: S(8) }, height: S(40) }}>
+                  <Icon src={RESOURCE_INFO.hide.icon} size={S(34)} />
+                  <Text value={`+${away.antromPelts} Beast Pelt from Antrom`} size={S(FONT.small)} color={C.text} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(4) } }} />
+                </UiEntity>
+              ) : null}
+            </UiEntity>
+            <Text value="Sent straight to your Depot storage." size={S(13)} color={C.textMuted} align="middle-center" nowrap uiTransform={{ height: S(18) }} />
+          </UiEntity>
         ) : null}
         {away.capped ? (
           <Text

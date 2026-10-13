@@ -9,6 +9,74 @@ export const SKILLS: Skill[] = ['lumberjack', 'miner', 'butcher', 'assassin']
 export const BASE_RESOURCES: BaseResource[] = ['wood', 'rock', 'meat', 'bone']
 export const MATERIALS: Material[] = ['plank', 'brick', 'jerky', 'bonedust']
 
+// --- Guildstone economy (mirrors the server / koa/guildstone-web) ------------------------------------
+// Suits are keys: wearing tier N of a profession makes tier N+1 raws drop in its zone. Rare raws skip the
+// backpack and land straight in Depot storage; only base items can be sold.
+export type RareRaw =
+  | 'hardwood' | 'ironwood' | 'heartwood' | 'eldertree_root'
+  | 'iron_ore' | 'silver_ore' | 'mithril_ore' | 'starstone'
+  | 'hide' | 'horn' | 'prime_pelt' | 'behemoth_hide'
+  | 'fang' | 'skull' | 'wraith_bone' | 'lich_marrow'
+  | 'deepwood_amber' | 'shadow_sinew' | 'ghostwood' | 'bloodstone' | 'antrom_essence' | 'guildstone_shard'
+export type RareMaterial =
+  | 'timber_beam' | 'ironwood_plank' | 'heartwood_core' | 'elder_totem'
+  | 'iron_ingot' | 'silver_ingot' | 'mithril_ingot' | 'star_core'
+  | 'leather' | 'horn_plate' | 'royal_leather' | 'behemoth_plate'
+  | 'fang_powder' | 'skull_charm' | 'wraith_ash' | 'lich_sigil'
+export type StorageKey = BaseResource | RareRaw
+export type MaterialKey = Material | RareMaterial
+export type ItemId = StorageKey | MaterialKey
+
+/** [rawId, rawName, refinedId, refinedName] per tier (0 = base). */
+export const LADDER: Record<Skill, Array<[StorageKey, string, MaterialKey, string]>> = {
+  lumberjack: [['wood', 'Wood', 'plank', 'Plank'], ['hardwood', 'Hardwood', 'timber_beam', 'Timber Beam'], ['ironwood', 'Ironwood', 'ironwood_plank', 'Ironwood Plank'], ['heartwood', 'Heartwood', 'heartwood_core', 'Heartwood Core'], ['eldertree_root', 'Eldertree Root', 'elder_totem', 'Elder Totem']],
+  miner: [['rock', 'Rock', 'brick', 'Brick'], ['iron_ore', 'Iron Ore', 'iron_ingot', 'Iron Ingot'], ['silver_ore', 'Silver Ore', 'silver_ingot', 'Silver Ingot'], ['mithril_ore', 'Mithril Ore', 'mithril_ingot', 'Mithril Ingot'], ['starstone', 'Starstone', 'star_core', 'Star Core']],
+  butcher: [['meat', 'Meat', 'jerky', 'Jerky'], ['hide', 'Beast Pelt', 'leather', 'Leather'], ['horn', 'Horn', 'horn_plate', 'Horn Plate'], ['prime_pelt', 'Alpha Hide', 'royal_leather', 'Royal Leather'], ['behemoth_hide', 'Behemoth Hide', 'behemoth_plate', 'Behemoth Plate']],
+  assassin: [['bone', 'Bone', 'bonedust', 'Bone Dust'], ['fang', 'Fang', 'fang_powder', 'Fang Powder'], ['skull', 'Skull', 'skull_charm', 'Skull Charm'], ['wraith_bone', 'Wraith Bone', 'wraith_ash', 'Wraith Ash'], ['lich_marrow', 'Lich Marrow', 'lich_sigil', 'Lich Sigil']]
+}
+export const TIER_RATES = [0, 40, 120, 300, 800]
+export interface RareDropDef { gate: Partial<Record<Skill, number>>; zones: Skill[]; rate: number; name: string }
+export const COMBOS: Record<string, RareDropDef> = {
+  deepwood_amber: { name: 'Deepwood Amber', gate: { lumberjack: 2, miner: 2 }, zones: ['lumberjack', 'miner'], rate: 150 },
+  shadow_sinew: { name: 'Shadow Sinew', gate: { butcher: 2, assassin: 2 }, zones: ['butcher', 'assassin'], rate: 150 },
+  ghostwood: { name: 'Ghostwood', gate: { lumberjack: 3, assassin: 3 }, zones: ['lumberjack', 'assassin'], rate: 400 },
+  bloodstone: { name: 'Bloodstone', gate: { miner: 3, butcher: 3 }, zones: ['miner', 'butcher'], rate: 400 },
+  antrom_essence: { name: 'Antrom Essence', gate: { lumberjack: 3, miner: 3, butcher: 3, assassin: 3 }, zones: SKILLS, rate: 500 },
+  guildstone_shard: { name: 'Guildstone Shard', gate: { lumberjack: 4, miner: 4, butcher: 4, assassin: 4 }, zones: SKILLS, rate: 5000 }
+}
+export const RARE_DROPS: Record<RareRaw, RareDropDef> = {} as Record<RareRaw, RareDropDef>
+for (const skill of SKILLS) {
+  LADDER[skill].forEach(([rawId, rawName], tier) => {
+    if (tier === 0) return
+    RARE_DROPS[rawId as RareRaw] = { name: rawName, gate: { [skill]: tier }, zones: [skill], rate: TIER_RATES[tier] }
+  })
+}
+for (const [id, def] of Object.entries(COMBOS)) RARE_DROPS[id as RareRaw] = def
+export const RARE_RAWS = Object.keys(RARE_DROPS) as RareRaw[]
+export const RARE_MATERIALS = SKILLS.flatMap((s) => LADDER[s].slice(1).map(([, , refined]) => refined)) as RareMaterial[]
+export const STORAGE_KEYS: StorageKey[] = [...BASE_RESOURCES, ...RARE_RAWS]
+export const MATERIAL_KEYS: MaterialKey[] = [...MATERIALS, ...RARE_MATERIALS]
+export const RARE_DOUBLE_BASE = 0.05
+export const PROSPECTOR_PCT_PER_LEVEL = 0.02
+
+export function gateMet(gate: Partial<Record<Skill, number>>, skills: Record<Skill, SkillState>): boolean {
+  return Object.entries(gate).every(([skill, level]) => (skills[skill as Skill]?.suit ?? 0) >= (level ?? 0))
+}
+/** Rare drops rolling right now in a profession's zone, given the suits being worn. */
+export function activeRareDrops(skill: Skill): RareRaw[] {
+  return RARE_RAWS.filter((id) => RARE_DROPS[id].zones.includes(skill) && gateMet(RARE_DROPS[id].gate, player.skills))
+}
+/** Plain-language gate text for a rare drop ("Wear Lumberjack L2+ and Miner L2+"). */
+export function gateText(gate: Partial<Record<Skill, number>>): string {
+  const parts = Object.entries(gate) as Array<[Skill, number]>
+  if (parts.length === 4) return `Wear all four suits at L${parts[0][1]}+`
+  return 'Wear ' + parts.map(([s, l]) => `${SKILL_INFO[s].name} L${l}+`).join(' and ')
+}
+/** Chance a rare payout doubles: 5% base + Prospector guild tech. */
+export function rareDoublePct(): number {
+  return player.guild?.bonuses.rareDoublePct ?? RARE_DOUBLE_BASE
+}
+
 export const SKILL_INFO: Record<Skill, { name: string; verb: string; zoneName: string; resource: BaseResource; material: Material; color: number[] }> = {
   lumberjack: { name: 'Lumberjack', verb: 'Chopping', zoneName: 'LUMBER CAMP', resource: 'wood', material: 'plank', color: [0.42, 0.78, 0.25] },
   miner: { name: 'Miner', verb: 'Mining', zoneName: 'QUARRY', resource: 'rock', material: 'brick', color: [0.2, 0.68, 0.82] },
@@ -18,7 +86,8 @@ export const SKILL_INFO: Record<Skill, { name: string; verb: string; zoneName: s
 
 export const ZONE_SKILL: Record<ZoneId, Skill> = { lumber: 'lumberjack', quarry: 'miner', hunt: 'butcher', bones: 'assassin' }
 
-export const RESOURCE_INFO: Record<BaseResource | Material | 'coin' | 'berry', { name: string; icon: string; value: number }> = {
+/** Name / icon / sell value (0 = cannot be sold) for every item id plus coins and berries. */
+export const RESOURCE_INFO: Record<ItemId | 'coin' | 'berry', { name: string; icon: string; value: number }> = {
   wood: { name: 'Wood', icon: 'images/icons/wood.png', value: 2 },
   rock: { name: 'Rock', icon: 'images/icons/rock.png', value: 2 },
   meat: { name: 'Meat', icon: 'images/icons/meat.png', value: 3 },
@@ -29,6 +98,20 @@ export const RESOURCE_INFO: Record<BaseResource | Material | 'coin' | 'berry', {
   bonedust: { name: 'Bone Dust', icon: 'images/icons/bonedust.png', value: 40 },
   coin: { name: 'Coins', icon: 'images/icons/coin.png', value: 1 },
   berry: { name: 'Berries', icon: 'images/icons/berry.png', value: 0 }
+} as Record<ItemId | 'coin' | 'berry', { name: string; icon: string; value: number }>
+for (const skill of SKILLS) {
+  LADDER[skill].forEach(([rawId, rawName, refId, refName], tier) => {
+    if (tier === 0) return
+    RESOURCE_INFO[rawId] = { name: rawName, icon: `images/icons/res_${rawId}.jpg`, value: 0 }
+    RESOURCE_INFO[refId] = { name: refName, icon: `images/icons/res_${refId}.jpg`, value: 0 }
+  })
+}
+for (const [id, def] of Object.entries(COMBOS)) RESOURCE_INFO[id as RareRaw] = { name: def.name, icon: `images/icons/res_${id}.jpg`, value: 0 }
+export function isBaseResource(id: string): id is BaseResource {
+  return (BASE_RESOURCES as string[]).includes(id)
+}
+export function isStorageKey(id: string): id is StorageKey {
+  return (STORAGE_KEYS as string[]).includes(id)
 }
 
 export const SKILL_ICON: Record<Skill, string> = {
@@ -75,11 +158,11 @@ export function masteryDoubleChance(level: number): number {
 export function nextMasteryMilestone(level: number): number | null {
   return [25, 50, 75, 99].find((m) => m > level) ?? null
 }
-export interface CraftJob { material: Material; remaining: number; elapsed: number }
+export interface CraftJob { material: MaterialKey; remaining: number; elapsed: number }
 export type GuildTechKey =
   | 'woodBoost'
   | 'stoneBoost'
-  | 'goldBoost'
+  | 'meatBoost'
   | 'xpBoost'
   | 'craftDiscount'
   | 'lootLuck'
@@ -87,6 +170,7 @@ export type GuildTechKey =
   | 'architect'
   | 'quartermaster'
   | 'forager'
+  | 'prospector'
 
 export interface GuildTechNode {
   level: number
@@ -160,6 +244,8 @@ export interface GuildInfo {
     hqDonatePct?: number
     boostDurationPct?: number
     berryDoublePct?: number
+    /** Chance a rare drop payout doubles (5% base + Prospector). */
+    rareDoublePct?: number
   }
   contributions?: Record<string, GuildContribution>
   events?: GuildEvent[]
@@ -184,14 +270,15 @@ export interface GuildEvent {
 export const GUILD_TECH: Record<GuildTechKey, { name: string; desc: string }> = {
   woodBoost: { name: 'Lumberjack', desc: '+5% wood gather / level' },
   stoneBoost: { name: 'Stonemason', desc: '+5% rock gather / level' },
-  goldBoost: { name: 'Hunter', desc: '+2% meat gather / level' },
+  meatBoost: { name: 'Hunter', desc: '+2% meat gather / level' },
   xpBoost: { name: 'Field Tactics', desc: '+2% profession XP / level' },
   craftDiscount: { name: 'Workshop', desc: '10% faster crafts / level' },
   lootLuck: { name: 'Fortune', desc: '+1% bone gather and +10 bag / level' },
   merchant: { name: 'Merchant', desc: '+3% coins on every sale / level' },
   architect: { name: 'Architects', desc: 'HQ donations count +5% more / level' },
   quartermaster: { name: 'Quartermaster', desc: 'Berry boosts last +10% longer / level' },
-  forager: { name: 'Forager', desc: '+5% chance of a double berry / level' }
+  forager: { name: 'Forager', desc: '+5% chance of a double berry / level' },
+  prospector: { name: 'Prospector', desc: '+2% chance a rare drop doubles / level' }
 }
 
 export function guildSellMult(): number {
@@ -209,12 +296,38 @@ export function guildRole(guild: GuildInfo | null, address: string): string {
   return 'member'
 }
 
+export function emptyStorage(): Record<StorageKey, number> {
+  return Object.fromEntries(STORAGE_KEYS.map((k) => [k, 0])) as Record<StorageKey, number>
+}
+export function emptyMaterials(): Record<MaterialKey, number> {
+  return Object.fromEntries(MATERIAL_KEYS.map((k) => [k, 0])) as Record<MaterialKey, number>
+}
+export function emptyRareProgress(): Record<RareRaw, number> {
+  return Object.fromEntries(RARE_RAWS.map((k) => [k, 0])) as Record<RareRaw, number>
+}
+export interface PendingCraft {
+  id: string
+  skill: Skill
+  level: number
+  status: 'pending' | 'minting' | 'done' | 'failed'
+  rewardId?: string
+  at: number
+}
+
 export const player = {
   coins: 0,
   berries: 0,
   backpack: { wood: 0, rock: 0, meat: 0, bone: 0 } as Record<BaseResource, number>,
-  storage: { wood: 0, rock: 0, meat: 0, bone: 0 } as Record<BaseResource, number>,
-  materials: { plank: 0, brick: 0, jerky: 0, bonedust: 0 } as Record<Material, number>,
+  storage: emptyStorage(),
+  materials: emptyMaterials(),
+  /** Progress (0..1) toward the next unit of each rare drop; mirrors the server. */
+  rareProgress: emptyRareProgress(),
+  /** Suit craft in flight (server-side Rewards mint), if any. */
+  pendingCraft: null as PendingCraft | null,
+  /** Suit URNs the server has already minted for this player ("Minted" state until the wearable is worn). */
+  craftedSuits: [] as Array<{ skill: Skill; level: number; at: number }>,
+  /** Beast Pelts credited from Antrom on the last sync (shown once as a treat). */
+  antromPelts: 0,
   skills: {
     lumberjack: { level: 1, xp: 0, suit: 0 },
     miner: { level: 1, xp: 0, suit: 0 },
@@ -486,7 +599,8 @@ export function sellAll(): { items: number; coins: number } {
   return { items, coins }
 }
 
-export function sellStored(resource: BaseResource): { items: number; coins: number } {
+export function sellStored(resource: StorageKey): { items: number; coins: number } {
+  if (!RESOURCE_INFO[resource].value) return { items: 0, coins: 0 } // rare raws are craft-only
   const items = player.storage[resource]
   const coins = items * RESOURCE_INFO[resource].value
   player.storage[resource] = 0
@@ -499,7 +613,8 @@ export function sellStored(resource: BaseResource): { items: number; coins: numb
   return { items, coins }
 }
 
-export function sellCrafted(material: Material): { items: number; coins: number } {
+export function sellCrafted(material: MaterialKey): { items: number; coins: number } {
+  if (!RESOURCE_INFO[material].value) return { items: 0, coins: 0 } // tier materials are craft-only
   const items = player.materials[material]
   const coins = items * RESOURCE_INFO[material].value
   player.materials[material] = 0
@@ -518,13 +633,50 @@ export function flash(text: string) {
 
 // --- Recipes ---------------------------------------------------------------
 
-export interface Recipe { out: Material; from: BaseResource; amount: number; berries: number; level: number; skill: Skill }
-export const RECIPES: Recipe[] = [
-  { out: 'plank', from: 'wood', amount: 10, berries: 0, level: 1, skill: 'lumberjack' },
-  { out: 'brick', from: 'rock', amount: 10, berries: 0, level: 1, skill: 'miner' },
-  { out: 'jerky', from: 'meat', amount: 10, berries: 0, level: 1, skill: 'butcher' },
-  { out: 'bonedust', from: 'bone', amount: 10, berries: 0, level: 1, skill: 'assassin' }
-]
+export interface Recipe { out: MaterialKey; from: StorageKey; amount: number; berries: number; level: number; skill: Skill; tier: number }
+/** Base refines are 10:1, tier refines 5:1 (mirrors the server). Ordered base first, then by tier. */
+export const RECIPES: Recipe[] = [0, 1, 2, 3, 4].flatMap((tier) =>
+  SKILLS.map((skill): Recipe => {
+    const [from, , out] = LADDER[skill][tier]
+    return { out, from, amount: tier === 0 ? 10 : 5, berries: 0, level: 1, skill, tier }
+  })
+)
+/** Recipes worth showing: base ones always, tier ones once the player has any of that raw or wears the unlocking suit. */
+export function visibleRecipes(): Recipe[] {
+  return RECIPES.filter((r) => r.tier === 0 || player.storage[r.from] > 0 || player.materials[r.out] > 0 || player.skills[r.skill].suit >= r.tier)
+}
+
+// --- Suit recipes (mirrors the server; Assassin pieces are bought in the Marketplace) ----------------------
+export interface SuitRecipe { cost: Partial<Record<ItemId | 'coins', number>>; level: number }
+export function suitRecipe(skill: Skill, level: number): SuitRecipe | null {
+  if (skill === 'assassin' || level < 1 || level > 4) return null
+  const ref = (s: Skill, t: number) => LADDER[s][t][2]
+  const others = SKILLS.filter((o) => o !== skill)
+  const comboL2: Record<string, ItemId> = { lumberjack: 'deepwood_amber', miner: 'deepwood_amber', butcher: 'shadow_sinew' }
+  const comboL3: Record<string, ItemId> = { lumberjack: 'ghostwood', miner: 'bloodstone', butcher: 'bloodstone' }
+  switch (level) {
+    case 1: {
+      const cost: SuitRecipe['cost'] = { [ref(skill, 0)]: 300, coins: 2000 }
+      for (const o of others) cost[ref(o, 0)] = 100
+      return { cost, level: 10 }
+    }
+    case 2:
+      return { cost: { [ref(skill, 1)]: 80, [ref('assassin', 1)]: 30, [ref(skill, 0)]: 600, coins: 20000 }, level: 20 }
+    case 3:
+      return { cost: { [ref(skill, 2)]: 60, [comboL2[skill]]: 100, [ref('assassin', 2)]: 25, [ref(skill, 1)]: 40, coins: 60000 }, level: 30 }
+    default:
+      return { cost: { [ref(skill, 3)]: 50, antrom_essence: 60, [comboL3[skill]]: 60, [ref('assassin', 3)]: 20, coins: 150000 }, level: 40 }
+  }
+}
+/** How many of a recipe item the player holds (coins, storage raws or refined materials). */
+export function haveItem(id: ItemId | 'coins'): number {
+  if (id === 'coins') return player.coins
+  if (isStorageKey(id)) return player.storage[id]
+  return player.materials[id as MaterialKey]
+}
+export function canAffordSuit(recipe: SuitRecipe): boolean {
+  return (Object.entries(recipe.cost) as Array<[ItemId | 'coins', number]>).every(([id, n]) => haveItem(id) >= n)
+}
 
 export function canCraft(r: Recipe): boolean {
   return player.storage[r.from] >= r.amount && player.berries >= r.berries && player.skills[r.skill].level >= r.level

@@ -1,6 +1,6 @@
 import { engine } from '@dcl/sdk/ecs'
 import { addXp, craftTick, cycleXp, flash, gather, gatherMult, MASTERY_ENABLED, MASTERY_MAX, masteryXpForLevel, player, Skill, SKILL_INFO, WORK_CYCLE_SECS, ZoneId, ZONE_SKILL } from './state'
-import { refreshGuild, requestWork, syncCraftQueue } from './transactions'
+import { pollCraftSuit, refreshGuild, requestWork, syncCraftQueue } from './transactions'
 import { profileState } from './playerProfile'
 import { playButtonSound } from './uiSounds'
 import { refreshRemoteConfig } from './remoteConfig'
@@ -63,6 +63,7 @@ function afkSystem(dt: number) {
   if (guildElapsed >= 1) {
     guildElapsed = 0
     syncCraftQueue()
+    pollCraftSuit() // settles a suit mint in flight (every 15 s while one is pending)
     // Background guild refresh so HQ level-ups from other members get announced even with the panel closed.
     refreshGuild(3 * 60_000)
     refreshRemoteConfig()
