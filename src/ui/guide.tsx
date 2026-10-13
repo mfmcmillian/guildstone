@@ -47,8 +47,8 @@ export function nextStep(): NextStep | null {
   const cap = backpackCap()
 
   if (!working) return { text: 'Pick a profession on the right to start gathering', color: C.yellow }
-  if (bag >= cap) return { text: `Backpack full: open the ${at('DEPOT')} to bank it (tap the bag)`, color: C.red }
-  if (bag >= cap * 0.8) return { text: `Backpack almost full: bank it at the ${at('DEPOT')} soon`, color: C.yellow }
+  if (bag >= cap) return { text: `Backpack full: open your ${at('INVENTORY')} to bank it (tap the bag)`, color: C.red }
+  if (bag >= cap * 0.8) return { text: `Backpack almost full: open your ${at('INVENTORY')} soon`, color: C.yellow }
   const refine = refineReady()
   if (refine && !anyTool()) {
     const info = SKILL_INFO[refine]
@@ -73,7 +73,7 @@ export function shouldShowWelcome(): boolean {
 
 const STEPS: Array<{ icon: string; title: string; text: string; color: Color4 }> = [
   { icon: SKILL_ICON.lumberjack, title: '1. PICK A JOB', text: 'Tap a profession. You gather every 3 seconds, even while you walk around.', color: C.green },
-  { icon: 'images/icons/backpack.png', title: '2. BANK IT', text: 'Your backpack fills up. Open the Depot and it is banked. Sell anything for coins.', color: C.blue },
+  { icon: 'images/icons/backpack.png', title: '2. BANK IT', text: 'Your backpack fills up. Open your Inventory and it is banked there. Sell anything for coins.', color: C.blue },
   { icon: RESOURCE_INFO.plank.icon, title: '3. REFINE', text: 'The Workshop turns 10 raw into 1 material. Materials buy tools: +10% each.', color: C.orange },
   { icon: 'images/icons/suit.png', title: '4. SUIT UP', text: 'Suits are wearables you craft. Wear one and rare drops start falling.', color: C.purple }
 ]

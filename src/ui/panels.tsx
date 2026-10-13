@@ -577,7 +577,7 @@ export function BankPanel() {
   const total = DEPOT_ITEMS.reduce((sum, item) => sum + storedAmount(item), 0) + rare.reduce((sum, r) => sum + r.amount, 0)
   const worth = Math.round(DEPOT_ITEMS.reduce((sum, item) => sum + storedAmount(item) * RESOURCE_INFO[item].value, 0) * guildSellMult())
   return (
-    <Modal title="DEPOT" color={C.green} {...bigFrame(fit, 'DEPOT')} onClose={closeDepot}>
+    <Modal title="INVENTORY" color={C.green} {...bigFrame(fit, 'INVENTORY')} onClose={closeDepot}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
         <OutlinedText value={`YOUR ITEMS  •  ${total}`} size={S(44)} color={C.white} />
         <Text
@@ -1856,7 +1856,7 @@ export function AwayPanel() {
     <Modal title={title} color={C.green} {...bigFrame(fit, title)} onClose={closePanel}>
       <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', padding: { top: S(10) } }}>
         <OutlinedText value={`YOUR ${info.name.toUpperCase()} KEPT WORKING FOR ${formatAway(away.elapsed).toUpperCase()}`} size={S(40)} color={C.white} />
-        <Text value="Everything below is already in your bag and Depot." size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(6) } }} />
+        <Text value="Everything below is already in your Inventory." size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(6) } }} />
 
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', width: '100%', margin: { top: S(30) } }}>
           {/* Gathered */}
@@ -1916,7 +1916,7 @@ export function AwayPanel() {
               <Text value="Wear a suit in its zone and rare materials start dropping while you are away." size={S(22)} color={C.textMuted} uiTransform={{ width: S(440), height: S(90), margin: { top: S(20) } }} />
             )}
             {extras ? <Spacer /> : null}
-            {extras ? <Text value={rare.length > 0 || away.antromPelts > 0 ? 'Materials went straight to your Depot storage.' : 'Berries are ready to spend in the Shop.'} size={S(20)} color={C.gray} nowrap /> : null}
+            {extras ? <Text value={rare.length > 0 || away.antromPelts > 0 ? 'Materials went straight to your Inventory.' : 'Berries are ready to spend in the Shop.'} size={S(20)} color={C.gray} nowrap /> : null}
           </Panel>
         </UiEntity>
 

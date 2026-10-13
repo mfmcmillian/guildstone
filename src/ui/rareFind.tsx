@@ -72,7 +72,7 @@ export function RareFindBanner() {
           ))}
         </UiEntity>
 
-        <OutlinedText value="Sent straight to your Depot storage" size={S(26 * k)} color={withAlpha(C.gray, alpha)} uiTransform={{ width: S(900 * k), height: S(40 * k), margin: { top: S(10 * k) } }} />
+        <OutlinedText value="Sent straight to your Inventory" size={S(26 * k)} color={withAlpha(C.gray, alpha)} uiTransform={{ width: S(900 * k), height: S(40 * k), margin: { top: S(10 * k) } }} />
       </UiEntity>
     </UiEntity>
   )
