@@ -1,10 +1,11 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Hud } from './hud'
-import { Dock } from './dock'
+import { Dock, ShowUiButton } from './dock'
 import { SkillsPanel, BankPanel, WorkshopPanel, ForgePanel, ShopPanel, GuildPanel, AwayPanel } from './panels'
 import { ui } from './uiState'
 
 function Root() {
+  if (ui.hidden) return <ShowUiButton />
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%' }}>
       <Hud />

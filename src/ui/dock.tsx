@@ -1,7 +1,8 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, FONT } from './theme'
-import { OutlinedText, Panel, Button } from './components'
+import { C, FONT, TEX, SLICE_128 } from './theme'
+import { OutlinedText, Panel, Button, Icon } from './components'
+import { isMuted, setMuted, playButtonSound } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { togglePanel, ui } from './uiState'
 import { S, setScale, hudScale, getCanvas } from './responsive'
@@ -9,6 +10,27 @@ import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
 
 const skillColor = (s: (typeof SKILLS)[number]) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
+
+/** The only thing rendered while the UI is hidden: a small button where the dock normally sits. Work keeps running. */
+export function ShowUiButton() {
+  setScale(hudScale())
+  const canvas = getCanvas()
+  const working = activeSkill()
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(190), right: canvas.right + S(18) } }}>
+      <Button
+        label={working ? `ANTROM  •  ${SKILL_INFO[working].verb.toUpperCase()}` : 'ANTROM'}
+        icon="images/icons/suit.png"
+        color={C.navySoft}
+        size={S(18)}
+        uiTransform={{ height: S(56), minWidth: S(200) }}
+        onClick={() => {
+          ui.hidden = false
+        }}
+      />
+    </UiEntity>
+  )
+}
 
 /**
  * Wearable-only dock (top-left): the stations the land scene puts in the world become buttons, and the
@@ -33,7 +55,43 @@ export function Dock() {
       }}
     >
       <Panel flat color={C.navySoft} uiTransform={{ width: S(420), padding: S(18), flexDirection: 'column' }}>
-        <OutlinedText value="ANTROM AFK" size={S(FONT.body + 6)} color={C.yellow} uiTransform={{ height: S(40) }} />
+        <UiEntity uiTransform={{ width: '100%', height: S(44), flexDirection: 'row', alignItems: 'center' }}>
+          <UiEntity uiTransform={{ width: S(44), height: S(44) }} />
+          <OutlinedText value="ANTROM AFK" size={S(FONT.body + 6)} color={C.yellow} uiTransform={{ width: S(296), height: S(40) }} />
+          {/* Settings toggle: a circle button with the quill icon; opens the small panel below the header */}
+          <UiEntity
+            uiTransform={{ width: S(44), height: S(44), alignItems: 'center', justifyContent: 'center' }}
+            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: ui.settingsOpen ? C.purple : C.paper }}
+            onMouseDown={() => {
+              playButtonSound()
+              ui.settingsOpen = !ui.settingsOpen
+            }}
+          >
+            <Icon src="images/icons/guild/act_settings.png" size={S(32)} />
+          </UiEntity>
+        </UiEntity>
+        {ui.settingsOpen ? (
+          <Panel flat color={C.paper2} uiTransform={{ width: '100%', padding: S(14), flexDirection: 'column', margin: { top: S(6), bottom: S(8) } }}>
+            <Button
+              label={isMuted() ? 'SOUNDS: OFF' : 'SOUNDS: ON'}
+              color={isMuted() ? C.gray : C.green}
+              textColor={isMuted() ? C.textMuted : C.white}
+              size={S(20)}
+              uiTransform={{ width: '100%', height: S(60), margin: { bottom: S(8) } }}
+              onClick={() => setMuted(!isMuted())}
+            />
+            <Button
+              label="HIDE ANTROM UI"
+              color={C.blue}
+              size={S(20)}
+              uiTransform={{ width: '100%', height: S(60) }}
+              onClick={() => {
+                ui.hidden = true
+                ui.settingsOpen = false
+              }}
+            />
+          </Panel>
+        ) : null}
         <OutlinedText
           value={connecting ? 'Connecting to your profile...' : working ? `${SKILL_INFO[working].verb} - tap again to stop` : 'Pick a profession to start'}
           size={S(16)}

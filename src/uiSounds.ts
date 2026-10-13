@@ -3,6 +3,15 @@ import { Vector3 } from '@dcl/sdk/math'
 
 let clickEntity: Entity | null = null
 let feedbackEntity: Entity | null = null
+let muted = false
+
+export function isMuted() {
+  return muted
+}
+
+export function setMuted(value: boolean) {
+  muted = value
+}
 
 function createSound(path: string, volume: number): Entity {
   const entity = engine.addEntity()
@@ -20,7 +29,7 @@ function createSound(path: string, volume: number): Entity {
 }
 
 function play(entity: Entity | null, path: string, volume: number) {
-  if (!entity || !AudioSource.has(entity)) return
+  if (muted || !entity || !AudioSource.has(entity)) return
   const source = AudioSource.getMutable(entity)
   source.playing = false
   source.audioClipUrl = path
