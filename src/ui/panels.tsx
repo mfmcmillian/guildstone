@@ -945,12 +945,12 @@ function formatPercent(value: number): string {
 }
 
 function guildTechBenefit(key: GuildTechKey, level: number): string {
-  if (key === 'woodBoost') return `+${level * 5}% Wood gathering`
-  if (key === 'stoneBoost') return `+${level * 5}% Rock gathering`
-  if (key === 'meatBoost') return `+${level * 2}% Meat gathering`
+  if (key === 'woodBoost') return `+${level * 10}% Wood gathering`
+  if (key === 'stoneBoost') return `+${level * 10}% Rock gathering`
+  if (key === 'meatBoost') return `+${level * 4}% Meat gathering`
   if (key === 'xpBoost') return `+${level * 2}% Profession XP`
   if (key === 'craftDiscount') return `${Math.min(5, level) * 10 + Math.max(0, level - 5) * 8}% Faster crafting`
-  if (key === 'lootLuck') return `+${level}% Bone gathering  •  +${level * 10} Backpack`
+  if (key === 'lootLuck') return `+${level * 2}% Bone gathering  •  +${level * 10} Backpack`
   if (key === 'merchant') return `+${level * 3}% Coins on every sale`
   if (key === 'architect') return `HQ donations count +${level * 5}% more`
   if (key === 'quartermaster') return `Boosts last +${level * 10}% longer`
@@ -1298,6 +1298,13 @@ export function GuildPanel() {
             size={S(30)}
             color={C.textMuted}
           />
+          <Text
+            value={`YOUR GUILD BONUS   +${formatPercent(guild.bonuses.woodPct * 100)}% Wood   +${formatPercent(guild.bonuses.rockPct * 100)}% Rock   +${formatPercent(guild.bonuses.meatPct * 100)}% Meat   +${formatPercent(guild.bonuses.bonePct * 100)}% Bone   +${formatPercent(guild.bonuses.xpPct * 100)}% XP`}
+            size={S(24)}
+            color={C.greenDark}
+            nowrap
+            uiTransform={{ height: S(30), margin: { top: S(4) } }}
+          />
           <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8), bottom: S(10) } }}>
             <GuildTab id="home" label="HOME" />
             <GuildTab id="donate" label="DONATE" />
@@ -1486,7 +1493,7 @@ export function GuildPanel() {
               ) : (
                 <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
                   <OutlinedText value={`UPGRADE HQ  ${guild.hqLevel}  →  ${guild.hqLevel + 1}`} size={S(40)} />
-                  <Text value={`Shared goal  •  all ${guild.memberCount} members contribute  •  every member gets +0.25% resources and Profession XP`} size={S(26)} color={C.greenDark} />
+                  <Text value={`Shared goal  •  all ${guild.memberCount} members contribute  •  every member gets +0.5% resources and Profession XP`} size={S(26)} color={C.greenDark} />
                   {(guild.bonuses.hqDonatePct ?? 0) > 0 ? (
                     <Text value={`Architects tech: every donation counts +${Math.round((guild.bonuses.hqDonatePct ?? 0) * 100)}% more toward the goal`} size={S(22)} color={C.purple} />
                   ) : null}
@@ -1549,14 +1556,14 @@ export function GuildPanel() {
               <Text value="Permanent progress and bonuses shared by every guild member" size={S(26)} color={C.textMuted} />
               <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(20) } }}>
                 <StatCard label="MEMBERS" value={`${guild.memberCount} / ${guild.maxMembers}`} color={C.blue} sub={`${guild.maxMembers - guild.memberCount} spots open`} />
-                <StatCard label="RESOURCE BONUS" value={`+${formatPercent(guild.hqLevel * 0.25)}%`} color={C.green} sub="On every gather" />
-                <StatCard label="PROFESSION XP" value={`+${formatPercent(guild.hqLevel * 0.25)}%`} color={C.blue} sub="On every gather" />
+                <StatCard label="RESOURCE BONUS" value={`+${formatPercent(guild.hqLevel * 0.5)}%`} color={C.green} sub="On every gather" />
+                <StatCard label="PROFESSION XP" value={`+${formatPercent(guild.hqLevel * 0.5)}%`} color={C.blue} sub="On every gather" />
                 <StatCard label="TECH UPGRADES" value={`${techLevelTotal} / ${techLevelMax}`} color={techComplete ? C.green : C.purple} sub={techComplete ? 'All unlocked tech maxed' : 'Guild-wide boosts'} last />
               </UiEntity>
               {guild.hqCost ? (
                 <Panel flat color={C.paper2} uiTransform={{ width: S(1720), height: S(265), alignItems: 'center', padding: S(24), margin: { top: S(20) } }}>
                   <OutlinedText value={`NEXT UPGRADE  •  HQ ${guild.hqLevel} → ${guild.hqLevel + 1}`} size={S(38)} color={C.purple} />
-                  <Text value={`Reward: every member goes from +${formatPercent(guild.hqLevel * 0.25)}% to +${formatPercent((guild.hqLevel + 1) * 0.25)}% resources and Profession XP`} size={S(26)} color={C.greenDark} />
+                  <Text value={`Reward: every member goes from +${formatPercent(guild.hqLevel * 0.5)}% to +${formatPercent((guild.hqLevel + 1) * 0.5)}% resources and Profession XP`} size={S(26)} color={C.greenDark} />
                   <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(18) } }}>
                     <UiEntity uiTransform={{ width: S(1220), margin: { right: S(24) } }}>
                       <Bar
@@ -1592,7 +1599,7 @@ export function GuildPanel() {
                       {milestone.unlock ? (
                         <Text value={`Unlocks ${milestone.unlock}`} size={S(24)} color={complete ? C.white : C.yellow} uiTransform={{ margin: { top: S(8) } }} />
                       ) : null}
-                      <Text value={`+${formatPercent(milestone.level * 0.25)}% resources + XP`} size={S(22)} color={complete ? C.white : C.greenDark} uiTransform={{ margin: { top: S(milestone.unlock ? 2 : 10) } }} />
+                      <Text value={`+${formatPercent(milestone.level * 0.5)}% resources + XP`} size={S(22)} color={complete ? C.white : C.greenDark} uiTransform={{ margin: { top: S(milestone.unlock ? 2 : 10) } }} />
                       <Text value={`${milestone.memberCap} member slots`} size={S(22)} color={complete ? C.white : C.text} />
                     </Panel>
                   )

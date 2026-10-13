@@ -268,12 +268,12 @@ export interface GuildEvent {
 }
 
 export const GUILD_TECH: Record<GuildTechKey, { name: string; desc: string }> = {
-  woodBoost: { name: 'Lumberjack', desc: '+5% wood gather / level' },
-  stoneBoost: { name: 'Stonemason', desc: '+5% rock gather / level' },
-  meatBoost: { name: 'Hunter', desc: '+2% meat gather / level' },
+  woodBoost: { name: 'Lumberjack', desc: '+10% wood gather / level' },
+  stoneBoost: { name: 'Stonemason', desc: '+10% rock gather / level' },
+  meatBoost: { name: 'Hunter', desc: '+4% meat gather / level' },
   xpBoost: { name: 'Field Tactics', desc: '+2% profession XP / level' },
   craftDiscount: { name: 'Workshop', desc: '10% faster crafts / level' },
-  lootLuck: { name: 'Fortune', desc: '+1% bone gather and +10 bag / level' },
+  lootLuck: { name: 'Fortune', desc: '+2% bone gather and +10 bag / level' },
   merchant: { name: 'Merchant', desc: '+3% coins on every sale / level' },
   architect: { name: 'Architects', desc: 'HQ donations count +5% more / level' },
   quartermaster: { name: 'Quartermaster', desc: 'Berry boosts last +10% longer / level' },
@@ -484,7 +484,7 @@ export function backpackFull(): boolean {
 }
 
 /** Base items per work cycle before bonuses (mirrors the server's AFK_CYCLE_BASE). */
-export const CYCLE_BASE = 2
+export const CYCLE_BASE = 1
 
 /**
  * Exact per-cycle amount as the server computes it: one float chain, no intermediate rounding. The server pays
