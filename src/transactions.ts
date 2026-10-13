@@ -3,7 +3,7 @@ import { signedFetch } from '~system/SignedFetch'
 import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
-import { BaseResource, Boost, flash, GuildInfo, GuildTechKey, Material, player, RESOURCE_INFO, SKILL_INFO, Skill, TOOL_NAME, toolPct, setSkills } from './state'
+import { BaseResource, Boost, flash, GuildInfo, GuildTechKey, Material, player, RESOURCE_INFO, SKILL_INFO, Skill, TOOL_NAME, toolPct, setSkills, MASTERY_ENABLED } from './state'
 import { playErrorSound, playSuccessSound } from './uiSounds'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -157,7 +157,7 @@ export function requestGather(
       } else if (target !== 'berry') {
         flash('BACKPACK FULL - go DEPOT!')
       }
-      if (masteryUp) {
+      if (masteryUp && MASTERY_ENABLED) {
         flash(masteryUp)
         playSuccessSound()
       }
@@ -215,7 +215,7 @@ export function requestWork(skill: Skill, stop = false) {
       const name = RESOURCE_INFO[SKILL_INFO[skill].resource].name
       if (got > 0) flash(`+${got} ${name}`)
       else if (result.capped) flash(ringStationsEnabled() ? 'BACKPACK FULL - open the Depot!' : `BACKPACK FULL - bank it at ${campHint()}!`)
-      if (result.masteryUp) {
+      if (result.masteryUp && MASTERY_ENABLED) {
         flash(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
         playSuccessSound()
       }

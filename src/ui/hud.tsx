@@ -2,7 +2,7 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, FONT, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Pill, Icon, Bar, Button, Panel } from './components'
-import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung, MASTERY_MAX, masteryXpForLevel, masteryYieldPct, masteryDoubleChance } from '../state'
+import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung, MASTERY_MAX, masteryXpForLevel, masteryYieldPct, masteryDoubleChance, MASTERY_ENABLED } from '../state'
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
@@ -88,7 +88,7 @@ export function Hud() {
               color={C.white}
               uiTransform={{ width: S(460), height: S(24), margin: { top: S(6) } }}
             />
-            {/* Zone Mastery: thin bar, +1% yield per level, double-drop milestones. Explicit heights: wrappers without one collapse. */}
+            {MASTERY_ENABLED ? (
             <Bar
               value={player.mastery[skill].level >= MASTERY_MAX ? 1 : player.mastery[skill].xp / masteryXpForLevel(player.mastery[skill].level)}
               color={C.purple}
@@ -97,6 +97,7 @@ export function Hud() {
               labelSize={S(14)}
               uiTransform={{ width: S(420), height: S(20), margin: { top: S(6) } }}
             />
+            ) : null}
             {/* Unlock ladder hint: the next thing this profession level unlocks */}
             {(() => {
               const rung = nextRung(skill)

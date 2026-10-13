@@ -48,7 +48,7 @@ import {
   guildRole,
   guildSellMult,
   craftSecs,
-  boostMinutes, MAX_LEVEL
+  boostMinutes, MAX_LEVEL, MASTERY_ENABLED
 } from '../state'
 import { closePanel, ui } from './uiState'
 import { profileState } from '../playerProfile'
@@ -261,7 +261,7 @@ export function SkillsPanel() {
               </UiEntity>
               <Bar value={st.level >= MAX_LEVEL ? 1 : st.xp / need} color={skillColor(s)} height={S(36)} label={st.level >= MAX_LEVEL ? 'MAX LEVEL' : `${st.xp} / ${need} XP`} labelSize={S(22)} uiTransform={{ margin: { top: S(4) } }} />
             </UiEntity>
-            <MasteryColumn skill={s} />
+            {MASTERY_ENABLED ? <MasteryColumn skill={s} /> : null}
             <Spacer />
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
               <Text value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(24)} color={st.suit > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(32) }} />

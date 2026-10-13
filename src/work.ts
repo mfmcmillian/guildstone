@@ -1,5 +1,5 @@
 import { engine } from '@dcl/sdk/ecs'
-import { addXp, craftTick, cycleXp, flash, gather, gatherMult, MASTERY_MAX, masteryXpForLevel, player, Skill, SKILL_INFO, WORK_CYCLE_SECS, ZoneId, ZONE_SKILL } from './state'
+import { addXp, craftTick, cycleXp, flash, gather, gatherMult, MASTERY_ENABLED, MASTERY_MAX, masteryXpForLevel, player, Skill, SKILL_INFO, WORK_CYCLE_SECS, ZoneId, ZONE_SKILL } from './state'
 import { refreshGuild, requestWork, syncCraftQueue } from './transactions'
 import { profileState } from './playerProfile'
 import { playButtonSound } from './uiSounds'
@@ -76,7 +76,7 @@ function afkSystem(dt: number) {
     const got = gather(skill, gatherMult(skill))
     if (got > 0) addXp(skill, cycleXp(skill))
     const m = player.mastery[skill]
-    if (m.level < MASTERY_MAX) {
+    if (MASTERY_ENABLED && m.level < MASTERY_MAX) {
       m.xp += 1
       if (m.xp >= masteryXpForLevel(m.level)) {
         m.xp -= masteryXpForLevel(m.level)

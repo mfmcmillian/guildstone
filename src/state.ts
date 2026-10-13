@@ -51,15 +51,19 @@ export interface MasteryState { level: number; xp: number }
 
 // --- Zone Mastery (mirrors the server) --------------------------------------------------------------
 export const MASTERY_MAX = 99
+/** Switched off (mirrors the server): suit tiers carry long-term growth. Data is kept, UI hidden, bonuses zero. */
+export const MASTERY_ENABLED = false
 export function masteryXpForLevel(level: number): number {
   return Math.round(20 * Math.pow(1.05, level - 1))
 }
 /** +1% yield per mastery level past 1. */
 export function masteryYieldPct(level: number): number {
+  if (!MASTERY_ENABLED) return 0
   return (Math.max(1, level) - 1) / 100
 }
 /** Milestone double-drop chance: 25 -> 5%, 50 -> 10%, 75 -> 15%, 99 -> 25%. */
 export function masteryDoubleChance(level: number): number {
+  if (!MASTERY_ENABLED) return 0
   if (level >= 99) return 0.25
   if (level >= 75) return 0.15
   if (level >= 50) return 0.1
@@ -350,7 +354,7 @@ export function backpackFlatCap(): number {
 
 /** Long-term bag growth: +1% per mastery level past 1 (all zones) and +10% per tool tier (all tools). Mirrors the server. */
 export function backpackGrowthPct(): number {
-  const masteryPct = SKILLS.reduce((sum, s) => sum + (player.mastery[s].level - 1), 0) / 100
+  const masteryPct = MASTERY_ENABLED ? SKILLS.reduce((sum, s) => sum + (player.mastery[s].level - 1), 0) / 100 : 0
   const toolsPct = SKILLS.reduce((sum, s) => sum + player.tools[s], 0) * TOOL_PCT_PER_TIER
   return masteryPct + toolsPct
 }
