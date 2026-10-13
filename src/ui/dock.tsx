@@ -9,6 +9,7 @@ import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
+import { showShop, showToolBench, showWorkshop } from './guide'
 
 const skillColor = (s: (typeof SKILLS)[number]) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
 
@@ -94,9 +95,9 @@ export function Dock() {
         ) : null}
         <OutlinedText
           value={connecting ? 'Connecting to your profile...' : working ? `${SKILL_INFO[working].verb} - tap again to stop` : 'Pick a profession to start'}
-          size={S(16)}
-          color={C.white}
-          uiTransform={{ height: S(22), margin: { bottom: S(8) } }}
+          size={S(20)}
+          color={working ? C.white : C.yellow}
+          uiTransform={{ height: S(28), margin: { bottom: S(8) } }}
         />
         {SKILLS.map((skill) => {
           const active = working === skill
@@ -116,14 +117,15 @@ export function Dock() {
         })}
         {/* Economy lives on the land once the camp opens (remote config). Until then the ring carries every station. */}
         {ringStationsEnabled() ? (
-          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', margin: { top: S(6) } }}>
-            <Button label="DEPOT" icon="images/icons/backpack.png" color={C.green} size={S(19)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('bank')} />
-            <Button label="WORKSHOP" icon="images/icons/plank.png" color={C.orange} size={S(19)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('workshop')} />
-            <Button label="TOOL BENCH" icon="images/icons/lumberjack.png" color={C.blue} size={S(19)} uiTransform={{ width: S(186), height: S(70) }} onClick={() => togglePanel('forge')} />
-            <Button label="SHOP" icon="images/icons/berry.png" color={C.purple} size={S(19)} uiTransform={{ width: S(186), height: S(70) }} onClick={() => togglePanel('shop')} />
+          // Stations appear the first time they matter (guide.tsx), so a new player only sees the Depot.
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', margin: { top: S(6) } }}>
+            <Button label="DEPOT" icon="images/icons/backpack.png" color={C.green} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10), right: S(12) } }} onClick={() => togglePanel('bank')} />
+            {showWorkshop() ? <Button label="WORKSHOP" icon="images/icons/plank.png" color={C.orange} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('workshop')} /> : null}
+            {showToolBench() ? <Button label="TOOL BENCH" icon="images/icons/lumberjack.png" color={C.blue} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10), right: S(12) } }} onClick={() => togglePanel('forge')} /> : null}
+            {showShop() ? <Button label="SHOP" icon="images/icons/berry.png" color={C.purple} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('shop')} /> : null}
           </UiEntity>
         ) : (
-          <OutlinedText value={`Bank, craft, tools & shop: ${campHint()}`} size={S(15)} color={C.gray} uiTransform={{ height: S(22), margin: { top: S(8) } }} />
+          <OutlinedText value={`Bank, craft, tools & shop: ${campHint()}`} size={S(20)} color={C.gray} uiTransform={{ height: S(28), margin: { top: S(8) } }} />
         )}
       </Panel>
     </UiEntity>

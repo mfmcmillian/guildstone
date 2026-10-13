@@ -8,6 +8,7 @@ import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { openStorage } from './panels'
 import { playButtonSound } from '../uiSounds'
+import { nextStep, showGuild } from './guide'
 
 let bagHover = false
 
@@ -113,9 +114,21 @@ export function Hud() {
         </UiEntity>
       ) : null}
 
+      {/* What to do next: one line, derived from state (see guide.tsx). Sits under the zone block, above the toast. */}
+      {!menuOpen ? (() => {
+        const step = nextStep()
+        return step ? (
+          <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 206 : 40), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+            <Panel flat color={C.navySoft} uiTransform={{ width: S(980), height: S(52), alignItems: 'center', justifyContent: 'center', padding: { left: S(20), right: S(20) } }}>
+              <OutlinedText value={step.text} size={S(24)} color={step.color} uiTransform={{ width: S(940), height: S(40) }} />
+            </Panel>
+          </UiEntity>
+        ) : null
+      })() : null}
+
       {/* Toast */}
       {toast ? (
-        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 226 : 40), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 272 : 104), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
           <OutlinedText value={toast} size={S(FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(800) }} />
         </UiEntity>
       ) : null}
@@ -171,14 +184,17 @@ export function Hud() {
       {/* GUILD + PROFESSIONS: bottom-right (hidden while a menu is open) */}
       {menuOpen ? null : (
         <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: canvas.bottom + S(24), right: canvas.right + edgeX }, flexDirection: 'column', alignItems: 'flex-end' }}>
-          <Button
-            label={player.guild ? `[${player.guild.tag}]` : 'GUILD'}
-            icon="images/icons/suit.png"
-            color={C.purple}
-            onClick={() => togglePanel('guild')}
-            uiTransform={{ height: S(96), minWidth: S(340), margin: { bottom: S(12) } }}
-            size={S(FONT.button + 10)}
-          />
+          {/* Guild appears at Lv 5 (or once in one) so the first minutes are just gather -> bank */}
+          {showGuild() ? (
+            <Button
+              label={player.guild ? `[${player.guild.tag}]` : 'GUILD'}
+              icon="images/icons/suit.png"
+              color={C.purple}
+              onClick={() => togglePanel('guild')}
+              uiTransform={{ height: S(96), minWidth: S(340), margin: { bottom: S(12) } }}
+              size={S(FONT.button + 10)}
+            />
+          ) : null}
           <Button label="PROFESSIONS" icon="images/icons/lumberjack.png" color={C.blue} onClick={() => togglePanel('skills')} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />
         </UiEntity>
       )}

@@ -12,6 +12,7 @@ import {
   RESOURCE_INFO,
   BASE_RESOURCES,
   backpackCap,
+  backpackCount,
   backpackGrowthPct,
   suitBag,
   xpForLevel,
@@ -452,21 +453,22 @@ function MasteryColumn(props: { key?: string; skill: Skill }) {
 }
 
 // ---------------------------------------------------------------- DEPOT
+// One inventory. Opening the Depot banks the backpack automatically; every stack is a tile, tap a tile to sell
+// some or all of it after a confirmation. Craft-only rares are shown but cannot be sold.
 type DepotItem = ItemId
-/** Sellable base items: the four raws and their refined forms. */
+/** Sellable items: the four raws and their refined forms. */
 const DEPOT_ITEMS: DepotItem[] = [...BASE_RESOURCES, ...MATERIALS]
-let depotView: 'backpack' | 'storage' = 'backpack'
-const depotSelection = new Set<DepotItem>()
-const backpackSelection = new Set<BaseResource>()
+/** Stack the player tapped; the confirm card replaces the grid while this is set. */
+let depotSelling: DepotItem | null = null
+let depotBankedAt = 0
 
-/** HUD bag icon: jump straight to the Storage view of the Depot. */
+/** HUD bag icon and dock button both land here. */
 export function openStorage() {
   if (!ringStationsEnabled()) {
     flash(`YOUR STORAGE IS AT ${campHint().toUpperCase()}`)
     return
   }
-  depotView = 'storage'
-  depotSelection.clear()
+  depotSelling = null
   openPanel('bank')
 }
 
@@ -482,206 +484,121 @@ function rareHoldings(): Array<{ id: ItemId; amount: number }> {
   return out
 }
 
-function RareChip(props: { key?: string; id: ItemId; amount: number }) {
-  return (
-    <UiEntity
-      uiTransform={{ width: S(200), height: S(190), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(10), margin: S(6), flexShrink: 0 }}
-      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: C.navySoft }}
-    >
-      <Icon src={RESOURCE_INFO[props.id].icon} size={S(84)} />
-      <Text value={RESOURCE_INFO[props.id].name} size={S(20)} color={C.gray} nowrap uiTransform={{ height: S(28), margin: { top: S(4) } }} />
-      <OutlinedText value={`${props.amount}`} size={S(32)} color={C.yellow} />
-    </UiEntity>
-  )
-}
-
-function sellSelectedStorage() {
-  requestDepot('sellStorage', [...depotSelection])
-  depotSelection.clear()
-}
-
 function closeDepot() {
-  depotView = 'backpack'
-  depotSelection.clear()
-  backpackSelection.clear()
+  depotSelling = null
   closePanel()
 }
 
-function backpackAction(action: 'storeBackpack' | 'sellBackpack') {
-  requestDepot(action, [...backpackSelection])
-  backpackSelection.clear()
+/** Bank whatever is in the backpack (at most once a second so a stream of work claims cannot spam it). */
+function bankBackpack() {
+  if (backpackCount() <= 0 || Date.now() - depotBankedAt < 1000) return
+  depotBankedAt = Date.now()
+  requestDepot('storeBackpack')
 }
 
-function StorageCard(props: { key?: string; item: DepotItem }) {
-  const amount = storedAmount(props.item)
-  const selected = depotSelection.has(props.item)
+function InventoryTile(props: { key?: string; item: ItemId; amount: number; sellable: boolean }) {
+  const { item, amount, sellable } = props
+  const empty = amount <= 0
+  const each = Math.round(RESOURCE_INFO[item].value * guildSellMult())
   return (
     <UiEntity
-      uiTransform={{ width: S(400), height: S(300), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(16), margin: { left: S(7), right: S(7), top: S(7), bottom: S(7) } }}
-      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: selected ? C.yellow : C.paper2 }}
+      uiTransform={{ width: S(200), height: S(236), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(10), margin: S(6), flexShrink: 0 }}
+      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: empty ? C.navySoft : sellable ? C.paper2 : C.navySoft }}
       onMouseDown={() => {
-        if (amount <= 0) return
-        if (selected) depotSelection.delete(props.item)
-        else depotSelection.add(props.item)
+        if (empty) return
+        playButtonSound()
+        depotSelling = item
       }}
     >
-      <Icon src={RESOURCE_INFO[props.item].icon} size={S(120)} />
-      <Text value={RESOURCE_INFO[props.item].name.toUpperCase()} size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: S(4) } }} />
-      <OutlinedText value={`${amount}`} size={S(48)} color={C.white} />
-      <Text value={`VALUE  ${Math.round(amount * RESOURCE_INFO[props.item].value * guildSellMult())}`} size={S(24)} color={amount > 0 ? C.orange : C.textMuted} nowrap uiTransform={{ height: S(32) }} />
-      <Text value={selected ? 'SELECTED' : amount > 0 ? 'TAP TO SELECT' : 'EMPTY'} size={S(22)} color={selected ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+      <Icon src={RESOURCE_INFO[item].icon} size={S(100)} uiTransform={{ opacity: empty ? 0.35 : 1 }} />
+      <Text value={RESOURCE_INFO[item].name.toUpperCase()} size={S(20)} color={empty ? C.textMuted : sellable ? C.text : C.gray} nowrap uiTransform={{ height: S(26), margin: { top: S(6) } }} />
+      <OutlinedText value={empty ? '-' : compact(amount)} size={S(40)} color={empty ? C.textMuted : sellable ? C.white : C.yellow} />
+      <Text value={sellable ? `${each} coins each` : 'for suits'} size={S(20)} color={empty ? C.textMuted : sellable ? C.orange : C.gray} nowrap uiTransform={{ height: S(26) }} />
     </UiEntity>
   )
 }
 
-function BackpackDepotView() {
-  const total = BASE_RESOURCES.reduce((a, r) => a + player.backpack[r], 0)
-  // Drop selections that emptied out (e.g. after a sync), then act on the selection or the whole backpack.
-  for (const r of backpackSelection) if (player.backpack[r] <= 0) backpackSelection.delete(r)
-  const hasSelection = backpackSelection.size > 0
-  const targets = hasSelection ? BASE_RESOURCES.filter((r) => backpackSelection.has(r)) : BASE_RESOURCES
-  const targetTotal = targets.reduce((a, r) => a + player.backpack[r], 0)
-  const coins = Math.round(targets.reduce((a, r) => a + player.backpack[r] * RESOURCE_INFO[r].value, 0) * guildSellMult())
-  const scopeLabel = hasSelection ? 'SELECTED' : 'ALL'
-  const fit = fitBig()
+/** Confirmation card for one stack: sell 10, half or all, or back out. */
+function SellConfirm(props: { item: ItemId }) {
+  const item = props.item
+  const have = storedAmount(item)
+  const sellable = DEPOT_ITEMS.includes(item)
+  const each = RESOURCE_INFO[item].value * guildSellMult()
+  const coinsFor = (n: number) => Math.round(n * each)
+  const options = [10, Math.floor(have / 2), have].filter((n, i, all) => n > 0 && all.indexOf(n) === i)
+  const label = (n: number) => (n === have ? 'ALL' : n === Math.floor(have / 2) ? 'HALF' : `${n}`)
+  const sell = (n: number) => {
+    requestDepot('sellStorage', [item], n === have ? undefined : n)
+    depotSelling = null
+  }
   return (
-    <Modal title="DEPOT" color={C.green} {...bigFrame(fit, 'DEPOT')} onClose={closeDepot}>
-      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
-        <OutlinedText value={`YOUR BACKPACK  ${total} / ${backpackCap()}`} size={S(44)} color={C.white} />
-        <Text value={hasSelection ? `${backpackSelection.size} selected  •  tap again to deselect` : 'Tap resources to pick what to store or sell'} size={S(26)} color={C.textMuted} uiTransform={{ margin: { top: S(4) } }} />
-        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(20), bottom: S(24) } }}>
-          {BASE_RESOURCES.map((resource) => {
-            const amount = player.backpack[resource]
-            const selected = backpackSelection.has(resource)
-            const value = Math.round(amount * RESOURCE_INFO[resource].value * guildSellMult())
-            return (
-              <UiEntity
-                key={resource}
-                uiTransform={{ width: S(400), height: S(470), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(10), right: S(10) } }}
-                uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: selected ? C.yellow : C.paper2 }}
-                onMouseDown={() => {
-                  if (amount <= 0) return
-                  if (selected) backpackSelection.delete(resource)
-                  else backpackSelection.add(resource)
-                }}
-              >
-                <Icon src={RESOURCE_INFO[resource].icon} size={S(190)} />
-                <Text value={RESOURCE_INFO[resource].name.toUpperCase()} size={S(28)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { top: S(8) } }} />
-                <OutlinedText value={`${amount}`} size={S(60)} color={C.white} />
-                <Text value={`SELLS FOR  ${value}`} size={S(24)} color={amount > 0 ? C.orange : C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(4) } }} />
-                <Text value={selected ? 'SELECTED' : amount > 0 ? 'TAP TO SELECT' : 'EMPTY'} size={S(22)} color={selected ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(4) } }} />
-              </UiEntity>
-            )
-          })}
-        </UiEntity>
-        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
-          <UiEntity uiTransform={{ width: S(600), flexDirection: 'column', alignItems: 'center', margin: { right: S(20) } }}>
-            <Button
-              label={`STORE ${scopeLabel}  (${targetTotal})`}
-              color={C.green}
-              disabled={targetTotal === 0}
-              size={S(32)}
-              uiTransform={{ width: S(600), height: S(100) }}
-              onClick={() => backpackAction('storeBackpack')}
-            />
-            <Text value="Moves resources into your permanent Storage." size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: S(10) } }} />
+    <Panel flat color={C.paper2} uiTransform={{ width: S(1100), height: S(720), alignItems: 'center', justifyContent: 'center', padding: S(40), margin: { top: S(30) } }}>
+      <Icon src={RESOURCE_INFO[item].icon} size={S(200)} />
+      <OutlinedText value={RESOURCE_INFO[item].name.toUpperCase()} size={S(44)} uiTransform={{ margin: { top: S(12) } }} />
+      <Text value={`You have ${have}`} size={S(30)} color={C.text} nowrap uiTransform={{ margin: { top: S(6) } }} />
+      {sellable ? (
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
+          <Text value={`Sells for ${Math.round(each * 100) / 100} coins each${guildSellMult() > 1 ? '  (guild Merchant bonus included)' : ''}`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(4) } }} />
+          <Text value="HOW MANY DO YOU WANT TO SELL?" size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(40) } }} />
+          <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(14) } }}>
+            {options.map((n) => (
+              <Button
+                key={`${item}-${n}`}
+                label={`SELL ${label(n)}  (+${coinsFor(n)})`}
+                icon={RESOURCE_INFO.coin.icon}
+                color={n === have ? C.orange : C.green}
+                size={S(26)}
+                uiTransform={{ width: S(330), height: S(88), margin: { left: S(8), right: S(8) } }}
+                onClick={() => sell(n)}
+              />
+            ))}
           </UiEntity>
-          <UiEntity uiTransform={{ width: S(600), flexDirection: 'column', alignItems: 'center', margin: { left: S(20) } }}>
-            <Button
-              label={`SELL ${scopeLabel} FOR  ${coins}`}
-              icon={RESOURCE_INFO.coin.icon}
-              color={C.orange}
-              disabled={targetTotal === 0}
-              size={S(32)}
-              uiTransform={{ width: S(600), height: S(100) }}
-              onClick={() => backpackAction('sellBackpack')}
-            />
-            <Text value="Turns backpack resources into Coins. Permanent." size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: S(10) } }} />
-          </UiEntity>
+          <Text value="Selling is permanent. Keep some for crafting and guild donations." size={S(22)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(18) } }} />
         </UiEntity>
-        <Spacer />
-        <Panel flat color={C.paper2} uiTransform={{ width: S(CONTENT_W), height: S(150), flexDirection: 'row', alignItems: 'center', padding: { left: S(26), right: S(26) } }}>
-          <UiEntity uiTransform={{ flexDirection: 'column', width: S(250), flexShrink: 0 }}>
-            <Text value="IN STORAGE" size={S(26)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
-            <Text value="Kept safe between trips" size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(28) }} />
-          </UiEntity>
-          {DEPOT_ITEMS.map((item) => (
-            <UiEntity key={item} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(118), height: S(60), margin: { right: S(6) } }}>
-              <Icon src={RESOURCE_INFO[item].icon} size={S(48)} />
-              <Text value={compact(storedAmount(item))} size={S(22)} color={storedAmount(item) > 0 ? C.text : C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(64), height: S(60), margin: { left: S(4) } }} />
-            </UiEntity>
-          ))}
-          <Spacer />
-          <Button label="MANAGE STORAGE" color={C.blue} size={S(28)} uiTransform={{ width: S(400), height: S(84), flexShrink: 0 }} onClick={() => { depotView = 'storage' }} />
-        </Panel>
-      </UiEntity>
-    </Modal>
-  )
-}
-
-function StorageDepotView() {
-  const selectedItems = DEPOT_ITEMS.filter((item) => depotSelection.has(item))
-  const selectedCoins = Math.round(selectedItems.reduce((sum, item) => sum + storedAmount(item) * RESOURCE_INFO[item].value, 0) * guildSellMult())
-  const availableItems = DEPOT_ITEMS.filter((item) => storedAmount(item) > 0)
-  const allSelected = availableItems.length > 0 && availableItems.every((item) => depotSelection.has(item))
-  const rare = rareHoldings()
-
-  const fit = fitBig()
-  return (
-    <Modal title="STORAGE" color={C.blue} {...bigFrame(fit, 'STORAGE')} onClose={closeDepot}>
-      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
-        <Text value="Tap materials to select what you want to sell." size={S(26)} color={C.textMuted} />
-        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(10) } }}>
-          {DEPOT_ITEMS.slice(0, 4).map((item) => <StorageCard key={item} item={item} />)}
+      ) : (
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
+          <Text value="Craft-only. This cannot be sold." size={S(28)} color={C.red} nowrap uiTransform={{ margin: { top: S(30) } }} />
+          <Text value={isStorageKey(item) ? 'Refine it at the Workshop, then spend it on suits in PROFESSIONS → SUITS.' : 'Spend it on suits in PROFESSIONS → SUITS.'} size={S(24)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(8) } }} />
         </UiEntity>
-        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
-          {DEPOT_ITEMS.slice(4).map((item) => <StorageCard key={item} item={item} />)}
-        </UiEntity>
-        <Panel flat color={C.navySoft} uiTransform={{ width: S(CONTENT_W), height: S(300), alignItems: 'center', padding: { top: S(12), bottom: S(8), left: S(16), right: S(16) }, margin: { top: S(14) } }}>
-          <OutlinedText value="RARE FINDS" size={S(28)} color={C.yellow} />
-          <Text
-            value={rare.length > 0 ? 'Craft-only: refine them at the Workshop and use them for suits. They cannot be sold.' : 'Wear a suit in its zone and rare materials land here on their own. Nothing yet.'}
-            size={S(22)}
-            color={C.gray}
-            nowrap
-            uiTransform={{ height: S(30) }}
-          />
-          <UiEntity uiTransform={{ width: '100%', height: S(214), flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignContent: 'flex-start', overflow: 'scroll', margin: { top: S(6) } }}>
-            {rare.map((r) => <RareChip key={r.id} id={r.id} amount={r.amount} />)}
-          </UiEntity>
-        </Panel>
-        <Spacer />
-        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
-          <Button label="BACK" color={C.blue} size={S(28)} uiTransform={{ width: S(260), height: S(84), margin: { right: S(10) } }} onClick={() => { depotView = 'backpack'; depotSelection.clear() }} />
-          <Button
-            label={allSelected ? 'CLEAR ALL' : 'SELECT ALL'}
-            color={C.green}
-            disabled={availableItems.length === 0}
-            size={S(28)}
-            uiTransform={{ width: S(320), height: S(84), margin: { left: S(10), right: S(10) } }}
-            onClick={() => {
-              if (allSelected) depotSelection.clear()
-              else for (const item of availableItems) depotSelection.add(item)
-            }}
-          />
-          <Button
-            label={`SELL SELECTED  (+${selectedCoins})`}
-            icon={RESOURCE_INFO.coin.icon}
-            color={C.orange}
-            disabled={selectedItems.length === 0}
-            size={S(28)}
-            uiTransform={{ width: S(520), height: S(84), margin: { left: S(10) } }}
-            onClick={sellSelectedStorage}
-          />
-        </UiEntity>
-      </UiEntity>
-    </Modal>
+      )}
+      <Spacer />
+      <Button label="BACK" color={C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(80) }} onClick={() => { depotSelling = null }} />
+    </Panel>
   )
 }
 
 export function BankPanel() {
-  return depotView === 'storage' ? <StorageDepotView /> : <BackpackDepotView />
+  bankBackpack()
+  const fit = fitBig()
+  const rare = rareHoldings()
+  const bag = backpackCount()
+  const selling = depotSelling !== null && storedAmount(depotSelling) > 0 ? depotSelling : null
+  const total = DEPOT_ITEMS.reduce((sum, item) => sum + storedAmount(item), 0) + rare.reduce((sum, r) => sum + r.amount, 0)
+  const worth = Math.round(DEPOT_ITEMS.reduce((sum, item) => sum + storedAmount(item) * RESOURCE_INFO[item].value, 0) * guildSellMult())
+  return (
+    <Modal title="DEPOT" color={C.green} {...bigFrame(fit, 'DEPOT')} onClose={closeDepot}>
+      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+        <OutlinedText value={`YOUR ITEMS  •  ${total}`} size={S(44)} color={C.white} />
+        <Text
+          value={bag > 0 ? `Banking ${bag} from your backpack…` : `Everything you gather is banked here. Tap any item to sell it.  Whole stock is worth ${worth} coins.`}
+          size={S(26)}
+          color={bag > 0 ? C.greenDark : C.textMuted}
+          nowrap
+          uiTransform={{ margin: { top: S(4) } }}
+        />
+        {selling ? (
+          <SellConfirm item={selling} />
+        ) : (
+          <UiEntity uiTransform={{ width: S(CONTENT_W), height: S(1000), flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignContent: 'flex-start', overflow: 'scroll', margin: { top: S(16) } }}>
+            {DEPOT_ITEMS.map((item) => <InventoryTile key={item} item={item} amount={storedAmount(item)} sellable />)}
+            {rare.map((r) => <InventoryTile key={r.id} item={r.id} amount={r.amount} sellable={false} />)}
+          </UiEntity>
+        )}
+      </UiEntity>
+    </Modal>
+  )
 }
+
 
 // ---------------------------------------------------------------- WORKSHOP
 let workshopSkill: Skill = 'lumberjack'

@@ -4,6 +4,7 @@ import { Dock, ShowUiButton } from './dock'
 import { SkillsPanel, BankPanel, WorkshopPanel, ForgePanel, ShopPanel, GuildPanel, AwayPanel } from './panels'
 import { LevelUpBanner } from './levelUp'
 import { RareFindBanner } from './rareFind'
+import { WelcomePanel, shouldShowWelcome } from './guide'
 import { ui } from './uiState'
 
 function Root() {
@@ -19,6 +20,7 @@ function Root() {
       {ui.open === 'shop' ? <ShopPanel /> : null}
       {ui.open === 'guild' ? <GuildPanel /> : null}
       {ui.open === 'away' ? <AwayPanel /> : null}
+      {shouldShowWelcome() ? <WelcomePanel /> : null}
       <LevelUpBanner />
       <RareFindBanner />
     </UiEntity>

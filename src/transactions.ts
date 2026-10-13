@@ -309,7 +309,8 @@ export function requestWork(skill: Skill, stop = false) {
   })
 }
 
-export function requestDepot(action: DepotAction, items: DepotItem[] = []) {
+/** `amount` sells part of a single stack (sellStorage only); omit it to sell the whole stack. */
+export function requestDepot(action: DepotAction, items: DepotItem[] = [], amount?: number) {
   if (profileState.status !== 'ready' || !profileState.walletAddress) return
 
   executeTask(async () => {
@@ -319,7 +320,7 @@ export function requestDepot(action: DepotAction, items: DepotItem[] = []) {
         init: {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, items })
+          body: JSON.stringify(amount ? { action, items, amount } : { action, items })
         }
       })
       if (!response.ok) throw new Error(`Depot request failed (${response.status})`)
@@ -334,8 +335,12 @@ export function requestDepot(action: DepotAction, items: DepotItem[] = []) {
         player.berries = result.currency.berries
       }
 
-      if (action === 'storeBackpack') flash(result.items > 0 ? `STORED ${result.items} ITEMS` : 'BACKPACK IS EMPTY')
-      else flash(result.items > 0 ? `SOLD ${result.items} ITEMS  +${result.coins} COINS` : 'NOTHING TO SELL')
+      if (action === 'storeBackpack') {
+        if (result.items > 0) flash(`BANKED ${result.items} ITEMS`)
+      } else {
+        flash(result.items > 0 ? `SOLD ${result.items} ITEMS  +${result.coins} COINS` : 'NOTHING TO SELL')
+        if (result.items > 0) playSuccessSound()
+      }
     } catch (error) {
       console.error('[transaction] Depot failed:', error instanceof Error ? error.message : String(error))
     }
