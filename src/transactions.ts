@@ -65,7 +65,7 @@ function applyRareFields(result: RareFields) {
   }
   if ((result.antromPelts ?? 0) > 0) {
     player.antromPelts = result.antromPelts ?? 0
-    flash(`A GIFT FROM ANTROM: +${result.antromPelts} Beast Pelt in your Inventory`)
+    flash(`A GIFT FROM ANTROM: +${result.antromPelts} Beast Pelt in your Bank`)
     playSuccessSound()
   }
 }
@@ -234,7 +234,7 @@ export function requestGather(
         const name = target === 'berry' ? RESOURCE_INFO.berry.name : RESOURCE_INFO[SKILL_INFO[target].resource].name
         flash(result.doubled ? `DOUBLE! +${got} ${name}` : `+${got} ${name}`)
       } else if (target !== 'berry') {
-        flash('BACKPACK FULL - open your INVENTORY!')
+        flash('BACKPACK FULL - tap the bag to BANK IT!')
       }
       applyRareFields(result)
       if (masteryUp && MASTERY_ENABLED) {
@@ -297,7 +297,7 @@ export function requestWork(skill: Skill, stop = false) {
       const got = Math.max(0, Math.floor(result.got))
       const name = RESOURCE_INFO[SKILL_INFO[skill].resource].name
       if (got > 0) flash(`+${got} ${name}`)
-      else if (result.capped) flash(ringStationsEnabled() ? 'BACKPACK FULL - open your Inventory!' : `BACKPACK FULL - bank it at ${campHint()}!`)
+      else if (result.capped) flash(ringStationsEnabled() ? 'BACKPACK FULL - tap the bag to bank it!' : `BACKPACK FULL - bank it at ${campHint()}!`)
       applyRareFields(result)
       if (result.masteryUp && MASTERY_ENABLED) {
         flash(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
@@ -336,7 +336,7 @@ export function requestDepot(action: DepotAction, items: DepotItem[] = [], amoun
       }
 
       if (action === 'storeBackpack') {
-        if (result.items > 0) flash(`BANKED ${result.items} ITEMS`)
+        if (result.items > 0) flash(`DEPOSITED ${result.items} ITEMS`)
       } else {
         flash(result.items > 0 ? `SOLD ${result.items} ITEMS  +${result.coins} COINS` : 'NOTHING TO SELL')
         if (result.items > 0) playSuccessSound()

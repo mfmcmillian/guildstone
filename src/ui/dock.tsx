@@ -119,7 +119,7 @@ export function Dock() {
         {ringStationsEnabled() ? (
           // Stations appear the first time they matter (guide.tsx), so a new player only sees the Depot.
           <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', margin: { top: S(6) } }}>
-            <Button label="INVENTORY" icon="images/icons/backpack.png" color={C.green} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10), right: S(12) } }} onClick={() => togglePanel('bank')} />
+            <Button label="BANK" icon="images/icons/backpack.png" color={C.green} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10), right: S(12) } }} onClick={() => togglePanel('bank')} />
             {showWorkshop() ? <Button label="WORKSHOP" icon="images/icons/plank.png" color={C.orange} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('workshop')} /> : null}
             {showToolBench() ? <Button label="TOOL BENCH" icon="images/icons/lumberjack.png" color={C.blue} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10), right: S(12) } }} onClick={() => togglePanel('forge')} /> : null}
             {showShop() ? <Button label="SHOP" icon="images/icons/berry.png" color={C.purple} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('shop')} /> : null}

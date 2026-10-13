@@ -150,9 +150,9 @@ export function Hud() {
             color={C.navySoft}
             uiTransform={{ width: S(700), height: S(128), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: { left: S(18), right: S(18), top: S(10), bottom: S(10) } }}
           >
-            {full ? <OutlinedText value={ringStationsEnabled() ? "BACKPACK FULL - OPEN YOUR INVENTORY!" : `BACKPACK FULL - BANK IT AT ${campHint().toUpperCase()}!`} size={S(FONT.body + 2)} color={C.red} uiTransform={{ margin: { bottom: S(4) } }} /> : null}
+            {full ? <OutlinedText value={ringStationsEnabled() ? "BACKPACK FULL - TAP THE BAG TO BANK IT!" : `BACKPACK FULL - BANK IT AT ${campHint().toUpperCase()}!`} size={S(FONT.body + 2)} color={C.red} uiTransform={{ margin: { bottom: S(4) } }} /> : null}
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              {/* Tap the bag to open the Inventory. Counts are everything you own (backpack + banked), so banking never makes them drop. */}
+              {/* The backpack: what you are carrying right now. Tap the bag to bank it. */}
               <UiEntity
                 uiTransform={{ width: S(104), height: S(104), alignItems: 'center', justifyContent: 'center', margin: { right: S(10) } }}
                 uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: bagHover ? C.blue : C.navySoft }}
@@ -171,7 +171,7 @@ export function Hud() {
                   {BASE_RESOURCES.map((r) => (
                     <UiEntity key={r} uiTransform={{ width: S(125), height: S(46), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { left: S(5), right: S(5) } }}>
                       <Icon src={RESOURCE_INFO[r].icon} size={S(42)} />
-                      <OutlinedText value={`${player.backpack[r] + player.storage[r]}`} size={S(24)} uiTransform={{ width: S(65), margin: { left: S(5), bottom: S(4) } }} align="middle-left" />
+                      <OutlinedText value={`${player.backpack[r]}`} size={S(24)} uiTransform={{ width: S(65), margin: { left: S(5), bottom: S(4) } }} align="middle-left" />
                     </UiEntity>
                   ))}
                 </UiEntity>

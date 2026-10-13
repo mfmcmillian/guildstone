@@ -462,6 +462,8 @@ const DEPOT_ITEMS: DepotItem[] = [...BASE_RESOURCES, ...MATERIALS]
 /** Stack the player tapped; the confirm card replaces the grid while this is set. */
 let depotSelling: DepotItem | null = null
 let depotBankedAt = 0
+/** What the backpack held when this visit banked it, for the "DEPOSITED …" line. Cleared on close. */
+let depotDeposit: Partial<Record<BaseResource, number>> | null = null
 
 /** HUD bag icon and dock button both land here. */
 export function openStorage() {
@@ -487,6 +489,7 @@ function rareHoldings(): Array<{ id: ItemId; amount: number }> {
 
 function closeDepot() {
   depotSelling = null
+  depotDeposit = null
   closePanel()
 }
 
@@ -494,7 +497,15 @@ function closeDepot() {
 function bankBackpack() {
   if (backpackCount() <= 0 || Date.now() - depotBankedAt < 1000) return
   depotBankedAt = Date.now()
+  const snapshot: Partial<Record<BaseResource, number>> = { ...(depotDeposit ?? {}) }
+  for (const r of BASE_RESOURCES) if (player.backpack[r] > 0) snapshot[r] = (snapshot[r] ?? 0) + player.backpack[r]
+  depotDeposit = snapshot
   requestDepot('storeBackpack')
+}
+
+function depositText(): string {
+  if (!depotDeposit) return ''
+  return BASE_RESOURCES.filter((r) => (depotDeposit?.[r] ?? 0) > 0).map((r) => `${depotDeposit?.[r]} ${RESOURCE_INFO[r].name.toUpperCase()}`).join(', ')
 }
 
 function InventoryTile(props: { key?: string; item: ItemId; amount: number; sellable: boolean }) {
@@ -577,13 +588,17 @@ export function BankPanel() {
   const total = DEPOT_ITEMS.reduce((sum, item) => sum + storedAmount(item), 0) + rare.reduce((sum, r) => sum + r.amount, 0)
   const worth = Math.round(DEPOT_ITEMS.reduce((sum, item) => sum + storedAmount(item) * RESOURCE_INFO[item].value, 0) * guildSellMult())
   return (
-    <Modal title="INVENTORY" color={C.green} {...bigFrame(fit, 'INVENTORY')} onClose={closeDepot}>
+    <Modal title="BANK" color={C.green} {...bigFrame(fit, 'BANK')} onClose={closeDepot}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
-        <OutlinedText value={`YOUR ITEMS  •  ${total}`} size={S(44)} color={C.white} />
+        <OutlinedText
+          value={bag > 0 ? `DEPOSITING ${bag} FROM YOUR BACKPACK…` : depositText() ? `DEPOSITED ${depositText()}` : `YOUR BANK  •  ${total} ITEMS`}
+          size={S(44)}
+          color={bag > 0 || depositText() ? C.green : C.white}
+        />
         <Text
-          value={bag > 0 ? `Banking ${bag} from your backpack…` : `Everything you gather is banked here. Tap any item to sell it.  Whole stock is worth ${worth} coins.`}
+          value={`${total} items banked  •  tap any stack to sell it  •  whole stock is worth ${worth} coins`}
           size={S(26)}
-          color={bag > 0 ? C.greenDark : C.textMuted}
+          color={C.textMuted}
           nowrap
           uiTransform={{ margin: { top: S(4) } }}
         />
@@ -1856,7 +1871,7 @@ export function AwayPanel() {
     <Modal title={title} color={C.green} {...bigFrame(fit, title)} onClose={closePanel}>
       <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', padding: { top: S(10) } }}>
         <OutlinedText value={`YOUR ${info.name.toUpperCase()} KEPT WORKING FOR ${formatAway(away.elapsed).toUpperCase()}`} size={S(40)} color={C.white} />
-        <Text value="Everything below is already in your Inventory." size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(6) } }} />
+        <Text value="Everything below is already in your Bank." size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(6) } }} />
 
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', width: '100%', margin: { top: S(30) } }}>
           {/* Gathered */}
@@ -1916,7 +1931,7 @@ export function AwayPanel() {
               <Text value="Wear a suit in its zone and rare materials start dropping while you are away." size={S(22)} color={C.textMuted} uiTransform={{ width: S(440), height: S(90), margin: { top: S(20) } }} />
             )}
             {extras ? <Spacer /> : null}
-            {extras ? <Text value={rare.length > 0 || away.antromPelts > 0 ? 'Materials went straight to your Inventory.' : 'Berries are ready to spend in the Shop.'} size={S(20)} color={C.gray} nowrap /> : null}
+            {extras ? <Text value={rare.length > 0 || away.antromPelts > 0 ? 'Materials went straight to your Bank.' : 'Berries are ready to spend in the Shop.'} size={S(20)} color={C.gray} nowrap /> : null}
           </Panel>
         </UiEntity>
 
