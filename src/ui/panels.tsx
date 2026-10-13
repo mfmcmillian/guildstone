@@ -206,7 +206,7 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
   )
 }
 
-const SUIT_CARD_H = 560
+const SUIT_CARD_H = 680
 /** 150000 -> "150k", 2000 -> "2k", 600 -> "600". */
 function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0)}m`
