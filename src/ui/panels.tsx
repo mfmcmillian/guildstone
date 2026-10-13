@@ -1,6 +1,6 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, FONT, TEX, SLICE_128 } from './theme'
+import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer } from './components'
 import { S, fitModal } from './responsive'
 import {
@@ -39,8 +39,11 @@ import {
   MaterialKey,
   isStorageKey,
   RareRaw,
+  RareDropDef,
   RARE_RAWS,
   RARE_MATERIALS,
+  COMBOS,
+  gateMet,
   LADDER,
   activeRareDrops,
   rareDoublePct,
@@ -71,6 +74,23 @@ import { refreshGuild, requestBoost, requestCraft, requestCraftSuit, requestDepo
 import { canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, pieceThumbnail, refreshOwnedSuits, suitPieces } from '../suits'
 
 const skillColor = (s: Skill) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
+
+// Every menu shares one large frame, designed at MODAL_W × MODAL_H and scaled uniformly by fitModal, so text
+// and cards render at the same size in every panel. CONTENT_W is the usable row width inside the frame
+// padding. Text never goes below 20 design px.
+const MODAL_W = 1850
+const MODAL_H = 1250
+const CONTENT_W = 1720
+const TITLE_SIZE = 52
+type Fit = { scale: number; offsetX: number }
+/** Call first thing in a panel (before any S()) so children are measured at the frame's scale. */
+function fitBig(): Fit {
+  return fitModal(MODAL_W, MODAL_H, true)
+}
+/** Modal props for the shared frame. */
+function bigFrame(fit: Fit, title: string) {
+  return { width: MODAL_W, height: MODAL_H, scale: fit.scale, offsetX: fit.offsetX, titleSize: TITLE_SIZE, titleWidth: Math.max(420, title.length * 40) }
+}
 
 // ---------------------------------------------------------------- PROFESSIONS
 let skillsTab: 'professions' | 'suits' = 'professions'
@@ -103,42 +123,42 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
   const costEntries = recipe ? (Object.entries(recipe.cost) as Array<[ItemId | 'coins', number]>) : []
   return (
     <UiEntity
-      uiTransform={{ width: S(210), height: S(SUIT_CARD_H), flexDirection: 'column', alignItems: 'center', padding: S(16), margin: { left: S(6), right: S(6) } }}
+      uiTransform={{ width: S(320), height: S(SUIT_CARD_H), flexDirection: 'column', alignItems: 'center', padding: S(20), margin: { left: S(6), right: S(6) } }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: equipped ? C.yellow : owned ? C.paper2 : C.navySoft }}
     >
       <UiEntity
-        uiTransform={{ width: S(104), height: S(104), alignItems: 'center', justifyContent: 'center' }}
+        uiTransform={{ width: S(200), height: S(200), alignItems: 'center', justifyContent: 'center' }}
         uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: owned ? color : C.gray }}
       >
         <UiEntity
-          uiTransform={{ width: S(96), height: S(96) }}
+          uiTransform={{ width: S(188), height: S(188) }}
           uiBackground={{ textureMode: 'stretch', texture: { src: pieceThumbnail(piece) }, color: owned ? C.white : Color4.create(0.45, 0.45, 0.5, 1) }}
         />
       </UiEntity>
       <OutlinedText
         value={set ? piece.name.replace('Ether Assassin ', '').toUpperCase() : piece.name.toUpperCase()}
-        size={S(19)}
+        size={S(26)}
         color={owned ? C.white : C.textMuted}
-        uiTransform={{ margin: { top: S(6) } }}
+        uiTransform={{ margin: { top: S(10) } }}
       />
       <Text
         value={set ? `Piece ${level} of 4` : `Tier ${level} drops  •  +${SUIT_CAP[level]} bag`}
-        size={S(15)}
+        size={S(22)}
         color={owned ? C.text : C.textMuted}
         nowrap
-        uiTransform={{ height: S(20) }}
+        uiTransform={{ height: S(30) }}
       />
       {recipe ? (
-        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(4) } }}>
-          <Text value={`Lv ${recipe.level}${prevOwned ? '' : `  •  own L${level - 1} first`}`} size={S(13)} color={levelOk && prevOwned ? C.greenDark : C.red} nowrap uiTransform={{ height: S(16) }} />
-          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(8) } }}>
+          <Text value={`Lv ${recipe.level}${prevOwned ? '' : `  •  own L${level - 1} first`}`} size={S(20)} color={levelOk && prevOwned ? C.greenDark : C.red} nowrap uiTransform={{ height: S(26) }} />
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', margin: { top: S(4) } }}>
             {costEntries.map(([id, need]) => {
               const have = haveItem(id)
               const icon = id === 'coins' ? RESOURCE_INFO.coin.icon : RESOURCE_INFO[id].icon
               return (
-                <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(88), height: S(24), margin: { left: S(1), right: S(1) } }}>
-                  <Icon src={icon} size={S(20)} />
-                  <Text value={`${compact(have)}/${compact(need)}`} size={S(12)} color={have >= need ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: S(64), height: S(24), margin: { left: S(2) } }} />
+                <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(136), height: S(34), margin: { left: S(2), right: S(2) } }}>
+                  <Icon src={icon} size={S(30)} />
+                  <Text value={`${compact(have)}/${compact(need)}`} size={S(20)} color={have >= need ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: S(100), height: S(34), margin: { left: S(4) } }} />
                 </UiEntity>
               )
             })}
@@ -148,16 +168,16 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
       <Spacer />
       {recipe ? (
         mintingThis ? (
-          <Text value="MINTING…" size={S(16)} color={C.yellow} uiTransform={{ height: S(44) }} />
+          <Text value="MINTING…" size={S(24)} color={C.yellow} uiTransform={{ height: S(64) }} />
         ) : minted ? (
-          <Text value={checking ? 'CHECKING…' : 'MINTED - checking wallet…'} size={S(13)} color={C.greenDark} uiTransform={{ height: S(44) }} />
+          <Text value={checking ? 'CHECKING…' : 'MINTED - checking wallet…'} size={S(20)} color={C.greenDark} uiTransform={{ height: S(64) }} />
         ) : (
           <Button
             label="CRAFT"
             color={C.orange}
-            size={S(20)}
+            size={S(26)}
             disabled={!craftable}
-            uiTransform={{ width: S(160), height: S(44) }}
+            uiTransform={{ width: S(240), height: S(64) }}
             onClick={() => requestCraftSuit(skill, level)}
           />
         )
@@ -165,26 +185,26 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
         <Button
           label="EQUIPPED"
           color={C.green}
-          size={S(18)}
-          uiTransform={{ width: S(160), height: S(44) }}
+          size={S(24)}
+          uiTransform={{ width: S(240), height: S(64) }}
           onClick={() => (set ? toggleSet(false) : requestEquipSuit(skill, 0))}
         />
       ) : owned ? (
         <Button
           label="EQUIP"
           color={color}
-          size={S(20)}
-          uiTransform={{ width: S(160), height: S(44) }}
+          size={S(26)}
+          uiTransform={{ width: S(240), height: S(64) }}
           onClick={() => (set ? toggleSet(true) : requestEquipSuit(skill, level))}
         />
       ) : (
-        <Text value={checking ? 'CHECKING…' : set ? 'NOT OWNED  •  buy it in the Marketplace' : 'NOT OWNED'} size={S(14)} color={C.textMuted} uiTransform={{ height: S(44) }} />
+        <Text value={checking ? 'CHECKING…' : set ? 'NOT OWNED  •  buy it in the Marketplace' : 'NOT OWNED'} size={S(20)} color={C.textMuted} uiTransform={{ height: S(64) }} />
       )}
     </UiEntity>
   )
 }
 
-const SUIT_CARD_H = 330
+const SUIT_CARD_H = 560
 /** 150000 -> "150k", 2000 -> "2k", 600 -> "600". */
 function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0)}m`
@@ -201,24 +221,24 @@ function SuitRow(props: { key?: string; skill: Skill }) {
   const pieces = ownedPieceCount(s)
   const wornPieces = player.equippedAssassinPieces.length
   return (
-    <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
-      <Panel flat color={C.paper2} uiTransform={{ width: S(250), height: S(SUIT_CARD_H), alignItems: 'center', justifyContent: 'center', padding: S(16), margin: { right: S(6) } }}>
+    <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(14) } }}>
+      <Panel flat color={C.paper2} uiTransform={{ width: S(380), height: S(SUIT_CARD_H), alignItems: 'center', justifyContent: 'center', padding: S(20), margin: { right: S(6) } }}>
         <UiEntity
-          uiTransform={{ width: S(64), height: S(64), alignItems: 'center', justifyContent: 'center' }}
+          uiTransform={{ width: S(120), height: S(120), alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color }}
         >
-          <Icon src={SKILL_ICON[s]} size={S(52)} />
+          <Icon src={SKILL_ICON[s]} size={S(96)} />
         </UiEntity>
-        <OutlinedText value={info.name.toUpperCase()} size={S(21)} uiTransform={{ margin: { top: S(4) } }} />
-        <OutlinedText value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(26)} color={st.suit > 0 ? C.yellow : C.textMuted} />
-        <Text value={st.suit > 0 ? `Tier ${st.suit} drops unlocked` : `Base ${info.resource} only`} size={S(14)} color={st.suit > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(18) }} />
-        <Text value={st.suit > 0 ? `+${suitBag(st.suit)} backpack` : `no backpack bonus`} size={S(14)} color={C.textMuted} nowrap uiTransform={{ height: S(18) }} />
+        <OutlinedText value={info.name.toUpperCase()} size={S(30)} uiTransform={{ margin: { top: S(10) } }} />
+        <OutlinedText value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(40)} color={st.suit > 0 ? C.yellow : C.textMuted} />
+        <Text value={st.suit > 0 ? `Tier ${st.suit} drops unlocked` : `Base ${info.resource} only`} size={S(24)} color={st.suit > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} />
+        <Text value={st.suit > 0 ? `+${suitBag(st.suit)} backpack` : `no backpack bonus`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
         {set ? (
           <Text
             value={pieces > 0 ? `${wornPieces} / ${pieces} owned pieces worn  •  each piece = +1 level` : 'Own Ether Assassin pieces to equip'}
-            size={S(12)}
+            size={S(20)}
             color={wornPieces > 0 ? C.greenDark : C.textMuted}
-            uiTransform={{ height: S(20), margin: { top: S(4) } }}
+            uiTransform={{ height: S(56), margin: { top: S(8) } }}
           />
         ) : null}
       </Panel>
@@ -241,32 +261,32 @@ function SuitsTab() {
   const capText = [`${SUIT_CAP[0]} base`, ...suitParts, ...extras].join('  •  ') + (growth > 0 ? `   x${(1 + growth).toFixed(2)} from mastery & tools` : '')
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
-      <Panel flat color={C.paper2} uiTransform={{ width: '100%', height: S(96), flexDirection: 'row', alignItems: 'center', padding: { left: S(26), right: S(26) } }}>
-        <Icon src="images/icons/backpack.png" size={S(50)} uiTransform={{ margin: { right: S(12) }, flexShrink: 0 }} />
-        <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, flexShrink: 1, width: S(700) }}>
-          <Text value={`BACKPACK CAPACITY  ${cap}`} size={S(FONT.body + 1)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(28) }} />
+      <Panel flat color={C.paper2} uiTransform={{ width: S(CONTENT_W), height: S(130), flexDirection: 'row', alignItems: 'center', padding: { left: S(30), right: S(30) } }}>
+        <Icon src="images/icons/backpack.png" size={S(80)} uiTransform={{ margin: { right: S(20) }, flexShrink: 0 }} />
+        <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, flexShrink: 1, width: S(1100) }}>
+          <Text value={`BACKPACK CAPACITY  ${cap}`} size={S(30)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(40) }} />
           <Text
             value={capText}
-            size={S(15)}
+            size={S(22)}
             color={C.textMuted}
             align="middle-left"
-            uiTransform={{ height: S(40) }}
+            uiTransform={{ height: S(60) }}
           />
         </UiEntity>
-        <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-end', width: S(330), flexShrink: 0 }}>
-          <OutlinedText value={`${ownedCount} / 16 WEARABLES`} size={S(FONT.body + 1)} color={C.yellow} align="middle-right" />
-          <Text value={ownedSuitsKnown() ? 'Checked against your wallet' : 'Checking your wallet…'} size={S(14)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ height: S(18) }} />
+        <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-end', width: S(420), flexShrink: 0 }}>
+          <OutlinedText value={`${ownedCount} / 16 WEARABLES`} size={S(32)} color={C.yellow} align="middle-right" />
+          <Text value={ownedSuitsKnown() ? 'Checked against your wallet' : 'Checking your wallet…'} size={S(22)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ height: S(30) }} />
         </UiEntity>
       </Panel>
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(12) } }}>
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(16) } }}>
         {SKILLS.map((s) => (
           <Button
             key={s}
             label={`${SKILL_INFO[s].name.toUpperCase()}${player.skills[s].suit > 0 ? `  L${player.skills[s].suit}` : ''}`}
             icon={SKILL_ICON[s]}
             color={suitsSkill === s ? skillColor(s) : C.navySoft}
-            size={S(20)}
-            uiTransform={{ width: S(272), height: S(58), margin: { left: S(5), right: S(5) } }}
+            size={S(28)}
+            uiTransform={{ width: S(410), height: S(78), margin: { left: S(10), right: S(10) } }}
             onClick={() => { suitsSkill = s }}
           />
         ))}
@@ -276,9 +296,9 @@ function SuitsTab() {
         value={isSetLine(suitsSkill)
           ? 'Ether Assassin pieces are bought in the Marketplace. Each worn piece counts as one suit level.'
           : `Craft ${SKILL_INFO[suitsSkill].name} suits here with materials and coins: the wearable is minted to your wallet. Wear it to unlock the next tier of drops in the ${SKILL_INFO[suitsSkill].zoneName}; every worn suit also adds bag space.`}
-        size={S(16)}
+        size={S(24)}
         color={C.textMuted}
-        uiTransform={{ margin: { top: S(12) } }}
+        uiTransform={{ width: S(1500), height: S(70), margin: { top: S(18) } }}
       />
     </UiEntity>
   )
@@ -292,25 +312,24 @@ function LadderChip(props: { key?: string; rung: LadderRung; reached: boolean; n
   const fg = props.reached || props.next ? C.white : C.textMuted
   return (
     <UiEntity
-      uiTransform={{ width: S(116), height: S(62), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(3), right: S(3) } }}
+      uiTransform={{ width: S(106), height: S(78), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(2), right: S(2) } }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: bg }}
     >
-      <Text value={`Lv ${props.rung.level}`} size={S(16)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(22) }} />
-      <Text value={props.rung.label} size={S(16)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(24) }} />
+      <Text value={`Lv ${props.rung.level}`} size={S(22)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(30) }} />
+      <Text value={props.rung.label} size={S(20)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(28) }} />
     </UiEntity>
   )
 }
 
 export function SkillsPanel() {
   const suits = skillsTab === 'suits'
-  const designW = suits ? 1220 : 1340
-  const designH = suits ? 420 + SUIT_CARD_H : 940 + (expandedSkill ? 80 : 0)
-  fitModal(designW, designH)
+  const fit = fitBig()
+  const title = suits ? 'SUITS' : 'PROFESSIONS'
   return (
-    <Modal title={suits ? 'SUITS' : 'PROFESSIONS'} color={C.blue} width={designW} height={designH} onClose={closePanel}>
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(12) } }}>
-        <Button label="PROFESSIONS" color={skillsTab === 'professions' ? C.blue : C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(70), margin: { right: S(8) } }} onClick={() => { skillsTab = 'professions' }} />
-        <Button label="SUITS" color={skillsTab === 'suits' ? C.blue : C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(70), margin: { left: S(8) } }} onClick={() => { skillsTab = 'suits' }} />
+    <Modal title={title} color={C.blue} {...bigFrame(fit, title)} onClose={closePanel}>
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(16) } }}>
+        <Button label="PROFESSIONS" color={skillsTab === 'professions' ? C.blue : C.navySoft} size={S(32)} uiTransform={{ width: S(380), height: S(78), margin: { right: S(8) } }} onClick={() => { skillsTab = 'professions' }} />
+        <Button label="SUITS" color={skillsTab === 'suits' ? C.blue : C.navySoft} size={S(32)} uiTransform={{ width: S(380), height: S(78), margin: { left: S(8) } }} onClick={() => { skillsTab = 'suits' }} />
       </UiEntity>
       {skillsTab === 'suits' ? <SuitsTab /> : SKILLS.map((s) => {
         const st = player.skills[s]
@@ -321,65 +340,65 @@ export function SkillsPanel() {
           <Panel
             key={s}
             flat
-            uiTransform={{ width: '100%', height: S(expanded ? 250 : 170), flexDirection: 'column', padding: { left: S(26), right: S(26), top: S(expanded ? 10 : 4) }, margin: { bottom: S(12) } }}
+            uiTransform={{ width: S(CONTENT_W), height: S(expanded ? 292 : 220), flexDirection: 'column', padding: { left: S(26), right: S(26), top: S(expanded ? 10 : 4) }, margin: { bottom: S(14) } }}
             color={C.paper2}
             onClick={() => {
               playButtonSound()
               expandedSkill = expanded ? null : s
             }}
           >
-          <UiEntity uiTransform={{ width: '100%', height: S(128), flexDirection: 'row', alignItems: 'center' }}>
+          <UiEntity uiTransform={{ width: '100%', height: S(170), flexDirection: 'row', alignItems: 'center' }}>
             <UiEntity
-              uiTransform={{ width: S(100), height: S(100), alignItems: 'center', justifyContent: 'center', margin: { right: S(16) } }}
+              uiTransform={{ width: S(130), height: S(130), alignItems: 'center', justifyContent: 'center', margin: { right: S(20) } }}
               uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: skillColor(s) }}
             >
-              <Icon src={SKILL_ICON[s]} size={S(80)} />
+              <Icon src={SKILL_ICON[s]} size={S(104)} />
             </UiEntity>
-            <UiEntity uiTransform={{ flexDirection: 'column', width: S(370) }}>
+            <UiEntity uiTransform={{ flexDirection: 'column', width: S(470) }}>
               <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
-                <Text value={SKILL_INFO[s].name} size={S(36)} align="middle-left" uiTransform={{ width: 'auto', height: S(46) }} />
-                <OutlinedText value={`Lv ${st.level}`} size={S(34)} color={C.yellow} uiTransform={{ width: 'auto', minWidth: S(110), height: S(46), margin: { left: S(14) } }} align="middle-left" />
+                <Text value={SKILL_INFO[s].name} size={S(44)} align="middle-left" uiTransform={{ width: 'auto', height: S(58) }} />
+                <OutlinedText value={`Lv ${st.level}`} size={S(42)} color={C.yellow} uiTransform={{ width: 'auto', minWidth: S(140), height: S(58), margin: { left: S(16) } }} align="middle-left" />
               </UiEntity>
-              <Bar value={st.level >= MAX_LEVEL ? 1 : st.xp / need} color={skillColor(s)} height={S(36)} label={st.level >= MAX_LEVEL ? 'MAX LEVEL' : `${st.xp} / ${need} XP`} labelSize={S(22)} uiTransform={{ margin: { top: S(4) } }} />
+              <Bar value={st.level >= MAX_LEVEL ? 1 : st.xp / need} color={skillColor(s)} height={S(46)} label={st.level >= MAX_LEVEL ? 'MAX LEVEL' : `${st.xp} / ${need} XP`} labelSize={S(26)} uiTransform={{ margin: { top: S(6) } }} />
             </UiEntity>
             {MASTERY_ENABLED ? <MasteryColumn skill={s} /> : null}
             <Spacer />
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
-              <Text value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(24)} color={st.suit > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(32) }} />
-              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(4), bottom: S(4) } }}>
+              <Text value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(28)} color={st.suit > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
+              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6), bottom: S(6) } }}>
                 {[1, 2, 3, 4].map((lv) => (
                   <UiEntity
                     key={lv}
-                    uiTransform={{ width: S(34), height: S(34), margin: { left: S(3), right: S(3) } }}
+                    uiTransform={{ width: S(42), height: S(42), margin: { left: S(4), right: S(4) } }}
                     uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: st.suit >= lv ? skillColor(s) : C.gray }}
                   />
                 ))}
               </UiEntity>
-              <Text value={st.suit > 0 ? `Tier ${st.suit} drops` : 'Base drops'} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+              <Text value={st.suit > 0 ? `Tier ${st.suit} drops` : 'Base drops'} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(34) }} />
             </UiEntity>
             <RareDropColumn skill={s} />
-            <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', margin: { left: S(26) } }}>
-              <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(24)} color={player.tools[s] > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(32) }} />
-              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(4), bottom: S(4) } }}>
+            <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', margin: { left: S(30) } }}>
+              <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(28)} color={player.tools[s] > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
+              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6), bottom: S(6) } }}>
                 {[1, 2, 3, 4, 5].map((lv) => (
                   <UiEntity
                     key={lv}
-                    uiTransform={{ width: S(28), height: S(28), margin: { left: S(3), right: S(3) } }}
+                    uiTransform={{ width: S(34), height: S(34), margin: { left: S(4), right: S(4) } }}
                     uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: player.tools[s] >= lv ? C.blue : C.gray }}
                   />
                 ))}
               </UiEntity>
-              <Text value={`+${Math.round(toolPct(s) * 100)}% yield`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+              <Text value={`+${Math.round(toolPct(s) * 100)}% yield`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(34) }} />
             </UiEntity>
           </UiEntity>
           {expanded ? (
-            <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(6) } }}>
+            <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(8) } }}>
               {skillLadder(s).map((r, i) => (
                 <LadderChip key={`${s}-${i}`} rung={r} reached={st.level >= r.level} next={rung !== null && r.level === rung.level && r.label === rung.label} />
               ))}
             </UiEntity>
           ) : (
-            <Text value={rung ? `Tap for unlocks  •  Next: Lv ${rung.level} ${rung.label}` : 'Tap for unlocks  •  All unlocked'} size={S(18)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(26), margin: { top: S(2) } }} />
+            <Text value={rung ? `Tap for unlocks  •  Next: Lv ${rung.level} ${rung.label}` : 'Tap for unlocks  •  All unlocked'} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(32), margin: { top: S(4) } }} />
           )}
           </Panel>
         )
@@ -393,21 +412,21 @@ function RareDropColumn(props: { key?: string; skill: Skill }) {
   const active = activeRareDrops(props.skill)
   const next = LADDER[props.skill][player.skills[props.skill].suit + 1]
   return (
-    <UiEntity uiTransform={{ flexDirection: 'column', width: S(230), margin: { left: S(22) } }}>
-      <Text value={active.length > 0 ? `RARE FINDS  •  ${Math.round(rareDoublePct() * 100)}% double` : 'RARE FINDS'} size={S(16)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(22) }} />
+    <UiEntity uiTransform={{ flexDirection: 'column', width: S(340), margin: { left: S(26) } }}>
+      <Text value={active.length > 0 ? `RARE FINDS  •  ${Math.round(rareDoublePct() * 100)}% double` : 'RARE FINDS'} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30) }} />
       {active.length === 0 ? (
-        <Text value={next ? `Wear the L1 suit to find ${next[1]}` : 'Everything unlocked'} size={S(14)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(40) }} />
+        <Text value={next ? `Wear the L1 suit to find ${next[1]}` : 'Everything unlocked'} size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(64) }} />
       ) : (
         active.slice(0, 3).map((id) => (
-          <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(28) }}>
-            <Icon src={RESOURCE_INFO[id].icon} size={S(24)} />
-            <UiEntity uiTransform={{ width: S(190), margin: { left: S(6) } }}>
-              <Bar value={player.rareProgress[id]} color={C.purple} height={S(22)} label={`${RESOURCE_INFO[id].name}  ${Math.round(player.rareProgress[id] * 100)}%`} labelSize={S(13)} />
+          <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(38) }}>
+            <Icon src={RESOURCE_INFO[id].icon} size={S(32)} />
+            <UiEntity uiTransform={{ width: S(290), margin: { left: S(8) } }}>
+              <Bar value={player.rareProgress[id]} color={C.purple} height={S(30)} label={`${RESOURCE_INFO[id].name}  ${Math.round(player.rareProgress[id] * 100)}%`} labelSize={S(20)} />
             </UiEntity>
           </UiEntity>
         ))
       )}
-      {active.length > 3 ? <Text value={`+${active.length - 3} more`} size={S(13)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(16) }} /> : null}
+      {active.length > 3 ? <Text value={`+${active.length - 3} more`} size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(26) }} /> : null}
     </UiEntity>
   )
 }
@@ -426,8 +445,8 @@ function MasteryColumn(props: { key?: string; skill: Skill }) {
         <Text value={`${SKILL_INFO[props.skill].zoneName} MASTERY`} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(280), height: S(40) }} />
         <OutlinedText value={`${m.level}`} size={S(32)} color={C.purple} uiTransform={{ width: S(60), height: S(40) }} align="middle-left" />
       </UiEntity>
-      <Bar value={maxed ? 1 : m.xp / need} color={C.purple} height={S(30)} label={maxed ? 'MAXED' : `${m.xp} / ${need} cycles`} labelSize={S(18)} />
-      <Text value={next ? `${bonus}   •   next: Lv ${next} = ${Math.round(masteryDoubleChance(next) * 100)}% double` : bonus} size={S(17)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(26), margin: { top: S(4) } }} />
+      <Bar value={maxed ? 1 : m.xp / need} color={C.purple} height={S(30)} label={maxed ? 'MAXED' : `${m.xp} / ${need} cycles`} labelSize={S(20)} />
+      <Text value={next ? `${bonus}   •   next: Lv ${next} = ${Math.round(masteryDoubleChance(next) * 100)}% double` : bonus} size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(28), margin: { top: S(4) } }} />
     </UiEntity>
   )
 }
@@ -466,12 +485,12 @@ function rareHoldings(): Array<{ id: ItemId; amount: number }> {
 function RareChip(props: { key?: string; id: ItemId; amount: number }) {
   return (
     <UiEntity
-      uiTransform={{ width: S(118), height: S(132), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(8), margin: S(4) }}
+      uiTransform={{ width: S(200), height: S(190), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(10), margin: S(6), flexShrink: 0 }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: C.navySoft }}
     >
-      <Icon src={RESOURCE_INFO[props.id].icon} size={S(56)} />
-      <Text value={RESOURCE_INFO[props.id].name} size={S(13)} color={C.textMuted} nowrap uiTransform={{ height: S(18) }} />
-      <OutlinedText value={`${props.amount}`} size={S(22)} color={C.yellow} />
+      <Icon src={RESOURCE_INFO[props.id].icon} size={S(84)} />
+      <Text value={RESOURCE_INFO[props.id].name} size={S(20)} color={C.gray} nowrap uiTransform={{ height: S(28), margin: { top: S(4) } }} />
+      <OutlinedText value={`${props.amount}`} size={S(32)} color={C.yellow} />
     </UiEntity>
   )
 }
@@ -498,7 +517,7 @@ function StorageCard(props: { key?: string; item: DepotItem }) {
   const selected = depotSelection.has(props.item)
   return (
     <UiEntity
-      uiTransform={{ width: S(165), height: S(190), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(14), margin: { left: S(7), right: S(7), top: S(7), bottom: S(7) } }}
+      uiTransform={{ width: S(400), height: S(300), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(16), margin: { left: S(7), right: S(7), top: S(7), bottom: S(7) } }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: selected ? C.yellow : C.paper2 }}
       onMouseDown={() => {
         if (amount <= 0) return
@@ -506,11 +525,11 @@ function StorageCard(props: { key?: string; item: DepotItem }) {
         else depotSelection.add(props.item)
       }}
     >
-      <Icon src={RESOURCE_INFO[props.item].icon} size={S(72)} />
-      <Text value={RESOURCE_INFO[props.item].name.toUpperCase()} size={S(FONT.small)} color={C.textMuted} />
-      <OutlinedText value={`${amount}`} size={S(FONT.title - 2)} color={C.white} />
-      <Text value={`VALUE  ${Math.round(amount * RESOURCE_INFO[props.item].value * guildSellMult())}`} size={S(16)} color={amount > 0 ? C.orange : C.textMuted} />
-      <Text value={selected ? 'SELECTED' : amount > 0 ? 'TAP TO SELECT' : 'EMPTY'} size={S(15)} color={selected ? C.greenDark : C.textMuted} />
+      <Icon src={RESOURCE_INFO[props.item].icon} size={S(120)} />
+      <Text value={RESOURCE_INFO[props.item].name.toUpperCase()} size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: S(4) } }} />
+      <OutlinedText value={`${amount}`} size={S(48)} color={C.white} />
+      <Text value={`VALUE  ${Math.round(amount * RESOURCE_INFO[props.item].value * guildSellMult())}`} size={S(24)} color={amount > 0 ? C.orange : C.textMuted} nowrap uiTransform={{ height: S(32) }} />
+      <Text value={selected ? 'SELECTED' : amount > 0 ? 'TAP TO SELECT' : 'EMPTY'} size={S(22)} color={selected ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(30) }} />
     </UiEntity>
   )
 }
@@ -524,61 +543,78 @@ function BackpackDepotView() {
   const targetTotal = targets.reduce((a, r) => a + player.backpack[r], 0)
   const coins = Math.round(targets.reduce((a, r) => a + player.backpack[r] * RESOURCE_INFO[r].value, 0) * guildSellMult())
   const scopeLabel = hasSelection ? 'SELECTED' : 'ALL'
-  fitModal(780, 570)
+  const fit = fitBig()
   return (
-    <Modal title="DEPOT" color={C.green} width={780} height={570} onClose={closeDepot}>
-      <OutlinedText value={`YOUR BACKPACK  ${total} / ${backpackCap()}`} size={S(FONT.title - 3)} color={C.white} />
-      <Text value={hasSelection ? `${backpackSelection.size} selected  •  tap again to deselect` : 'Tap resources to pick what to store or sell'} size={S(FONT.small)} color={C.textMuted} />
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(6), bottom: S(14) } }}>
-        {BASE_RESOURCES.map((resource) => {
-          const amount = player.backpack[resource]
-          const selected = backpackSelection.has(resource)
-          return (
-            <UiEntity
-              key={resource}
-              uiTransform={{ width: S(150), height: S(170), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(8), right: S(8) } }}
-              uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: selected ? C.yellow : C.paper2 }}
-              onMouseDown={() => {
-                if (amount <= 0) return
-                if (selected) backpackSelection.delete(resource)
-                else backpackSelection.add(resource)
-              }}
-            >
-              <Icon src={RESOURCE_INFO[resource].icon} size={S(72)} />
-              <Text value={RESOURCE_INFO[resource].name.toUpperCase()} size={S(FONT.small)} color={C.textMuted} />
-              <OutlinedText value={`${amount}`} size={S(FONT.title - 2)} color={C.white} />
-              <Text value={selected ? 'SELECTED' : amount > 0 ? 'TAP TO SELECT' : 'EMPTY'} size={S(14)} color={selected ? C.greenDark : C.textMuted} />
+    <Modal title="DEPOT" color={C.green} {...bigFrame(fit, 'DEPOT')} onClose={closeDepot}>
+      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+        <OutlinedText value={`YOUR BACKPACK  ${total} / ${backpackCap()}`} size={S(44)} color={C.white} />
+        <Text value={hasSelection ? `${backpackSelection.size} selected  •  tap again to deselect` : 'Tap resources to pick what to store or sell'} size={S(26)} color={C.textMuted} uiTransform={{ margin: { top: S(4) } }} />
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(20), bottom: S(24) } }}>
+          {BASE_RESOURCES.map((resource) => {
+            const amount = player.backpack[resource]
+            const selected = backpackSelection.has(resource)
+            const value = Math.round(amount * RESOURCE_INFO[resource].value * guildSellMult())
+            return (
+              <UiEntity
+                key={resource}
+                uiTransform={{ width: S(400), height: S(470), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(10), right: S(10) } }}
+                uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: selected ? C.yellow : C.paper2 }}
+                onMouseDown={() => {
+                  if (amount <= 0) return
+                  if (selected) backpackSelection.delete(resource)
+                  else backpackSelection.add(resource)
+                }}
+              >
+                <Icon src={RESOURCE_INFO[resource].icon} size={S(190)} />
+                <Text value={RESOURCE_INFO[resource].name.toUpperCase()} size={S(28)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { top: S(8) } }} />
+                <OutlinedText value={`${amount}`} size={S(60)} color={C.white} />
+                <Text value={`SELLS FOR  ${value}`} size={S(24)} color={amount > 0 ? C.orange : C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(4) } }} />
+                <Text value={selected ? 'SELECTED' : amount > 0 ? 'TAP TO SELECT' : 'EMPTY'} size={S(22)} color={selected ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(4) } }} />
+              </UiEntity>
+            )
+          })}
+        </UiEntity>
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
+          <UiEntity uiTransform={{ width: S(600), flexDirection: 'column', alignItems: 'center', margin: { right: S(20) } }}>
+            <Button
+              label={`STORE ${scopeLabel}  (${targetTotal})`}
+              color={C.green}
+              disabled={targetTotal === 0}
+              size={S(32)}
+              uiTransform={{ width: S(600), height: S(100) }}
+              onClick={() => backpackAction('storeBackpack')}
+            />
+            <Text value="Moves resources into your permanent Storage." size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: S(10) } }} />
+          </UiEntity>
+          <UiEntity uiTransform={{ width: S(600), flexDirection: 'column', alignItems: 'center', margin: { left: S(20) } }}>
+            <Button
+              label={`SELL ${scopeLabel} FOR  ${coins}`}
+              icon={RESOURCE_INFO.coin.icon}
+              color={C.orange}
+              disabled={targetTotal === 0}
+              size={S(32)}
+              uiTransform={{ width: S(600), height: S(100) }}
+              onClick={() => backpackAction('sellBackpack')}
+            />
+            <Text value="Turns backpack resources into Coins. Permanent." size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: S(10) } }} />
+          </UiEntity>
+        </UiEntity>
+        <Spacer />
+        <Panel flat color={C.paper2} uiTransform={{ width: S(CONTENT_W), height: S(150), flexDirection: 'row', alignItems: 'center', padding: { left: S(26), right: S(26) } }}>
+          <UiEntity uiTransform={{ flexDirection: 'column', width: S(250), flexShrink: 0 }}>
+            <Text value="IN STORAGE" size={S(26)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
+            <Text value="Kept safe between trips" size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(28) }} />
+          </UiEntity>
+          {DEPOT_ITEMS.map((item) => (
+            <UiEntity key={item} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(118), height: S(60), margin: { right: S(6) } }}>
+              <Icon src={RESOURCE_INFO[item].icon} size={S(48)} />
+              <Text value={compact(storedAmount(item))} size={S(22)} color={storedAmount(item) > 0 ? C.text : C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(64), height: S(60), margin: { left: S(4) } }} />
             </UiEntity>
-          )
-        })}
+          ))}
+          <Spacer />
+          <Button label="MANAGE STORAGE" color={C.blue} size={S(28)} uiTransform={{ width: S(400), height: S(84), flexShrink: 0 }} onClick={() => { depotView = 'storage' }} />
+        </Panel>
       </UiEntity>
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
-        <UiEntity uiTransform={{ width: S(330), flexDirection: 'column', alignItems: 'center', margin: { right: S(8) } }}>
-          <Button
-            label={`STORE ${scopeLabel}  (${targetTotal})`}
-            color={C.green}
-            disabled={targetTotal === 0}
-            size={S(22)}
-            uiTransform={{ width: S(330), height: S(82) }}
-            onClick={() => backpackAction('storeBackpack')}
-          />
-          <Text value="Moves resources into permanent Storage." size={S(21)} color={C.textMuted} uiTransform={{ height: S(54), margin: { top: S(5) } }} />
-        </UiEntity>
-        <UiEntity uiTransform={{ width: S(330), flexDirection: 'column', alignItems: 'center', margin: { left: S(8) } }}>
-          <Button
-            label={`SELL ${scopeLabel} FOR  ${coins}`}
-            icon={RESOURCE_INFO.coin.icon}
-            color={C.orange}
-            disabled={targetTotal === 0}
-            size={S(22)}
-            uiTransform={{ width: S(330), height: S(82) }}
-            onClick={() => backpackAction('sellBackpack')}
-          />
-          <Text value="Permanently removes backpack resources." size={S(21)} color={C.textMuted} uiTransform={{ height: S(54), margin: { top: S(5) } }} />
-        </UiEntity>
-      </UiEntity>
-      <Spacer />
-      <Button label="MANAGE STORAGE" color={C.blue} size={S(FONT.button)} uiTransform={{ width: S(330), height: S(64) }} onClick={() => { depotView = 'storage' }} />
     </Modal>
   )
 }
@@ -589,52 +625,55 @@ function StorageDepotView() {
   const availableItems = DEPOT_ITEMS.filter((item) => storedAmount(item) > 0)
   const allSelected = availableItems.length > 0 && availableItems.every((item) => depotSelection.has(item))
   const rare = rareHoldings()
-  const rareRows = Math.max(1, Math.ceil(rare.length / 6))
-  const designH = 650 + 60 + rareRows * 140
 
-  fitModal(820, designH)
+  const fit = fitBig()
   return (
-    <Modal title="STORAGE" color={C.blue} width={820} height={designH} onClose={closeDepot}>
-      <Text value="Tap materials to select what you want to sell." size={S(FONT.body)} color={C.textMuted} />
-      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(8) } }}>
-        {DEPOT_ITEMS.slice(0, 4).map((item) => <StorageCard key={item} item={item} />)}
-      </UiEntity>
-      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
-        {DEPOT_ITEMS.slice(4).map((item) => <StorageCard key={item} item={item} />)}
-      </UiEntity>
-      <OutlinedText value="RARE FINDS" size={S(20)} color={C.yellow} uiTransform={{ margin: { top: S(10) } }} />
-      <Text
-        value={rare.length > 0 ? 'Craft-only: refine them at the Workshop and use them for suits. They cannot be sold.' : 'Wear a suit in its zone and rare materials land here on their own. Nothing yet.'}
-        size={S(14)}
-        color={C.textMuted}
-        uiTransform={{ height: S(20) }}
-      />
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', minHeight: S(140) }}>
-        {rare.map((r) => <RareChip key={r.id} id={r.id} amount={r.amount} />)}
-      </UiEntity>
-      <Spacer />
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
-        <Button label="BACK" color={C.blue} uiTransform={{ width: S(180), height: S(64), margin: { right: S(7) } }} onClick={() => { depotView = 'backpack'; depotSelection.clear() }} />
-        <Button
-          label={allSelected ? 'CLEAR ALL' : 'SELECT ALL'}
-          color={C.green}
-          disabled={availableItems.length === 0}
-          size={S(22)}
-          uiTransform={{ width: S(210), height: S(64), margin: { left: S(7), right: S(7) } }}
-          onClick={() => {
-            if (allSelected) depotSelection.clear()
-            else for (const item of availableItems) depotSelection.add(item)
-          }}
-        />
-        <Button
-          label={`SELL SELECTED  (+${selectedCoins})`}
-          icon={RESOURCE_INFO.coin.icon}
-          color={C.orange}
-          disabled={selectedItems.length === 0}
-          size={S(20)}
-          uiTransform={{ width: S(300), height: S(64), margin: { left: S(7) } }}
-          onClick={sellSelectedStorage}
-        />
+    <Modal title="STORAGE" color={C.blue} {...bigFrame(fit, 'STORAGE')} onClose={closeDepot}>
+      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+        <Text value="Tap materials to select what you want to sell." size={S(26)} color={C.textMuted} />
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(10) } }}>
+          {DEPOT_ITEMS.slice(0, 4).map((item) => <StorageCard key={item} item={item} />)}
+        </UiEntity>
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
+          {DEPOT_ITEMS.slice(4).map((item) => <StorageCard key={item} item={item} />)}
+        </UiEntity>
+        <Panel flat color={C.navySoft} uiTransform={{ width: S(CONTENT_W), height: S(300), alignItems: 'center', padding: { top: S(12), bottom: S(8), left: S(16), right: S(16) }, margin: { top: S(14) } }}>
+          <OutlinedText value="RARE FINDS" size={S(28)} color={C.yellow} />
+          <Text
+            value={rare.length > 0 ? 'Craft-only: refine them at the Workshop and use them for suits. They cannot be sold.' : 'Wear a suit in its zone and rare materials land here on their own. Nothing yet.'}
+            size={S(22)}
+            color={C.gray}
+            nowrap
+            uiTransform={{ height: S(30) }}
+          />
+          <UiEntity uiTransform={{ width: '100%', height: S(214), flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignContent: 'flex-start', overflow: 'scroll', margin: { top: S(6) } }}>
+            {rare.map((r) => <RareChip key={r.id} id={r.id} amount={r.amount} />)}
+          </UiEntity>
+        </Panel>
+        <Spacer />
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
+          <Button label="BACK" color={C.blue} size={S(28)} uiTransform={{ width: S(260), height: S(84), margin: { right: S(10) } }} onClick={() => { depotView = 'backpack'; depotSelection.clear() }} />
+          <Button
+            label={allSelected ? 'CLEAR ALL' : 'SELECT ALL'}
+            color={C.green}
+            disabled={availableItems.length === 0}
+            size={S(28)}
+            uiTransform={{ width: S(320), height: S(84), margin: { left: S(10), right: S(10) } }}
+            onClick={() => {
+              if (allSelected) depotSelection.clear()
+              else for (const item of availableItems) depotSelection.add(item)
+            }}
+          />
+          <Button
+            label={`SELL SELECTED  (+${selectedCoins})`}
+            icon={RESOURCE_INFO.coin.icon}
+            color={C.orange}
+            disabled={selectedItems.length === 0}
+            size={S(28)}
+            uiTransform={{ width: S(520), height: S(84), margin: { left: S(10) } }}
+            onClick={sellSelectedStorage}
+          />
+        </UiEntity>
       </UiEntity>
     </Modal>
   )
@@ -647,68 +686,93 @@ export function BankPanel() {
 // ---------------------------------------------------------------- WORKSHOP
 let workshopSkill: Skill = 'lumberjack'
 
+/** "Lumberjack L2 + Miner L2" for a rare drop's suit gate. */
+function gateText(gate: Partial<Record<Skill, number>>): string {
+  const entries = Object.entries(gate) as Array<[Skill, number]>
+  if (entries.length === SKILLS.length && entries.every(([, lv]) => lv === entries[0][1])) return `L${entries[0][1]} suits in all 4 professions`
+  return entries.map(([s, lv]) => `${SKILL_INFO[s].name} L${lv}`).join(' + ')
+}
+
 export function WorkshopPanel() {
   const job = player.craftQueue[0]
   const recipes = RECIPES.filter((r) => r.skill === workshopSkill)
-  fitModal(1120, 720)
+  const fit = fitBig()
   return (
-    <Modal title="WORKSHOP" color={C.orange} width={1120} height={720} onClose={closePanel}>
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(10) } }}>
-        {SKILLS.map((s) => (
-          <Button
-            key={s}
-            label={SKILL_INFO[s].name.toUpperCase()}
-            icon={SKILL_ICON[s]}
-            color={workshopSkill === s ? skillColor(s) : C.navySoft}
-            size={S(20)}
-            uiTransform={{ width: S(250), height: S(58), margin: { left: S(5), right: S(5) } }}
-            onClick={() => { workshopSkill = s }}
-          />
-        ))}
-      </UiEntity>
-      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
-        {recipes.map((r) => {
-          const have = player.storage[r.from]
-          const ok = canCraft(r)
-          const maxTimes = Math.floor(have / r.amount)
-          // Tier recipes stay dim until the player wears the unlocking suit or already holds some of the raw.
-          const locked = r.tier > 0 && have <= 0 && player.materials[r.out] <= 0 && player.skills[r.skill].suit < r.tier
-          return (
-            <Panel key={r.out} flat color={locked ? C.navySoft : C.paper2} uiTransform={{ width: S(206), height: S(420), alignItems: 'center', padding: S(16), margin: { left: S(5), right: S(5) } }}>
-              <Text value={r.tier === 0 ? 'BASE' : `TIER ${r.tier}`} size={S(14)} color={locked ? C.textMuted : C.yellow} nowrap uiTransform={{ height: S(18) }} />
-              <Icon src={RESOURCE_INFO[r.out].icon} size={S(88)} />
-              <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(FONT.body)} color={locked ? C.textMuted : C.white} />
-              <Text value={`you have ${player.materials[r.out]}`} size={S(FONT.small)} color={C.textMuted} />
-              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(8), bottom: S(4) } }}>
-                <Icon src={RESOURCE_INFO[r.from].icon} size={S(40)} />
-                <Text value={`${r.amount}`} size={S(FONT.body + 2)} color={have >= r.amount ? C.greenDark : C.red} uiTransform={{ width: 'auto', minWidth: S(40) }} />
-                <Text value="->" size={S(FONT.body)} color={C.textMuted} uiTransform={{ width: 'auto', minWidth: S(34) }} />
-                <Icon src={RESOURCE_INFO[r.out].icon} size={S(40)} />
-                <Text value="1" size={S(FONT.body + 2)} uiTransform={{ width: 'auto', minWidth: S(24) }} />
-              </UiEntity>
-              <Text value={`storage: ${have} ${RESOURCE_INFO[r.from].name}`} size={S(FONT.small)} color={C.textMuted} />
-              <Spacer />
-              {locked ? (
-                <Text value={`Wear ${SKILL_INFO[r.skill].name} L${r.tier}+ in the ${SKILL_INFO[r.skill].zoneName} to find ${RESOURCE_INFO[r.from].name}`} size={S(14)} color={C.textMuted} uiTransform={{ height: S(120) }} />
-              ) : (
-                <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
-                  <Button label="MAKE 1" color={C.orange} disabled={!ok} uiTransform={{ width: S(170), height: S(56) }} onClick={() => requestCraft(r.out, 1)} />
-                  <Button label={`MAKE ALL (${maxTimes})`} color={C.green} disabled={!ok} size={S(FONT.body)} uiTransform={{ width: S(170), height: S(56), margin: { top: S(8) } }} onClick={() => requestCraft(r.out, maxTimes)} />
+    <Modal title="WORKSHOP" color={C.orange} {...bigFrame(fit, 'WORKSHOP')} onClose={closePanel}>
+      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(14) } }}>
+          {SKILLS.map((s) => (
+            <Button
+              key={s}
+              label={SKILL_INFO[s].name.toUpperCase()}
+              icon={SKILL_ICON[s]}
+              color={workshopSkill === s ? skillColor(s) : C.navySoft}
+              size={S(28)}
+              uiTransform={{ width: S(410), height: S(78), margin: { left: S(10), right: S(10) } }}
+              onClick={() => { workshopSkill = s }}
+            />
+          ))}
+        </UiEntity>
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
+          {recipes.map((r) => {
+            const have = player.storage[r.from]
+            const ok = canCraft(r)
+            const maxTimes = Math.floor(have / r.amount)
+            // Tier recipes stay dim until the player wears the unlocking suit or already holds some of the raw.
+            const locked = r.tier > 0 && have <= 0 && player.materials[r.out] <= 0 && player.skills[r.skill].suit < r.tier
+            return (
+              <Panel key={r.out} flat color={locked ? C.navySoft : C.paper2} uiTransform={{ width: S(330), height: S(640), alignItems: 'center', padding: S(18), margin: { left: S(7), right: S(7) } }}>
+                <Text value={r.tier === 0 ? 'BASE' : `TIER ${r.tier}`} size={S(22)} color={locked ? C.gray : C.yellow} nowrap uiTransform={{ height: S(30) }} />
+                <Icon src={RESOURCE_INFO[r.out].icon} size={S(130)} uiTransform={{ margin: { top: S(6) } }} />
+                <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(28)} color={locked ? C.gray : C.white} uiTransform={{ margin: { top: S(8) } }} />
+                <Text value={`you have ${player.materials[r.out]}`} size={S(22)} color={locked ? C.gray : C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+                <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(14), bottom: S(6) } }}>
+                  <Icon src={RESOURCE_INFO[r.from].icon} size={S(56)} />
+                  <Text value={`${r.amount}`} size={S(30)} color={have >= r.amount ? C.greenDark : C.red} uiTransform={{ width: 'auto', minWidth: S(54) }} />
+                  <Text value="->" size={S(28)} color={locked ? C.gray : C.textMuted} uiTransform={{ width: 'auto', minWidth: S(44) }} />
+                  <Icon src={RESOURCE_INFO[r.out].icon} size={S(56)} />
+                  <Text value="1" size={S(30)} color={locked ? C.gray : C.text} uiTransform={{ width: 'auto', minWidth: S(32) }} />
                 </UiEntity>
-              )}
-            </Panel>
-          )
-        })}
-      </UiEntity>
-      <Spacer />
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
-        {job ? (
-          <UiEntity uiTransform={{ width: S(600) }}>
-            <Bar value={job.elapsed / craftSecs()} color={C.orange} height={S(34)} label={`Making ${RESOURCE_INFO[job.material].name}...  ${job.remaining} left`} labelSize={S(20)} />
+                <Text value={`storage: ${have} ${RESOURCE_INFO[r.from].name}`} size={S(22)} color={locked ? C.gray : C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+                <Spacer />
+                {locked ? (
+                  <Text value={`Wear ${SKILL_INFO[r.skill].name} L${r.tier}+ in the ${SKILL_INFO[r.skill].zoneName} to find ${RESOURCE_INFO[r.from].name}`} size={S(22)} color={C.gray} uiTransform={{ height: S(150) }} />
+                ) : (
+                  <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
+                    <Button label="MAKE 1" color={C.orange} disabled={!ok} size={S(28)} uiTransform={{ width: S(270), height: S(72) }} onClick={() => requestCraft(r.out, 1)} />
+                    <Button label={`MAKE ALL (${maxTimes})`} color={C.green} disabled={!ok} size={S(26)} uiTransform={{ width: S(270), height: S(72), margin: { top: S(10) } }} onClick={() => requestCraft(r.out, maxTimes)} />
+                  </UiEntity>
+                )}
+              </Panel>
+            )
+          })}
+        </UiEntity>
+        <UiEntity uiTransform={{ width: S(1000), height: S(56), alignItems: 'center', justifyContent: 'center', margin: { top: S(16) } }}>
+          {job ? (
+            <Bar value={job.elapsed / craftSecs()} color={C.orange} height={S(50)} label={`Making ${RESOURCE_INFO[job.material].name}...  ${job.remaining} left`} labelSize={S(26)} />
+          ) : (
+            <Text value="Queue is empty. The workshop keeps working while you're away." size={S(24)} color={C.textMuted} nowrap />
+          )}
+        </UiEntity>
+        <Spacer />
+        {/* Combo rares are never refined here, so this is the one place that says where they come from. */}
+        <Panel flat color={C.navySoft} uiTransform={{ width: S(CONTENT_W), height: S(230), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24) } }}>
+          <UiEntity uiTransform={{ flexDirection: 'column', width: S(300), flexShrink: 0, margin: { right: S(16) } }}>
+            <OutlinedText value="SPECIAL FINDS" size={S(28)} color={C.yellow} align="middle-left" />
+            <Text value="Not refined here: they drop in the zones when you wear the right suits, and go straight into suit recipes." size={S(20)} color={C.gray} align="middle-left" uiTransform={{ height: S(110) }} />
           </UiEntity>
-        ) : (
-          <Text value="Queue is empty. The workshop keeps working while you're away." size={S(FONT.body)} color={C.textMuted} />
-        )}
+          <UiEntity uiTransform={{ flexDirection: 'row', flexWrap: 'wrap', width: S(1340) }}>
+            {(Object.entries(COMBOS) as Array<[RareRaw, RareDropDef]>).map(([id, def]) => (
+              <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(440), height: S(64), margin: { right: S(6), bottom: S(2) } }}>
+                <Icon src={RESOURCE_INFO[id].icon} size={S(52)} uiTransform={{ flexShrink: 0 }} />
+                <UiEntity uiTransform={{ flexDirection: 'column', width: S(380), margin: { left: S(8) } }}>
+                  <Text value={def.name} size={S(22)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(28) }} />
+                  <Text value={`Wear ${gateText(def.gate)}`} size={S(20)} color={C.gray} align="middle-left" nowrap uiTransform={{ height: S(26) }} />
+                </UiEntity>
+              </UiEntity>
+            ))}
+          </UiEntity>
+        </Panel>
       </UiEntity>
     </Modal>
   )
@@ -718,67 +782,72 @@ export function WorkshopPanel() {
 function Need(props: { key?: string; icon: string; have: number; need: number }) {
   const ok = props.have >= props.need
   return (
-    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { bottom: S(2) } }}>
-      <Icon src={props.icon} size={S(30)} />
-      <Text value={`${props.have}/${props.need}`} size={S(FONT.small + 1)} color={ok ? C.greenDark : C.red} align="middle-left" uiTransform={{ width: 'auto', minWidth: S(80), margin: { left: S(4) } }} />
+    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(50), margin: { bottom: S(4) } }}>
+      <Icon src={props.icon} size={S(44)} />
+      <Text value={`${props.have}/${props.need}`} size={S(26)} color={ok ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(50), margin: { left: S(8) } }} />
     </UiEntity>
   )
 }
 
 /** Tool bench (the Forge station): permanent tool tiers bought with crafted materials. */
 export function ForgePanel() {
-  fitModal(1000, 660)
+  const fit = fitBig()
   return (
-    <Modal title="TOOL BENCH" color={C.blue} width={1000} height={660} onClose={closePanel}>
-      <Text value="Craft better tools from your materials. Each tier is permanent and adds +10% yield in that zone, on top of suits and mastery." size={S(FONT.body)} color={C.textMuted} />
-      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(10) } }}>
-        {SKILLS.map((s) => {
-          const st = player.skills[s]
-          const tier = player.tools[s]
-          const cost = toolCost(s)
-          const ok = canUpgradeTool(s)
-          return (
-            <Panel key={s} flat color={C.paper2} uiTransform={{ width: S(218), height: S(480), alignItems: 'center', padding: S(16), margin: { left: S(5), right: S(5) } }}>
-              <UiEntity
-                uiTransform={{ width: S(90), height: S(90), alignItems: 'center', justifyContent: 'center' }}
-                uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: skillColor(s) }}
-              >
-                <Icon src={SKILL_ICON[s]} size={S(72)} />
-              </UiEntity>
-              <OutlinedText value={TOOL_NAME[s].toUpperCase()} size={S(FONT.body + 1)} uiTransform={{ margin: { top: S(6) } }} />
-              <OutlinedText value={cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(FONT.body + 2)} color={C.yellow} />
-              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(2) } }}>
-                {[1, 2, 3, 4, 5].map((lv) => (
-                  <UiEntity
-                    key={lv}
-                    uiTransform={{ width: S(22), height: S(22), margin: { left: S(2), right: S(2) } }}
-                    uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: tier >= lv ? skillColor(s) : C.gray }}
-                  />
-                ))}
-              </UiEntity>
-              <Text
-                value={cost ? `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}% -> +${Math.round((tier + 1) * TOOL_PCT_PER_TIER * 100)}%` : `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}%`}
-                size={S(16)}
-                color={C.textMuted}
-                nowrap
-                uiTransform={{ height: S(27), margin: { top: S(4) } }}
-              />
-              {cost ? (
-                <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-start', margin: { top: S(8) } }}>
-                  <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { bottom: S(2) } }}>
-                    <Icon src={SKILL_ICON[s]} size={S(30)} />
-                    <Text value={`Lv ${st.level}/${cost.level}`} size={S(FONT.small + 1)} color={st.level >= cost.level ? C.greenDark : C.red} align="middle-left" uiTransform={{ width: 'auto', minWidth: S(80), margin: { left: S(4) } }} />
-                  </UiEntity>
-                  {MATERIALS.filter((m) => cost.materials[m] > 0).map((m) => (
-                    <Need key={m} icon={RESOURCE_INFO[m].icon} have={player.materials[m]} need={cost.materials[m]} />
+    <Modal title="TOOL BENCH" color={C.blue} {...bigFrame(fit, 'TOOL BENCH')} onClose={closePanel}>
+      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+        <Text value="Craft better tools from your materials. Each tier is permanent and adds +10% yield in that zone, on top of suits and guild bonuses." size={S(26)} color={C.textMuted} nowrap />
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(20) } }}>
+          {SKILLS.map((s) => {
+            const st = player.skills[s]
+            const tier = player.tools[s]
+            const cost = toolCost(s)
+            const ok = canUpgradeTool(s)
+            return (
+              <Panel key={s} flat color={C.paper2} uiTransform={{ width: S(410), height: S(900), alignItems: 'center', padding: S(22), margin: { left: S(10), right: S(10) } }}>
+                <UiEntity
+                  uiTransform={{ width: S(150), height: S(150), alignItems: 'center', justifyContent: 'center' }}
+                  uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: skillColor(s) }}
+                >
+                  <Icon src={SKILL_ICON[s]} size={S(120)} />
+                </UiEntity>
+                <OutlinedText value={TOOL_NAME[s].toUpperCase()} size={S(32)} uiTransform={{ margin: { top: S(12) } }} />
+                <OutlinedText value={cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(36)} color={C.yellow} />
+                <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8) } }}>
+                  {[1, 2, 3, 4, 5].map((lv) => (
+                    <UiEntity
+                      key={lv}
+                      uiTransform={{ width: S(34), height: S(34), margin: { left: S(4), right: S(4) } }}
+                      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: tier >= lv ? skillColor(s) : C.gray }}
+                    />
                   ))}
                 </UiEntity>
-              ) : null}
-              <Spacer />
-              <Button label={cost ? 'CRAFT' : 'MAXED'} color={C.blue} disabled={!ok} uiTransform={{ width: S(180), height: S(60) }} onClick={() => requestTool(s)} />
-            </Panel>
-          )
-        })}
+                <Text
+                  value={cost ? `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}% -> +${Math.round((tier + 1) * TOOL_PCT_PER_TIER * 100)}%` : `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}%`}
+                  size={S(24)}
+                  color={C.textMuted}
+                  nowrap
+                  uiTransform={{ height: S(34), margin: { top: S(10) } }}
+                />
+                {cost ? (
+                  <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-start', margin: { top: S(18) } }}>
+                    <Text value="NEEDS" size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30), margin: { bottom: S(4) } }} />
+                    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(50), margin: { bottom: S(4) } }}>
+                      <Icon src={SKILL_ICON[s]} size={S(44)} />
+                      <Text value={`Lv ${st.level}/${cost.level}`} size={S(26)} color={st.level >= cost.level ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(50), margin: { left: S(8) } }} />
+                    </UiEntity>
+                    {MATERIALS.filter((m) => cost.materials[m] > 0).map((m) => (
+                      <Need key={m} icon={RESOURCE_INFO[m].icon} have={player.materials[m]} need={cost.materials[m]} />
+                    ))}
+                  </UiEntity>
+                ) : (
+                  <Text value="Fully upgraded" size={S(24)} color={C.greenDark} uiTransform={{ margin: { top: S(18) } }} />
+                )}
+                <Spacer />
+                <Button label={cost ? 'CRAFT' : 'MAXED'} color={C.blue} disabled={!ok} size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => requestTool(s)} />
+              </Panel>
+            )
+          })}
+        </UiEntity>
       </UiEntity>
     </Modal>
   )
@@ -803,65 +872,69 @@ function activeBoost(): { item: (typeof SHOP_ITEMS)[number]; until: number } | n
 export function ShopPanel() {
   const active = activeBoost()
   const minutesLeft = active ? Math.max(1, Math.ceil((active.until - Date.now()) / 60000)) : 0
-  fitModal(860, 700)
+  const fit = fitBig()
   return (
-    <Modal title="BERRY SHOP" color={C.purple} width={860} height={700} onClose={closePanel}>
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(6) } }}>
-        <Pill color={C.paper} uiTransform={{ height: S(66), padding: { left: S(8), right: S(26) } }}>
-          <Icon src={RESOURCE_INFO.berry.icon} size={S(54)} />
-          <OutlinedText value={`${player.berries}`} size={S(FONT.body + 10)} color={C.purple} uiTransform={{ width: 'auto', minWidth: S(90), margin: { left: S(8), bottom: S(4) } }} align="middle-left" />
-        </Pill>
-        <Text value="Berries drop at random while you work." size={S(FONT.small)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(14) } }} />
+    <Modal title="BERRY SHOP" color={C.purple} {...bigFrame(fit, 'BERRY SHOP')} onClose={closePanel}>
+      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(4) } }}>
+          <Pill color={C.paper} uiTransform={{ height: S(96), padding: { left: S(12), right: S(36) } }}>
+            <Icon src={RESOURCE_INFO.berry.icon} size={S(76)} />
+            <OutlinedText value={`${player.berries}`} size={S(52)} color={C.purple} uiTransform={{ width: 'auto', minWidth: S(130), margin: { left: S(12), bottom: S(6) } }} align="middle-left" />
+          </Pill>
+          <Text value="Berries drop at random while you work." size={S(26)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(22) } }} />
+        </UiEntity>
+        <Text
+          value={active ? `${active.item.name} is active for ${minutesLeft} more min  •  one boost at a time` : 'One boost at a time: pick the one you need right now.'}
+          size={S(26)}
+          color={active ? C.greenDark : C.textMuted}
+          nowrap
+          uiTransform={{ height: S(36), margin: { top: S(14) } }}
+        />
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(20) } }}>
+          {SHOP_ITEMS.map((it) => {
+            const isActive = active?.item.boost === it.boost
+            const blocked = active !== null
+            const ok = !blocked && player.berries >= it.price
+            const craftList = MATERIALS.filter((m) => (it.craft[m] ?? 0) > 0)
+            const craftOk = !blocked && craftList.every((m) => player.materials[m] >= (it.craft[m] ?? 0))
+            return (
+              <Panel key={it.name} flat color={isActive ? C.yellow : C.paper} uiTransform={{ width: S(540), height: S(820), alignItems: 'center', padding: S(26), margin: { left: S(15), right: S(15) } }}>
+                <Icon src={it.icon} size={S(170)} />
+                <OutlinedText value={it.name} size={S(38)} uiTransform={{ margin: { top: S(10) } }} />
+                <Text value={isActive ? `ACTIVE  •  ${minutesLeft} min left` : `${it.desc} for ${boostMinutes()} min`} size={S(28)} color={isActive ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(38), margin: { top: S(4) } }} />
+                <Text value={!isActive && boostMinutes() > 10 ? 'Extended by guild Quartermaster' : ' '} size={S(22)} color={C.greenDark} nowrap uiTransform={{ height: S(30) }} />
+                <Spacer />
+                <Text value="BUY WITH BERRIES" size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { bottom: S(6) } }} />
+                <Button
+                  label={`${it.price}`}
+                  icon={RESOURCE_INFO.berry.icon}
+                  color={C.purple}
+                  disabled={!ok}
+                  size={S(34)}
+                  uiTransform={{ width: S(300), height: S(84) }}
+                  onClick={() => requestBoost(it.boost)}
+                />
+                <Text value={`OR CRAFT FROM ${craftList.map((m) => `${it.craft[m]} ${RESOURCE_INFO[m].name.toUpperCase()}`).join(' + ')}`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(24), bottom: S(6) } }} />
+                <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
+                  {craftList.map((m) => (
+                    <Need key={m} icon={RESOURCE_INFO[m].icon} have={player.materials[m]} need={it.craft[m] ?? 0} />
+                  ))}
+                </UiEntity>
+                <Button
+                  label="CRAFT"
+                  color={C.orange}
+                  disabled={!craftOk}
+                  size={S(30)}
+                  uiTransform={{ width: S(300), height: S(78), margin: { top: S(6) } }}
+                  onClick={() => requestBoost(it.boost, 'materials')}
+                />
+                <Text value={blocked && !isActive ? `wait for ${active!.item.name} to end` : ' '} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(8) } }} />
+              </Panel>
+            )
+          })}
+        </UiEntity>
+        <Spacer />
       </UiEntity>
-      <Text
-        value={active ? `${active.item.name} is active for ${minutesLeft} more min  •  one boost at a time` : 'One boost at a time: pick the one you need right now.'}
-        size={S(FONT.small)}
-        color={active ? C.greenDark : C.textMuted}
-        nowrap
-        uiTransform={{ height: S(24), margin: { top: S(8) } }}
-      />
-      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(10) } }}>
-        {SHOP_ITEMS.map((it) => {
-          const isActive = active?.item.boost === it.boost
-          const blocked = active !== null
-          const ok = !blocked && player.berries >= it.price
-          const craftList = MATERIALS.filter((m) => (it.craft[m] ?? 0) > 0)
-          const craftOk = !blocked && craftList.every((m) => player.materials[m] >= (it.craft[m] ?? 0))
-          return (
-            <Panel key={it.name} flat color={isActive ? C.yellow : C.paper} uiTransform={{ width: S(236), height: S(430), alignItems: 'center', padding: S(16), margin: { left: S(8), right: S(8) } }}>
-              <Icon src={it.icon} size={S(96)} />
-              <OutlinedText value={it.name} size={S(FONT.body + 2)} />
-              <Text value={isActive ? `ACTIVE  •  ${minutesLeft} min left` : `${it.desc} for ${boostMinutes()} min`} size={S(FONT.small)} color={isActive ? C.greenDark : C.textMuted} />
-              {!isActive && boostMinutes() > 10 ? <Text value="Extended by guild Quartermaster" size={S(14)} color={C.greenDark} /> : null}
-              <Spacer />
-              <Button
-                label={`${it.price}`}
-                icon={RESOURCE_INFO.berry.icon}
-                color={C.purple}
-                disabled={!ok}
-                uiTransform={{ width: S(170), height: S(60) }}
-                onClick={() => requestBoost(it.boost)}
-              />
-              <Text value={`or craft it from ${craftList.map((m) => `${it.craft[m]} ${RESOURCE_INFO[m].name}`).join(' + ')}`} size={S(13)} color={C.textMuted} nowrap uiTransform={{ height: S(18), margin: { top: S(6) } }} />
-              <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
-                {craftList.map((m) => (
-                  <Need key={m} icon={RESOURCE_INFO[m].icon} have={player.materials[m]} need={it.craft[m] ?? 0} />
-                ))}
-              </UiEntity>
-              <Button
-                label="CRAFT"
-                color={C.orange}
-                disabled={!craftOk}
-                size={S(FONT.body)}
-                uiTransform={{ width: S(170), height: S(52), margin: { top: S(2) } }}
-                onClick={() => requestBoost(it.boost, 'materials')}
-              />
-              {blocked && !isActive ? <Text value={`wait for ${active!.item.name} to end`} size={S(13)} color={C.textMuted} nowrap uiTransform={{ height: S(18), margin: { top: S(4) } }} /> : null}
-            </Panel>
-          )
-        })}
-      </UiEntity>
-      <Spacer />
     </Modal>
   )
 }
@@ -997,13 +1070,6 @@ function guildRoleColor(role: string): Color4 {
   return C.textMuted
 }
 
-// Guild UI is designed at GUILD_DESIGN_W × GUILD_DESIGN_H and scaled uniformly to the canvas (see fitModal).
-const GUILD_DESIGN_W = 1850
-const GUILD_DESIGN_H = 1250
-// Compact frame for players without a guild (create / join directory).
-const GUILD_LOBBY_W = 1240
-const GUILD_LOBBY_H = 780
-
 function StatCard(props: { label: string; value: string; color: Color4; sub: string; last?: boolean }) {
   return (
     <Panel flat color={C.paper2} uiTransform={{ width: S(415), height: S(235), alignItems: 'center', justifyContent: 'center', margin: { right: props.last ? 0 : S(20) } }}>
@@ -1077,11 +1143,11 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
   return (
     <UiEntity uiTransform={{ width: S(1720), flexDirection: 'row', margin: { top: S(4) } }}>
       {/* Left: settings + danger zone */}
-      <UiEntity uiTransform={{ width: S(560), flexDirection: 'column', margin: { right: S(20) } }}>
-        <Panel flat color={C.paper2} uiTransform={{ width: '100%', height: S(470), padding: S(18) }}>
+      <UiEntity uiTransform={{ width: S(520), flexDirection: 'column', margin: { right: S(20) } }}>
+        <Panel flat color={C.paper2} uiTransform={{ width: '100%', height: S(500), padding: S(18) }}>
           <Text value="GUILD SETTINGS" size={S(24)} color={C.text} align="middle-left" uiTransform={{ flexShrink: 0 }} />
-          <Text value={`You are ${myRole.toUpperCase()}  •  ${isLeader ? 'full control' : 'Royal Guard: settings + ranks below you'}`} size={S(17)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
-          <Text value="Motto  (shown in the directory, 80 chars)" size={S(18)} color={C.textMuted} align="middle-left" uiTransform={{ margin: { top: S(14) }, flexShrink: 0 }} />
+          <Text value={`You are ${myRole.toUpperCase()}  •  ${isLeader ? 'full control' : 'Royal Guard: settings + ranks below you'}`} size={S(20)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
+          <Text value="Motto  (shown in the directory, 80 chars)" size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ margin: { top: S(14) }, flexShrink: 0 }} />
           <Input
             value={guildForm.motto}
             placeholder="A short rallying cry"
@@ -1092,7 +1158,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
               guildForm.motto = value
             }}
           />
-          <Text value="Description  (180 chars)" size={S(18)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
+          <Text value="Description  (180 chars)" size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
           <Input
             value={guildForm.description}
             placeholder="Who you are and what you do"
@@ -1114,9 +1180,9 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
         </Panel>
 
         {isLeader ? (
-          <Panel flat color={C.paper2} uiTransform={{ width: '100%', height: S(190), padding: S(18), margin: { top: S(16) } }}>
+          <Panel flat color={C.paper2} uiTransform={{ width: '100%', height: S(230), padding: S(18), margin: { top: S(16) } }}>
             <Text value="DISBAND GUILD" size={S(24)} color={C.red} align="middle-left" uiTransform={{ flexShrink: 0 }} />
-            <Text value={`Permanent. Removes all ${guild.memberCount} members and deletes HQ and Tech progress. Type ${guild.tag} to confirm.`} size={S(16)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
+            <Text value={`Permanent. Removes all ${guild.memberCount} members and deletes HQ and Tech progress. Type ${guild.tag} to confirm.`} size={S(20)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0, height: S(56) }} />
             <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(12) }, flexShrink: 0 }}>
               <Input
                 value={guildForm.confirmTag}
@@ -1143,16 +1209,16 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
       </UiEntity>
 
       {/* Right: roster management */}
-      <Panel flat color={C.paper2} uiTransform={{ width: S(1140), height: S(676), padding: S(18) }}>
+      <Panel flat color={C.paper2} uiTransform={{ width: S(1180), height: S(880), padding: S(18) }}>
         <Text value={`MEMBERS  ${guild.memberCount} / ${guild.maxMembers}`} size={S(24)} color={C.text} align="middle-left" uiTransform={{ flexShrink: 0 }} />
         <Text
           value={`Royal Guard ${royalGuardCount}/5  •  ${isLeader ? 'Tap a rank to set it. Tap KICK or CROWN twice to confirm.' : 'You can set Knight / Squire / Initiate and remove members below your rank.'}`}
-          size={S(17)}
+          size={S(20)}
           color={C.textMuted}
           align="middle-left"
           uiTransform={{ flexShrink: 0 }}
         />
-        <UiEntity uiTransform={{ width: '100%', height: S(590), flexDirection: 'column', overflow: 'scroll', margin: { top: S(8) } }}>
+        <UiEntity uiTransform={{ width: '100%', height: S(780), flexDirection: 'column', overflow: 'scroll', margin: { top: S(8) } }}>
           {members.map((id) => {
             const role = guildRole(guild, id)
             const rank = rankFromRole(role)
@@ -1165,9 +1231,9 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
             return (
               <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(80), flexDirection: 'row', alignItems: 'center', padding: { left: S(18), right: S(18) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
                 <Icon src={guildRoleIcon(role)} size={S(56)} uiTransform={{ margin: { right: S(8) } }} />
-                <UiEntity uiTransform={{ width: S(240), flexDirection: 'column' }}>
-                  <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(24)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(240), height: S(30) }} />
-                  <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(15)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(240), height: S(20) }} />
+                <UiEntity uiTransform={{ width: S(200), flexDirection: 'column' }}>
+                  <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(24)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(200), height: S(30) }} />
+                  <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(20)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(200), height: S(26) }} />
                 </UiEntity>
                 <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
                   {GUILD_RANK_LADDER.map((option) => {
@@ -1183,8 +1249,8 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
                         color={current ? guildRoleColor(option === 'royal_guard' ? 'royal guard' : option) : C.navySoft}
                         textColor={current || disabled ? C.white : undefined}
                         disabled={disabled}
-                        size={S(16)}
-                        uiTransform={{ width: S(118), height: S(46), margin: { right: S(6) } }}
+                        size={S(20)}
+                        uiTransform={{ width: S(134), height: S(50), margin: { right: S(6) } }}
                         onClick={() => requestGuild('manage', { op: 'rank', member: id, rank: option })}
                       />
                     )
@@ -1196,8 +1262,8 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
                     label={crownArmed ? 'CONFIRM?' : 'CROWN'}
                     icon={GICON.transfer}
                     color={crownArmed ? C.yellow : C.navySoft}
-                    size={S(16)}
-                    uiTransform={{ width: S(136), height: S(46), margin: { right: S(6) } }}
+                    size={S(20)}
+                    uiTransform={{ width: S(140), height: S(50), margin: { right: S(6) } }}
                     onClick={() => manageTap('transfer', id)}
                   />
                 ) : null}
@@ -1207,8 +1273,8 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
                   color={kickArmed ? C.red : C.gray}
                   textColor={kickArmed ? C.white : C.textMuted}
                   disabled={!canKick}
-                  size={S(16)}
-                  uiTransform={{ width: S(128), height: S(46) }}
+                  size={S(20)}
+                  uiTransform={{ width: S(130), height: S(50) }}
                   onClick={() => manageTap('kick', id)}
                 />
               </Panel>
@@ -1253,9 +1319,7 @@ export function GuildPanel() {
   refreshGuild(45_000)
   if (!player.guild) refreshGuildDirectory()
   const guild = player.guild
-  const designW = guild ? GUILD_DESIGN_W : GUILD_LOBBY_W
-  const designH = guild ? GUILD_DESIGN_H : GUILD_LOBBY_H
-  const fit = fitModal(designW, designH, true)
+  const fit = fitBig()
   const wallet = profileState.walletAddress || ''
   const canEdit = !!guild && (guild.leaderId === wallet || guild.royalGuardIds?.includes(wallet))
   const unlockedTechKeys = guild ? GUILD_TECH_KEYS.filter((key) => guild.techTree[key] && !guild.techTree[key].locked) : []
@@ -1278,7 +1342,7 @@ export function GuildPanel() {
     .sort((a, b) => b[1].points - a[1].points)
   const myRank = leaderboard.findIndex(([id]) => id === wallet) + 1
   const myContribution = guild?.contributions?.[wallet]
-  const recentEvents = [...(guild?.events ?? [])].reverse().slice(0, 7)
+  const recentEvents = [...(guild?.events ?? [])].reverse().slice(0, canEdit ? 5 : 7)
   const upcomingHqMilestones = GUILD_HQ_MILESTONES.filter((milestone) => milestone.level > (guild?.hqLevel ?? 0)).slice(0, 4)
   const techLevelTotal = guild ? unlockedTechKeys.reduce((total, key) => total + guild.techTree[key].level, 0) : 0
   const techLevelMax = guild ? unlockedTechKeys.reduce((total, key) => total + guild.techTree[key].maxLevel, 0) : 0
@@ -1289,7 +1353,7 @@ export function GuildPanel() {
   if (guildTab === 'manage' && !canEdit) guildTab = 'home'
 
   return (
-    <Modal title="GUILD" color={C.purple} width={designW} height={designH} scale={fit.scale} offsetX={fit.offsetX} titleWidth={420} titleSize={52} onClose={closePanel}>
+    <Modal title="GUILD" color={C.purple} {...bigFrame(fit, 'GUILD')} onClose={closePanel}>
       {guild ? (
         <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
           <OutlinedText value={`[${guild.tag}]  ${guild.name}`} size={S(40)} />
@@ -1370,7 +1434,7 @@ export function GuildPanel() {
                 {/* Roster */}
                 <Panel flat color={C.paper2} uiTransform={{ width: S(560), height: '100%', padding: S(16), margin: { right: S(20) } }}>
                   <Text value={`ROSTER  ${guild.memberCount} / ${guild.maxMembers}`} size={S(24)} color={C.text} align="middle-left" uiTransform={{ flexShrink: 0 }} />
-                  <Text value={`${guild.maxMembers - guild.memberCount} open slots  •  more at HQ ${upcomingHqMilestones.find((m) => m.memberCap > guild.maxMembers)?.level ?? GUILD_HQ_MAX}`} size={S(18)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
+                  <Text value={`${guild.maxMembers - guild.memberCount} open slots  •  more at HQ ${upcomingHqMilestones.find((m) => m.memberCap > guild.maxMembers)?.level ?? GUILD_HQ_MAX}`} size={S(20)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
                   <UiEntity uiTransform={{ width: '100%', height: S(canEdit ? 270 : 350), flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start', overflow: 'scroll', margin: { top: S(6) } }}>
                     {[...guild.memberIds]
                       .sort((a, b) => {
@@ -1387,31 +1451,31 @@ export function GuildPanel() {
                         return (
                           <UiEntity
                             key={id}
-                            uiTransform={{ width: S(240), height: S(29), flexShrink: 0, flexDirection: 'row', alignItems: 'center', margin: { right: S(4) } }}
+                            uiTransform={{ width: S(258), height: S(36), flexShrink: 0, flexDirection: 'row', alignItems: 'center', margin: { right: S(4) } }}
                             uiBackground={isYou ? { color: Color4.create(0.55, 0.35, 0.95, 0.18) } : undefined}
                           >
-                            <UiEntity uiTransform={{ width: S(10), height: S(10), flexShrink: 0, margin: { left: S(6), right: S(8) } }} uiBackground={{ color: activeToday ? C.green : Color4.create(0, 0, 0, 0.15) }} />
+                            <UiEntity uiTransform={{ width: S(12), height: S(12), flexShrink: 0, margin: { left: S(6), right: S(8) } }} uiBackground={{ color: activeToday ? C.green : Color4.create(0, 0, 0, 0.15) }} />
                             <Text
                               value={`${guild.memberNames?.[id] || shortWallet(id)}${isYou ? ' (YOU)' : ''}`}
-                              size={S(19)}
+                              size={S(22)}
                               color={isYou ? C.purple : role === 'member' ? C.text : guildRoleColor(role)}
                               align="middle-left"
                               nowrap
-                              uiTransform={{ width: S(150) }}
+                              uiTransform={{ width: S(160), height: S(36) }}
                             />
-                            <Text value={role === 'member' ? '' : role === 'royal guard' ? 'GUARD' : role.toUpperCase()} size={S(12)} color={guildRoleColor(role)} align="middle-right" nowrap uiTransform={{ width: S(60) }} />
+                            <Text value={role === 'member' ? '' : role === 'royal guard' ? 'GUARD' : role.toUpperCase()} size={S(20)} color={guildRoleColor(role)} align="middle-right" nowrap uiTransform={{ width: S(66), height: S(36) }} />
                           </UiEntity>
                         )
                       })}
                   </UiEntity>
                   <Spacer />
-                  <Text value="Green dot = contributed in the last 24h.  Names colored by rank." size={S(16)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
+                  <Text value="Green dot = contributed in the last 24h.  Names colored by rank." size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ flexShrink: 0, height: S(28) }} />
                 </Panel>
 
                 {/* Top contributors */}
                 <Panel flat color={C.paper2} uiTransform={{ width: S(560), height: '100%', padding: S(16), margin: { right: S(20) } }}>
                   <Text value="TOP CONTRIBUTORS" size={S(24)} color={C.text} align="middle-left" />
-                  <Text value="Lifetime points  •  1 per Wood/Rock, 2 per Coin" size={S(18)} color={C.textMuted} align="middle-left" />
+                  <Text value="Lifetime points  •  1 per Wood/Rock, 2 per Coin" size={S(20)} color={C.textMuted} align="middle-left" />
                   {leaderboard.length === 0 ? (
                     <Text value="No contributions recorded yet. Be the first — donate on the DONATE tab." size={S(22)} color={C.textMuted} uiTransform={{ margin: { top: S(40) } }} />
                   ) : (
@@ -1441,7 +1505,7 @@ export function GuildPanel() {
                 {/* Activity */}
                 <Panel flat color={C.paper2} uiTransform={{ width: S(560), height: '100%', padding: S(16) }}>
                   <Text value="GUILD ACTIVITY" size={S(24)} color={C.text} align="middle-left" />
-                  <Text value="Latest donations and level-ups" size={S(18)} color={C.textMuted} align="middle-left" />
+                  <Text value="Latest donations and level-ups" size={S(20)} color={C.textMuted} align="middle-left" />
                   {recentEvents.length === 0 ? (
                     <Text value="Quiet so far. Donations and HQ level-ups will show up here." size={S(22)} color={C.textMuted} uiTransform={{ margin: { top: S(40) } }} />
                   ) : (
@@ -1452,12 +1516,12 @@ export function GuildPanel() {
                         <UiEntity key={`${event.at}-${index}`} uiTransform={{ width: '100%', flexDirection: 'column', margin: { top: S(6) } }}>
                           <Text
                             value={highlight ? event.text : `${who} ${event.text}`}
-                            size={S(19)}
+                            size={S(22)}
                             color={highlight ? C.greenDark : C.text}
                             align="middle-left"
-                            uiTransform={{ height: S(event.text.length > 48 ? 48 : 24) }}
+                            uiTransform={{ height: S(event.text.length > 40 ? 56 : 28) }}
                           />
-                          <Text value={timeAgo(event.at)} size={S(15)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(18) }} />
+                          <Text value={timeAgo(event.at)} size={S(20)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(24) }} />
                         </UiEntity>
                       )
                     })
@@ -1672,7 +1736,7 @@ export function GuildPanel() {
                                 color={C.yellow}
                                 height={S(36)}
                                 label={`${node.contributed.coins} / ${nextCost} Coins`}
-                                labelSize={S(19)}
+                                labelSize={S(20)}
                                 uiTransform={{ width: '100%', margin: { top: S(12) } }}
                               />
                             )}
@@ -1720,105 +1784,111 @@ export function GuildPanel() {
           {guildTab === 'manage' && canEdit ? <GuildManageTab guild={guild} wallet={wallet} /> : null}
         </UiEntity>
       ) : (
-        <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(10) } }}>
-          <Panel flat color={C.paper2} uiTransform={{ width: S(360), height: S(640), alignItems: 'center', padding: S(20), margin: { right: S(14) } }}>
-            <OutlinedText value="CREATE" size={S(34)} />
-            <Text value="Name" size={S(20)} color={C.textMuted} uiTransform={{ margin: { top: S(10) } }} />
-            <Input
-              value={guildForm.name}
-              placeholder="Guild name"
-              fontSize={S(FONT.body)}
-              color={C.text}
-              placeholderColor={C.textMuted}
-              uiTransform={{ width: S(300), height: S(56), margin: { bottom: S(14) } }}
-              onChange={(value) => {
-                guildForm.name = value
-              }}
-            />
-            <Text value="Tag  2-5 letters" size={S(20)} color={C.textMuted} />
-            <Input
-              value={guildForm.tag}
-              placeholder="TAG"
-              fontSize={S(FONT.body)}
-              color={C.text}
-              placeholderColor={C.textMuted}
-              uiTransform={{ width: S(300), height: S(56), margin: { bottom: S(16) } }}
-              onChange={(value) => {
-                guildForm.tag = value.toUpperCase()
-              }}
-            />
-            <Spacer />
-            <Button
-              label="CREATE GUILD"
-              color={C.purple}
-              uiTransform={{ width: S(300), height: S(72) }}
-              onClick={() => requestGuild('create', { name: guildForm.name, tag: guildForm.tag })}
-            />
-          </Panel>
-          <Panel flat color={C.paper2} uiTransform={{ width: S(800), height: S(640), alignItems: 'center', padding: S(20), margin: { left: S(14) } }}>
-            <OutlinedText value="JOIN A GUILD" size={S(34)} />
-            <Text
-              value={guildDirectory.loading && guildDirectory.list.length === 0 ? 'Loading guilds…' : guildDirectory.list.length === 0 ? (guildDirectory.failed ? 'Could not load guilds — try again in a moment' : 'No guilds yet — be the first to create one!') : `${guildDirectory.list.length} guild${guildDirectory.list.length === 1 ? '' : 's'}  •  tap JOIN on an open guild`}
-              size={S(20)}
-              color={C.textMuted}
-            />
-            <UiEntity uiTransform={{ width: '100%', height: S(400), flexDirection: 'column', overflow: 'scroll', margin: { top: S(10) } }}>
-              {guildDirectory.list.map((g) => {
-                const full = g.memberCount >= g.maxMembers
-                const closed = g.recruitMode === 'invite_only' || g.recruitMode === 'apply'
-                const label = closed ? (g.recruitMode === 'apply' ? 'APPLY IN KOA' : 'INVITE ONLY') : full ? 'FULL' : 'JOIN'
-                const statusIcon = closed ? (g.recruitMode === 'apply' ? GICON.status.apply : GICON.status.invite_only) : full ? GICON.status.full : GICON.status.open
-                return (
-                  <Panel key={g.id} flat color={C.paper} uiTransform={{ width: '100%', height: S(112), flexDirection: 'row', alignItems: 'center', padding: { left: S(22), right: S(22) }, margin: { bottom: S(10) }, flexShrink: 0 }}>
-                    <UiEntity
-                      uiTransform={{ width: S(118), height: S(66), alignItems: 'center', justifyContent: 'center', margin: { right: S(16) } }}
-                      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: closed ? C.gray : C.purple }}
-                    >
-                      <OutlinedText value={g.tag} size={S(g.tag.length > 4 ? 24 : 28)} uiTransform={{ margin: { bottom: S(4) } }} />
-                    </UiEntity>
-                    <UiEntity uiTransform={{ flexDirection: 'column', width: S(300) }}>
-                      <Text value={g.name} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(300), height: S(36) }} />
-                      <Text
-                        value={`${g.memberCount}/${g.maxMembers} members  •  HQ ${g.hqLevel}`}
-                        size={S(20)}
-                        color={C.textMuted}
-                        align="middle-left"
-                        nowrap
-                        uiTransform={{ width: S(300), height: S(26) }}
-                      />
-                      {g.motto ? <Text value={g.motto.length > 34 ? `${g.motto.slice(0, 34)}…` : g.motto} size={S(17)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(300), height: S(24) }} /> : null}
-                    </UiEntity>
-                    <Spacer />
-                    <Button
-                      label={label}
-                      icon={statusIcon}
-                      color={closed ? C.gray : C.blue}
-                      disabled={full || closed}
-                      size={S(closed ? 18 : 26)}
-                      uiTransform={{ width: S(230), height: S(66) }}
-                      onClick={() => requestGuild('join', { tag: g.tag })}
-                    />
-                  </Panel>
-                )
-              })}
-            </UiEntity>
-            <Spacer />
-            <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-              <Text value="Have an invite tag?" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: 'auto', margin: { right: S(10) } }} />
+        <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+          <Text value="Guilds share one HQ: every level every member funds gives everyone more resources and XP." size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { bottom: S(14) } }} />
+          <UiEntity uiTransform={{ width: S(CONTENT_W), height: S(1060), flexDirection: 'row', justifyContent: 'center' }}>
+            <Panel flat color={C.paper2} uiTransform={{ width: S(520), height: '100%', alignItems: 'center', padding: S(26), margin: { right: S(14) } }}>
+              <OutlinedText value="CREATE A GUILD" size={S(40)} />
+              <Text value="Start your own and invite friends by tag." size={S(22)} color={C.textMuted} uiTransform={{ margin: { top: S(6) } }} />
+              <Text value="Name" size={S(24)} color={C.textMuted} align="middle-left" uiTransform={{ margin: { top: S(30) } }} />
               <Input
-                value={guildForm.joinTag}
-                placeholder="TAG"
-                fontSize={S(FONT.body)}
+                value={guildForm.name}
+                placeholder="Guild name"
+                fontSize={S(28)}
                 color={C.text}
                 placeholderColor={C.textMuted}
-                uiTransform={{ width: S(150), height: S(56), margin: { right: S(10) } }}
+                uiTransform={{ width: '100%', height: S(72), margin: { bottom: S(20) } }}
                 onChange={(value) => {
-                  guildForm.joinTag = value.toUpperCase()
+                  guildForm.name = value
                 }}
               />
-              <Button label="JOIN BY TAG" color={C.navySoft} size={S(22)} uiTransform={{ width: S(210), height: S(58) }} onClick={() => requestGuild('join', { tag: guildForm.joinTag })} />
-            </UiEntity>
-          </Panel>
+              <Text value="Tag  2-5 letters" size={S(24)} color={C.textMuted} align="middle-left" />
+              <Input
+                value={guildForm.tag}
+                placeholder="TAG"
+                fontSize={S(28)}
+                color={C.text}
+                placeholderColor={C.textMuted}
+                uiTransform={{ width: '100%', height: S(72), margin: { bottom: S(20) } }}
+                onChange={(value) => {
+                  guildForm.tag = value.toUpperCase()
+                }}
+              />
+              <Spacer />
+              <Button
+                label="CREATE GUILD"
+                color={C.purple}
+                size={S(30)}
+                uiTransform={{ width: '100%', height: S(86) }}
+                onClick={() => requestGuild('create', { name: guildForm.name, tag: guildForm.tag })}
+              />
+            </Panel>
+            <Panel flat color={C.paper2} uiTransform={{ width: S(1172), height: '100%', alignItems: 'center', padding: S(26), margin: { left: S(14) } }}>
+              <OutlinedText value="JOIN A GUILD" size={S(40)} />
+              <Text
+                value={guildDirectory.loading && guildDirectory.list.length === 0 ? 'Loading guilds…' : guildDirectory.list.length === 0 ? (guildDirectory.failed ? 'Could not load guilds — try again in a moment' : 'No guilds yet — be the first to create one!') : `${guildDirectory.list.length} guild${guildDirectory.list.length === 1 ? '' : 's'}  •  tap JOIN on an open guild`}
+                size={S(22)}
+                color={C.textMuted}
+                uiTransform={{ margin: { top: S(6) } }}
+              />
+              <UiEntity uiTransform={{ width: '100%', height: S(760), flexDirection: 'column', overflow: 'scroll', margin: { top: S(16) } }}>
+                {guildDirectory.list.map((g) => {
+                  const full = g.memberCount >= g.maxMembers
+                  const closed = g.recruitMode === 'invite_only' || g.recruitMode === 'apply'
+                  const label = closed ? (g.recruitMode === 'apply' ? 'APPLY IN KOA' : 'INVITE ONLY') : full ? 'FULL' : 'JOIN'
+                  const statusIcon = closed ? (g.recruitMode === 'apply' ? GICON.status.apply : GICON.status.invite_only) : full ? GICON.status.full : GICON.status.open
+                  return (
+                    <Panel key={g.id} flat color={C.paper} uiTransform={{ width: '100%', height: S(136), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24) }, margin: { bottom: S(12) }, flexShrink: 0 }}>
+                      <UiEntity
+                        uiTransform={{ width: S(150), height: S(80), alignItems: 'center', justifyContent: 'center', margin: { right: S(20) }, flexShrink: 0 }}
+                        uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: closed ? C.gray : C.purple }}
+                      >
+                        <OutlinedText value={g.tag} size={S(g.tag.length > 4 ? 30 : 36)} uiTransform={{ margin: { bottom: S(4) } }} />
+                      </UiEntity>
+                      <UiEntity uiTransform={{ flexDirection: 'column', width: S(560) }}>
+                        <Text value={g.name} size={S(32)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(560), height: S(42) }} />
+                        <Text
+                          value={`${g.memberCount}/${g.maxMembers} members  •  HQ ${g.hqLevel}`}
+                          size={S(24)}
+                          color={C.textMuted}
+                          align="middle-left"
+                          nowrap
+                          uiTransform={{ width: S(560), height: S(32) }}
+                        />
+                        {g.motto ? <Text value={g.motto.length > 48 ? `${g.motto.slice(0, 48)}…` : g.motto} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(560), height: S(30) }} /> : null}
+                      </UiEntity>
+                      <Spacer />
+                      <Button
+                        label={label}
+                        icon={statusIcon}
+                        color={closed ? C.gray : C.blue}
+                        disabled={full || closed}
+                        size={S(closed ? 22 : 30)}
+                        uiTransform={{ width: S(300), height: S(80) }}
+                        onClick={() => requestGuild('join', { tag: g.tag })}
+                      />
+                    </Panel>
+                  )
+                })}
+              </UiEntity>
+              <Spacer />
+              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+                <Text value="Have an invite tag?" size={S(26)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: 'auto', margin: { right: S(14) } }} />
+                <Input
+                  value={guildForm.joinTag}
+                  placeholder="TAG"
+                  fontSize={S(28)}
+                  color={C.text}
+                  placeholderColor={C.textMuted}
+                  uiTransform={{ width: S(220), height: S(72), margin: { right: S(14) } }}
+                  onChange={(value) => {
+                    guildForm.joinTag = value.toUpperCase()
+                  }}
+                />
+                <Button label="JOIN BY TAG" color={C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(78) }} onClick={() => requestGuild('join', { tag: guildForm.joinTag })} />
+              </UiEntity>
+            </Panel>
+          </UiEntity>
         </UiEntity>
       )}
     </Modal>
@@ -1843,86 +1913,95 @@ export function AwayPanel() {
   const leveled = away.levelAfter > away.levelBefore
   const rare = Object.entries(away.rareDrops) as Array<[RareRaw, number]>
   const extras = rare.length > 0 || away.antromPelts > 0 || away.berries > 0
-  const designH = 470 + (extras ? 110 : 0)
-  fitModal(760, designH)
+  const fit = fitBig()
+  const title = 'WHILE YOU WERE AWAY'
+  // One line per extra find: rare raws, the Antrom pelt gift, berries.
+  const found: Array<{ icon: string; text: string }> = [
+    ...rare.map(([id, n]) => ({ icon: RESOURCE_INFO[id].icon, text: `+${n} ${RESOURCE_INFO[id].name}` })),
+    ...(away.antromPelts > 0 ? [{ icon: RESOURCE_INFO.hide.icon, text: `+${away.antromPelts} Beast Pelt from Antrom` }] : []),
+    ...(away.berries > 0 ? [{ icon: RESOURCE_INFO.berry.icon, text: `+${away.berries} ${away.berries === 1 ? 'Berry' : 'Berries'}` }] : [])
+  ]
+  const tile = { width: S(548), height: S(620), alignItems: 'center' as const, padding: S(30) }
   return (
-    <Modal title="WHILE YOU WERE AWAY" color={C.green} width={760} height={designH} titleWidth={620} onClose={closePanel}>
-      <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', padding: { top: S(26), bottom: S(6) } }}>
-        <Text value={`Your ${info.name} kept working for ${formatAway(away.elapsed)}`} size={S(FONT.body + 2)} color={C.text} align="middle-center" nowrap />
+    <Modal title={title} color={C.green} {...bigFrame(fit, title)} onClose={closePanel}>
+      <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', padding: { top: S(10) } }}>
+        <OutlinedText value={`YOUR ${info.name.toUpperCase()} KEPT WORKING FOR ${formatAway(away.elapsed).toUpperCase()}`} size={S(40)} color={C.white} />
+        <Text value="Everything below is already in your bag and Depot." size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(6) } }} />
 
-        {/* Explicit widths everywhere: unsized flex children overflow the chrome instead of wrapping */}
-        <Panel flat color={C.paper2} uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', width: S(600), height: S(150), margin: { top: S(18) }, padding: { left: S(28), right: S(20), top: S(12), bottom: S(12) } }}>
-          <UiEntity
-            uiTransform={{ width: S(110), height: S(110), alignItems: 'center', justifyContent: 'center', margin: { right: S(18) }, flexShrink: 0 }}
-            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color }}
-          >
-            <Icon src={res.icon} size={S(84)} />
-          </UiEntity>
-          <UiEntity uiTransform={{ flexDirection: 'column', justifyContent: 'center', width: S(400) }}>
-            <OutlinedText value={`+${away.got} ${res.name.toUpperCase()}`} size={S(FONT.title)} color={C.white} align="middle-left" uiTransform={{ width: S(400), height: S(50) }} />
-            <Text value={`added to your backpack`} size={S(FONT.small)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(400), height: S(26) }} />
-          </UiEntity>
-        </Panel>
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', width: '100%', margin: { top: S(30) } }}>
+          {/* Gathered */}
+          <Panel flat color={C.paper2} uiTransform={{ ...tile, justifyContent: 'center', margin: { right: S(20) } }}>
+            <Text value="GATHERED" size={S(26)} color={C.textMuted} nowrap />
+            <UiEntity
+              uiTransform={{ width: S(220), height: S(220), alignItems: 'center', justifyContent: 'center', margin: { top: S(20), bottom: S(20) } }}
+              uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color }}
+            >
+              <Icon src={res.icon} size={S(176)} />
+            </UiEntity>
+            <OutlinedText value={`+${away.got}`} size={S(80)} color={C.white} />
+            <Text value={res.name.toUpperCase()} size={S(32)} color={C.text} nowrap uiTransform={{ margin: { top: S(4) } }} />
+            <Text value={away.capped ? 'Backpack filled up before you got back' : 'added to your backpack'} size={S(22)} color={away.capped ? C.red : C.textMuted} nowrap uiTransform={{ margin: { top: S(10) } }} />
+          </Panel>
 
-        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: S(660), margin: { top: S(16) } }}>
-          <Icon src={SKILL_ICON[away.skill]} size={S(44)} uiTransform={{ flexShrink: 0 }} />
-          <Text
-            value={leveled ? `${info.name} +${away.xp} XP  •  Level ${away.levelBefore} -> ${away.levelAfter}!` : `${info.name} +${away.xp} XP`}
-            size={S(FONT.body)}
-            color={leveled ? C.greenDark : C.text}
-            align="middle-left"
-            uiTransform={{ width: S(560), margin: { left: S(8) } }}
-          />
+          {/* XP */}
+          <Panel flat color={C.paper2} uiTransform={{ ...tile, justifyContent: 'center', margin: { right: S(20) } }}>
+            <Text value="EXPERIENCE" size={S(26)} color={C.textMuted} nowrap />
+            <UiEntity
+              uiTransform={{ width: S(220), height: S(220), alignItems: 'center', justifyContent: 'center', margin: { top: S(20), bottom: S(20) } }}
+              uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color }}
+            >
+              <Icon src={SKILL_ICON[away.skill]} size={S(170)} />
+            </UiEntity>
+            <OutlinedText value={`+${away.xp} XP`} size={S(64)} color={C.white} />
+            <Text value={info.name.toUpperCase()} size={S(32)} color={C.text} nowrap uiTransform={{ margin: { top: S(4) } }} />
+            <Text
+              value={leveled ? `LEVEL UP!  ${away.levelBefore} -> ${away.levelAfter}` : `Level ${away.levelAfter}`}
+              size={leveled ? S(28) : S(22)}
+              color={leveled ? C.greenDark : C.textMuted}
+              nowrap
+              uiTransform={{ margin: { top: S(10) } }}
+            />
+            {away.masteryAfter > away.masteryBefore ? (
+              <Text value={`${SKILL_INFO[away.skill].zoneName} Mastery ${away.masteryBefore} -> ${away.masteryAfter}`} size={S(22)} color={C.purple} nowrap uiTransform={{ margin: { top: S(6) } }} />
+            ) : null}
+          </Panel>
+
+          {/* Extra finds */}
+          <Panel flat color={extras ? C.navySoft : C.paper2} uiTransform={{ ...tile, justifyContent: extras ? 'flex-start' : 'center' }}>
+            <OutlinedText
+              value={rare.length > 0 ? (away.rareDoubles > 0 ? `RARE FINDS  •  ${away.rareDoubles} DOUBLED!` : 'RARE FINDS') : away.antromPelts > 0 ? 'A GIFT FROM ANTROM' : extras ? 'ALSO FOUND' : 'NOTHING EXTRA'}
+              size={S(30)}
+              color={extras ? C.yellow : C.textMuted}
+            />
+            {extras ? (
+              <UiEntity uiTransform={{ width: '100%', height: S(400), flexDirection: 'column', overflow: 'scroll', margin: { top: S(16) } }}>
+                {found.map((f) => (
+                  <UiEntity key={f.text} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(60), flexShrink: 0, margin: { bottom: S(4) } }}>
+                    <Icon src={f.icon} size={S(50)} uiTransform={{ flexShrink: 0 }} />
+                    <Text value={f.text} size={S(26)} color={C.white} align="middle-left" nowrap uiTransform={{ width: S(410), height: S(60), margin: { left: S(12) } }} />
+                  </UiEntity>
+                ))}
+              </UiEntity>
+            ) : (
+              <Text value="Wear a suit in its zone and rare materials start dropping while you are away." size={S(22)} color={C.textMuted} uiTransform={{ width: S(440), height: S(90), margin: { top: S(20) } }} />
+            )}
+            {extras ? <Spacer /> : null}
+            {extras ? <Text value={rare.length > 0 || away.antromPelts > 0 ? 'Materials went straight to your Depot storage.' : 'Berries are ready to spend in the Shop.'} size={S(20)} color={C.gray} nowrap /> : null}
+          </Panel>
         </UiEntity>
 
-        {away.masteryAfter > away.masteryBefore ? (
-          <Text value={`${SKILL_INFO[away.skill].zoneName} Mastery ${away.masteryBefore} -> ${away.masteryAfter}`} size={S(FONT.small)} color={C.purple} align="middle-center" nowrap uiTransform={{ margin: { top: S(6) } }} />
-        ) : null}
-        {extras ? (
-          <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: S(660), margin: { top: S(10) } }}>
-            <Text
-              value={rare.length > 0 ? (away.rareDoubles > 0 ? `RARE FINDS  •  ${away.rareDoubles} doubled!` : 'RARE FINDS') : away.antromPelts > 0 ? 'A GIFT FROM ANTROM' : 'ALSO FOUND'}
-              size={S(FONT.small)}
-              color={C.yellow}
-              align="middle-center"
-              nowrap
-              uiTransform={{ height: S(22) }}
-            />
-            <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
-              {rare.map(([id, n]) => (
-                <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: S(8), right: S(8) }, height: S(40) }}>
-                  <Icon src={RESOURCE_INFO[id].icon} size={S(34)} />
-                  <Text value={`+${n} ${RESOURCE_INFO[id].name}`} size={S(FONT.small)} color={C.text} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(4) } }} />
-                </UiEntity>
-              ))}
-              {away.antromPelts > 0 ? (
-                <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: S(8), right: S(8) }, height: S(40) }}>
-                  <Icon src={RESOURCE_INFO.hide.icon} size={S(34)} />
-                  <Text value={`+${away.antromPelts} Beast Pelt from Antrom`} size={S(FONT.small)} color={C.text} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(4) } }} />
-                </UiEntity>
-              ) : null}
-              {away.berries > 0 ? (
-                <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: S(8), right: S(8) }, height: S(40) }}>
-                  <Icon src={RESOURCE_INFO.berry.icon} size={S(34)} />
-                  <Text value={`+${away.berries} ${away.berries === 1 ? 'Berry' : 'Berries'}`} size={S(FONT.small)} color={C.text} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(4) } }} />
-                </UiEntity>
-              ) : null}
-            </UiEntity>
-            <Text value={rare.length > 0 || away.antromPelts > 0 ? 'Materials went straight to your Depot storage.' : 'Berries are ready to spend in the Shop.'} size={S(13)} color={C.textMuted} align="middle-center" nowrap uiTransform={{ height: S(18) }} />
-          </UiEntity>
-        ) : null}
         {away.capped ? (
           <Text
-            value="Your backpack filled up before you got back. Equip bigger suits to carry more between trips!"
-            size={S(FONT.small)}
+            value="Your backpack filled up before you got back. Bigger suits and the Loot Luck guild tech carry more between trips."
+            size={S(24)}
             color={C.red}
-            align="middle-center"
-            uiTransform={{ width: S(600), margin: { top: S(10) } }}
+            nowrap
+            uiTransform={{ margin: { top: S(24) } }}
           />
         ) : null}
 
         <Spacer />
-        <Button label="COLLECT" color={C.green} uiTransform={{ width: S(260), height: S(68) }} onClick={closePanel} />
+        <Button label="COLLECT" color={C.green} size={S(34)} uiTransform={{ width: S(420), height: S(96) }} onClick={closePanel} />
       </UiEntity>
     </Modal>
   )

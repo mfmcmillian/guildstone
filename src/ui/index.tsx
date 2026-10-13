@@ -3,6 +3,7 @@ import { Hud } from './hud'
 import { Dock, ShowUiButton } from './dock'
 import { SkillsPanel, BankPanel, WorkshopPanel, ForgePanel, ShopPanel, GuildPanel, AwayPanel } from './panels'
 import { LevelUpBanner } from './levelUp'
+import { RareFindBanner } from './rareFind'
 import { ui } from './uiState'
 
 function Root() {
@@ -19,6 +20,7 @@ function Root() {
       {ui.open === 'guild' ? <GuildPanel /> : null}
       {ui.open === 'away' ? <AwayPanel /> : null}
       <LevelUpBanner />
+      <RareFindBanner />
     </UiEntity>
   )
 }

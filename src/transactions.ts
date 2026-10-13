@@ -24,7 +24,7 @@ import {
   MASTERY_ENABLED
 } from './state'
 import { sanitizeCraftedSuits, sanitizeMaterials, sanitizePendingCraft, sanitizeRareProgress, sanitizeStorage } from './backpackPersistence'
-import { playErrorSound, playSuccessSound } from './uiSounds'
+import { playErrorSound, playRareFindSound, playSuccessSound } from './uiSounds'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 
@@ -43,8 +43,8 @@ interface RareFields {
   currency?: { coins: number; berries: number }
 }
 
-/** The most recent rare find, for the HUD flash + sound. */
-export const lastRareFind = { text: '', at: 0, doubled: false }
+/** The most recent rare find: drives the celebration banner (ui/rareFind.tsx) and its chime. */
+export const lastRareFind: { items: Array<{ id: RareRaw; amount: number }>; at: number; doubled: boolean } = { items: [], at: 0, doubled: false }
 
 /** Apply storage/progress from a server response and announce any rare finds (Depot-bound, so they never fill the bag). */
 function applyRareFields(result: RareFields) {
@@ -57,13 +57,11 @@ function applyRareFields(result: RareFields) {
   if ((result.berries ?? 0) > 0) flash(`FOUND ${result.berries} ${result.berries === 1 ? 'BERRY' : 'BERRIES'}!`)
   const drops = Object.entries(result.rareDrops ?? {}) as Array<[RareRaw, number]>
   if (drops.length > 0) {
-    const text = drops.map(([id, n]) => `+${n} ${RESOURCE_INFO[id]?.name ?? id}`).join('  ')
-    const doubled = (result.rareDoubles ?? 0) > 0
-    lastRareFind.text = doubled ? `DOUBLE!  ${text}` : text
+    // The banner is the moment; no HUD flash on top of it.
+    lastRareFind.items = drops.map(([id, amount]) => ({ id, amount }))
     lastRareFind.at = Date.now()
-    lastRareFind.doubled = doubled
-    flash(`RARE FIND  ${lastRareFind.text}  (sent to Depot)`)
-    playSuccessSound()
+    lastRareFind.doubled = (result.rareDoubles ?? 0) > 0
+    playRareFindSound()
   }
   if ((result.antromPelts ?? 0) > 0) {
     player.antromPelts = result.antromPelts ?? 0
