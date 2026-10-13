@@ -100,7 +100,7 @@ export function Hud() {
             {(() => {
               const rung = nextRung(skill)
               return rung ? (
-                <OutlinedText value={`Next: Lv ${rung.level}  ${rung.label}   (you are Lv ${player.skills[skill].level})`} size={S(15)} color={C.yellow} uiTransform={{ width: S(460), height: S(22), margin: { top: S(4) } }} />
+                <OutlinedText value={`Next: Lv ${rung.level} unlocks ${rung.label}${rung.kind === 'tool' ? ' at camp' : ''}   (you are Lv ${player.skills[skill].level})`} size={S(15)} color={C.yellow} uiTransform={{ width: S(460), height: S(22), margin: { top: S(4) } }} />
               ) : null
             })()}
           </UiEntity>
