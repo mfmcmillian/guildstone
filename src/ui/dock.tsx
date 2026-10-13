@@ -19,11 +19,10 @@ export function ShowUiButton() {
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(190), right: canvas.right + S(18) } }}>
       <Button
-        label={working ? `ANTROM  •  ${SKILL_INFO[working].verb.toUpperCase()}` : 'ANTROM'}
-        icon="images/icons/suit.png"
-        color={C.navySoft}
+        label={working ? `ANTROM  •  ${SKILL_INFO[working].verb.toUpperCase()}` : 'SHOW ANTROM'}
+        color={working ? skillColor(working) : C.purple}
         size={S(18)}
-        uiTransform={{ height: S(56), minWidth: S(200) }}
+        uiTransform={{ width: S(300), height: S(60) }}
         onClick={() => {
           ui.hidden = false
         }}
