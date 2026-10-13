@@ -1,0 +1,41 @@
+{
+  "data": {
+    "replaces": [],
+    "hides": [
+      "tiara",
+      "earring"
+    ],
+    "tags": [
+      "antrom",
+      "koa",
+      "guildstone",
+      "ring",
+      "idle",
+      "afk",
+      "crafting",
+      "guild",
+      "smart"
+    ],
+    "representations": [
+      {
+        "bodyShapes": [
+          "urn:decentraland:off-chain:base-avatars:BaseMale",
+          "urn:decentraland:off-chain:base-avatars:BaseFemale"
+        ],
+        "mainFile": "antrom_guildstone_ring.glb",
+        "contents": [
+          "antrom_guildstone_ring.glb"
+        ],
+        "overrideHides": [
+          "tiara",
+          "earring"
+        ],
+        "overrideReplaces": []
+      }
+    ],
+    "category": "hands_wear"
+  },
+  "name": "Antrom Guildstone Ring",
+  "description": "A guildstone set in black iron, cut for the Knights of Antrom. Wear it and the Antrom AFK idle loop follows you anywhere in Decentraland: pick a profession, gather every 3 seconds, bank your away progress, upgrade tools, and run your guild from the HUD. Progress is shared with the AntromAFK land scene.",
+  "rarity": "legendary"
+}

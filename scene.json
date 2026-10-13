@@ -1,0 +1,28 @@
+{
+  "ecs7": true,
+  "runtimeVersion": "7",
+  "isPortableExperience": true,
+  "display": {
+    "title": "Antrom Guildstone Ring",
+    "description": "Carry the AntromAFK idle loop anywhere in Decentraland. Pick a profession, gather every 3 seconds, bank away progress, and manage your guild from the HUD.",
+    "navmapThumbnail": "thumbnail.png",
+    "favicon": "favicon_asset"
+  },
+  "owner": "",
+  "contact": {
+    "name": "Knights of Antrom",
+    "email": ""
+  },
+  "main": "bin/game.js",
+  "requiredPermissions": [
+    "USE_FETCH"
+  ],
+  "featureToggles": {},
+  "scene": {
+    "parcels": [
+      "0,0"
+    ],
+    "base": "0,0"
+  },
+  "authoritativeMultiplayer": false
+}
