@@ -211,25 +211,25 @@ function LadderChip(props: { key?: string; rung: LadderRung; reached: boolean; n
   const fg = props.reached || props.next ? C.white : C.textMuted
   return (
     <UiEntity
-      uiTransform={{ width: S(96), height: S(50), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(3), right: S(3) } }}
+      uiTransform={{ width: S(116), height: S(62), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(3), right: S(3) } }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: bg }}
     >
-      <Text value={`Lv ${props.rung.level}`} size={S(13)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(18) }} />
-      <Text value={props.rung.label} size={S(13)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(20) }} />
+      <Text value={`Lv ${props.rung.level}`} size={S(16)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(22) }} />
+      <Text value={props.rung.label} size={S(16)} color={fg} align="middle-center" nowrap uiTransform={{ height: S(24) }} />
     </UiEntity>
   )
 }
 
 export function SkillsPanel() {
   const suits = skillsTab === 'suits'
-  const designW = suits ? 1220 : 1140
-  const designH = suits ? 1300 : 820 + (expandedSkill ? 70 : 0)
+  const designW = suits ? 1220 : 1340
+  const designH = suits ? 1300 : 940 + (expandedSkill ? 80 : 0)
   fitModal(designW, designH)
   return (
     <Modal title={suits ? 'SUITS' : 'PROFESSIONS'} color={C.blue} width={designW} height={designH} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(12) } }}>
-        <Button label="PROFESSIONS" color={skillsTab === 'professions' ? C.blue : C.navySoft} size={S(24)} uiTransform={{ width: S(260), height: S(60), margin: { right: S(6) } }} onClick={() => { skillsTab = 'professions' }} />
-        <Button label="SUITS" color={skillsTab === 'suits' ? C.blue : C.navySoft} size={S(24)} uiTransform={{ width: S(260), height: S(60), margin: { left: S(6) } }} onClick={() => { skillsTab = 'suits' }} />
+        <Button label="PROFESSIONS" color={skillsTab === 'professions' ? C.blue : C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(70), margin: { right: S(8) } }} onClick={() => { skillsTab = 'professions' }} />
+        <Button label="SUITS" color={skillsTab === 'suits' ? C.blue : C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(70), margin: { left: S(8) } }} onClick={() => { skillsTab = 'suits' }} />
       </UiEntity>
       {skillsTab === 'suits' ? <SuitsTab /> : SKILLS.map((s) => {
         const st = player.skills[s]
@@ -240,54 +240,54 @@ export function SkillsPanel() {
           <Panel
             key={s}
             flat
-            uiTransform={{ width: '100%', height: S(expanded ? 188 : 118), flexDirection: 'column', padding: { left: S(24), right: S(24), top: S(expanded ? 8 : 0) }, margin: { bottom: S(10) } }}
+            uiTransform={{ width: '100%', height: S(expanded ? 250 : 170), flexDirection: 'column', padding: { left: S(26), right: S(26), top: S(expanded ? 10 : 4) }, margin: { bottom: S(12) } }}
             color={C.paper2}
             onClick={() => {
               playButtonSound()
               expandedSkill = expanded ? null : s
             }}
           >
-          <UiEntity uiTransform={{ width: '100%', height: S(104), flexDirection: 'row', alignItems: 'center' }}>
+          <UiEntity uiTransform={{ width: '100%', height: S(128), flexDirection: 'row', alignItems: 'center' }}>
             <UiEntity
-              uiTransform={{ width: S(78), height: S(78), alignItems: 'center', justifyContent: 'center', margin: { right: S(14) } }}
+              uiTransform={{ width: S(100), height: S(100), alignItems: 'center', justifyContent: 'center', margin: { right: S(16) } }}
               uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: skillColor(s) }}
             >
-              <Icon src={SKILL_ICON[s]} size={S(62)} />
+              <Icon src={SKILL_ICON[s]} size={S(80)} />
             </UiEntity>
-            <UiEntity uiTransform={{ flexDirection: 'column', width: S(340) }}>
+            <UiEntity uiTransform={{ flexDirection: 'column', width: S(370) }}>
               <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
-                <Text value={SKILL_INFO[s].name} size={S(FONT.body + 4)} align="middle-left" uiTransform={{ width: 'auto' }} />
-                <OutlinedText value={`Lv ${st.level}`} size={S(FONT.body + 2)} color={C.yellow} uiTransform={{ width: 'auto', minWidth: S(90), margin: { left: S(12) } }} align="middle-left" />
+                <Text value={SKILL_INFO[s].name} size={S(36)} align="middle-left" uiTransform={{ width: 'auto', height: S(46) }} />
+                <OutlinedText value={`Lv ${st.level}`} size={S(34)} color={C.yellow} uiTransform={{ width: 'auto', minWidth: S(110), height: S(46), margin: { left: S(14) } }} align="middle-left" />
               </UiEntity>
-              <Bar value={st.xp / need} color={skillColor(s)} height={S(24)} label={`${st.xp} / ${need} XP`} labelSize={S(15)} />
+              <Bar value={st.level >= 50 ? 1 : st.xp / need} color={skillColor(s)} height={S(36)} label={st.level >= 50 ? 'MAX LEVEL' : `${st.xp} / ${need} XP`} labelSize={S(22)} uiTransform={{ margin: { top: S(4) } }} />
             </UiEntity>
             <MasteryColumn skill={s} />
             <Spacer />
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
-              <Text value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(FONT.small)} color={st.suit > 0 ? C.yellow : C.textMuted} />
-              <UiEntity uiTransform={{ flexDirection: 'row' }}>
+              <Text value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(24)} color={st.suit > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(32) }} />
+              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(4), bottom: S(4) } }}>
                 {[1, 2, 3, 4].map((lv) => (
                   <UiEntity
                     key={lv}
-                    uiTransform={{ width: S(26), height: S(26), margin: { left: S(2), right: S(2) } }}
+                    uiTransform={{ width: S(34), height: S(34), margin: { left: S(3), right: S(3) } }}
                     uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: st.suit >= lv ? skillColor(s) : C.gray }}
                   />
                 ))}
               </UiEntity>
-              <Text value={`x${SUIT_MULT[st.suit]} gather`} size={S(FONT.small)} color={C.textMuted} />
+              <Text value={`x${SUIT_MULT[st.suit]} gather`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
             </UiEntity>
-            <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', margin: { left: S(22) } }}>
-              <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(FONT.small)} color={player.tools[s] > 0 ? C.yellow : C.textMuted} nowrap />
-              <UiEntity uiTransform={{ flexDirection: 'row' }}>
+            <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', margin: { left: S(26) } }}>
+              <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(24)} color={player.tools[s] > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(32) }} />
+              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(4), bottom: S(4) } }}>
                 {[1, 2, 3, 4, 5].map((lv) => (
                   <UiEntity
                     key={lv}
-                    uiTransform={{ width: S(20), height: S(20), margin: { left: S(2), right: S(2) } }}
+                    uiTransform={{ width: S(28), height: S(28), margin: { left: S(3), right: S(3) } }}
                     uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: player.tools[s] >= lv ? C.blue : C.gray }}
                   />
                 ))}
               </UiEntity>
-              <Text value={`+${Math.round(toolPct(s) * 100)}% yield`} size={S(FONT.small)} color={C.textMuted} nowrap />
+              <Text value={`+${Math.round(toolPct(s) * 100)}% yield`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
             </UiEntity>
           </UiEntity>
           {expanded ? (
@@ -297,7 +297,7 @@ export function SkillsPanel() {
               ))}
             </UiEntity>
           ) : (
-            <Text value={rung ? `Tap for unlocks  •  Next: Lv ${rung.level} ${rung.label}` : 'Tap for unlocks  •  All unlocked'} size={S(12)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(14), margin: { top: S(-6) } }} />
+            <Text value={rung ? `Tap for unlocks  •  Next: Lv ${rung.level} ${rung.label}` : 'Tap for unlocks  •  All unlocked'} size={S(18)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(26), margin: { top: S(2) } }} />
           )}
           </Panel>
         )
@@ -315,13 +315,13 @@ function MasteryColumn(props: { key?: string; skill: Skill }) {
   const next = nextMasteryMilestone(m.level)
   const bonus = `+${Math.round(masteryYieldPct(m.level) * 100)}% yield${dbl > 0 ? `  •  ${Math.round(dbl * 100)}% double` : ''}`
   return (
-    <UiEntity uiTransform={{ flexDirection: 'column', width: S(270), margin: { left: S(16) } }}>
-      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
-        <Text value={`${SKILL_INFO[props.skill].zoneName} MASTERY`} size={S(FONT.small)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto' }} />
-        <OutlinedText value={`${m.level}`} size={S(FONT.body)} color={C.purple} uiTransform={{ width: 'auto', minWidth: S(40), margin: { left: S(8) } }} align="middle-left" />
+    <UiEntity uiTransform={{ flexDirection: 'column', width: S(350), margin: { left: S(20) } }}>
+      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(40) }}>
+        <Text value={`${SKILL_INFO[props.skill].zoneName} MASTERY`} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(280), height: S(40) }} />
+        <OutlinedText value={`${m.level}`} size={S(32)} color={C.purple} uiTransform={{ width: S(60), height: S(40) }} align="middle-left" />
       </UiEntity>
-      <Bar value={maxed ? 1 : m.xp / need} color={C.purple} height={S(20)} label={maxed ? 'MAXED' : `${m.xp} / ${need} cycles`} labelSize={S(13)} />
-      <Text value={next ? `${bonus}   •   next: Lv ${next} = ${Math.round(masteryDoubleChance(next) * 100)}% double` : bonus} size={S(13)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', margin: { top: S(2) } }} />
+      <Bar value={maxed ? 1 : m.xp / need} color={C.purple} height={S(30)} label={maxed ? 'MAXED' : `${m.xp} / ${need} cycles`} labelSize={S(18)} />
+      <Text value={next ? `${bonus}   •   next: Lv ${next} = ${Math.round(masteryDoubleChance(next) * 100)}% double` : bonus} size={S(17)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(26), margin: { top: S(4) } }} />
     </UiEntity>
   )
 }
