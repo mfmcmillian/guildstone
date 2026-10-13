@@ -131,7 +131,7 @@ export function Hud() {
             color={C.navySoft}
             uiTransform={{ width: S(700), height: S(128), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: { left: S(18), right: S(18), top: S(10), bottom: S(10) } }}
           >
-            {full ? <OutlinedText value="BACKPACK FULL - OPEN THE DEPOT!" size={S(FONT.body + 2)} color={C.red} uiTransform={{ margin: { bottom: S(4) } }} /> : null}
+            {full ? <OutlinedText value="BACKPACK FULL - BANK IT AT THE ANTROM CAMP!" size={S(FONT.body + 2)} color={C.red} uiTransform={{ margin: { bottom: S(4) } }} /> : null}
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
               <Icon src="images/icons/backpack.png" size={S(94)} uiTransform={{ margin: { right: S(14) } }} />
               <UiEntity uiTransform={{ width: S(550), flexDirection: 'column' }}>

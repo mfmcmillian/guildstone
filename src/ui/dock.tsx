@@ -4,7 +4,7 @@ import { C, FONT, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Panel, Button, Icon } from './components'
 import { isMuted, setMuted, playButtonSound } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
-import { togglePanel, ui } from './uiState'
+import { ui } from './uiState'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
@@ -114,12 +114,8 @@ export function Dock() {
             />
           )
         })}
-        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', margin: { top: S(8) } }}>
-          <Button label="DEPOT" icon="images/icons/backpack.png" color={C.green} size={S(18)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('bank')} />
-          <Button label="CRAFT" icon="images/icons/plank.png" color={C.orange} size={S(18)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('workshop')} />
-          <Button label="TOOL BENCH" icon="images/icons/lumberjack.png" color={C.blue} size={S(18)} uiTransform={{ width: S(186), height: S(70) }} onClick={() => togglePanel('forge')} />
-          <Button label="SHOP" icon="images/icons/berry.png" color={C.purple} size={S(18)} uiTransform={{ width: S(186), height: S(70) }} onClick={() => togglePanel('shop')} />
-        </UiEntity>
+        {/* Economy stays on the land: the ring only fills the backpack */}
+        <OutlinedText value="Bank, craft, tools & shop: at the Antrom camp" size={S(15)} color={C.gray} uiTransform={{ height: S(22), margin: { top: S(4) } }} />
       </Panel>
     </UiEntity>
   )

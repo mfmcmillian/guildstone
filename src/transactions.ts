@@ -167,6 +167,63 @@ export function requestGather(
   })
 }
 
+interface WorkResponse {
+  started: boolean
+  stopped?: boolean
+  got: number
+  cycles: number
+  capped?: boolean
+  masteryUp?: boolean
+  updatedAt: number
+  backpack?: typeof player.backpack
+  skills?: typeof player.skills
+  mastery?: typeof player.mastery
+}
+
+/**
+ * Smart wearable: batched work claim. One signed request per window (see work.ts) instead of one per 3 s
+ * cycle; the server simulates the cycles since the previous claim with the land scene's exact math. The
+ * first call for a skill only plants the marker. `stop` flushes what is owed and clears the markers.
+ */
+export function requestWork(skill: Skill, stop = false) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress) return
+
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/work`,
+        init: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skill, stop })
+        }
+      })
+      if (response.status === 429) return
+      if (!response.ok) throw new Error(`Work request failed (${response.status})`)
+
+      const result = JSON.parse(response.body) as WorkResponse
+      if (result.updatedAt >= lastServerUpdateAt) {
+        lastServerUpdateAt = result.updatedAt
+        if (result.backpack) player.backpack = result.backpack
+        if (result.skills) player.skills = result.skills
+        if (result.mastery) player.mastery = result.mastery
+      }
+      if (result.started) return
+
+      const got = Math.max(0, Math.floor(result.got))
+      const name = RESOURCE_INFO[SKILL_INFO[skill].resource].name
+      if (got > 0) flash(`+${got} ${name}`)
+      else if (result.capped) flash('BACKPACK FULL - bank it at the Antrom camp!')
+      if (result.masteryUp) {
+        flash(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
+        playSuccessSound()
+      }
+    } catch (error) {
+      console.error('[transaction] Work claim failed:', error instanceof Error ? error.message : String(error))
+    }
+  })
+}
+
 export function requestDepot(action: DepotAction, items: DepotItem[] = []) {
   if (profileState.status !== 'ready' || !profileState.walletAddress) return
 
