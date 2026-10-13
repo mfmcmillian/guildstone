@@ -775,21 +775,47 @@ const SHOP_ITEMS = [
   { name: 'BIG BACKPACK', desc: '+100 capacity', icon: 'images/icons/backpack.png', price: 20, craft: { plank: 15, brick: 15 } as Partial<Record<Material, number>>, boost: 'bigBag' as const }
 ]
 
+/** The boost currently running, if any (only one can be active at a time). */
+function activeBoost(): { item: (typeof SHOP_ITEMS)[number]; until: number } | null {
+  const now = Date.now()
+  const untils = { ration: player.rationUntil, lucky: player.luckyUntil, bigBag: player.bigBagUntil }
+  for (const item of SHOP_ITEMS) if (untils[item.boost] > now) return { item, until: untils[item.boost] }
+  return null
+}
+
 export function ShopPanel() {
-  fitModal(860, 660)
+  const active = activeBoost()
+  const minutesLeft = active ? Math.max(1, Math.ceil((active.until - Date.now()) / 60000)) : 0
+  fitModal(860, 700)
   return (
-    <Modal title="BERRY SHOP" color={C.purple} width={860} height={660} onClose={closePanel}>
-      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(24) } }}>
+    <Modal title="BERRY SHOP" color={C.purple} width={860} height={700} onClose={closePanel}>
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(6) } }}>
+        <Pill color={C.paper} uiTransform={{ height: S(66), padding: { left: S(8), right: S(26) } }}>
+          <Icon src={RESOURCE_INFO.berry.icon} size={S(54)} />
+          <OutlinedText value={`${player.berries}`} size={S(FONT.body + 10)} color={C.purple} uiTransform={{ width: 'auto', minWidth: S(90), margin: { left: S(8), bottom: S(4) } }} align="middle-left" />
+        </Pill>
+        <Text value="Berries drop at random while you work." size={S(FONT.small)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(14) } }} />
+      </UiEntity>
+      <Text
+        value={active ? `${active.item.name} is active for ${minutesLeft} more min  •  one boost at a time` : 'One boost at a time: pick the one you need right now.'}
+        size={S(FONT.small)}
+        color={active ? C.greenDark : C.textMuted}
+        nowrap
+        uiTransform={{ height: S(24), margin: { top: S(8) } }}
+      />
+      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(10) } }}>
         {SHOP_ITEMS.map((it) => {
-          const ok = player.berries >= it.price
+          const isActive = active?.item.boost === it.boost
+          const blocked = active !== null
+          const ok = !blocked && player.berries >= it.price
           const craftList = MATERIALS.filter((m) => (it.craft[m] ?? 0) > 0)
-          const craftOk = craftList.every((m) => player.materials[m] >= (it.craft[m] ?? 0))
+          const craftOk = !blocked && craftList.every((m) => player.materials[m] >= (it.craft[m] ?? 0))
           return (
-            <Panel key={it.name} flat color={C.paper2} uiTransform={{ width: S(236), height: S(410), alignItems: 'center', padding: S(16), margin: { left: S(8), right: S(8) } }}>
+            <Panel key={it.name} flat color={isActive ? C.yellow : C.paper2} uiTransform={{ width: S(236), height: S(410), alignItems: 'center', padding: S(16), margin: { left: S(8), right: S(8) } }}>
               <Icon src={it.icon} size={S(96)} />
               <OutlinedText value={it.name} size={S(FONT.body + 2)} />
-              <Text value={`${it.desc} for ${boostMinutes()} min`} size={S(FONT.small)} color={C.textMuted} />
-              {boostMinutes() > 10 ? <Text value="Extended by guild Quartermaster" size={S(14)} color={C.greenDark} /> : null}
+              <Text value={isActive ? `ACTIVE  •  ${minutesLeft} min left` : `${it.desc} for ${boostMinutes()} min`} size={S(FONT.small)} color={isActive ? C.greenDark : C.textMuted} />
+              {!isActive && boostMinutes() > 10 ? <Text value="Extended by guild Quartermaster" size={S(14)} color={C.greenDark} /> : null}
               <Spacer />
               <Button
                 label={`${it.price}`}
@@ -818,10 +844,6 @@ export function ShopPanel() {
         })}
       </UiEntity>
       <Spacer />
-      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon src={RESOURCE_INFO.berry.icon} size={S(40)} />
-        <Text value={`You have ${player.berries} Berries  •  pick more from the berry bushes around the hub`} size={S(FONT.body)} color={C.text} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(8) } }} />
-      </UiEntity>
     </Modal>
   )
 }

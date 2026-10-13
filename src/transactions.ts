@@ -507,7 +507,12 @@ export function requestBoost(boost: Boost, pay: 'berries' | 'materials' = 'berri
           body: JSON.stringify({ boost, pay })
         }
       })
-      if (!response.ok) throw new Error(`Shop request failed (${response.status})`)
+      if (!response.ok) {
+        const body = response.body ? (JSON.parse(response.body) as { error?: string }) : {}
+        flash((body.error ?? `Shop request failed (${response.status})`).toUpperCase())
+        playErrorSound()
+        return
+      }
 
       const result = JSON.parse(response.body) as {
         updatedAt: number

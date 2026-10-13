@@ -29,7 +29,7 @@ function timerText(until: number): string {
 
 function BoostPill(props: { icon: string; label: string; until: number; color: Color4 }) {
   return (
-    <Pill color={props.color} uiTransform={{ width: S(360), height: S(60), justifyContent: 'center', padding: { left: S(10), right: S(16) }, margin: { bottom: S(9) } }}>
+    <Pill color={props.color} uiTransform={{ width: S(360), height: S(72), justifyContent: 'center', padding: { left: S(10), right: S(16) }, margin: { bottom: S(12) } }}>
       <Icon src={props.icon} size={S(50)} uiTransform={{ margin: { right: S(9) } }} />
       <OutlinedText value={`${props.label}  ${timerText(props.until)}`} size={S(24)} uiTransform={{ width: S(275), margin: { bottom: S(4) } }} align="middle-left" />
     </Pill>
@@ -59,7 +59,7 @@ export function Hud() {
       {menuOpen ? null : (
         <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + edgeY, right: canvas.right + edgeX }, flexDirection: 'column', alignItems: 'flex-end' }}>
           <CurrencyPill icon={RESOURCE_INFO.coin.icon} value={player.coins} color={C.yellow} />
-          <CurrencyPill icon={RESOURCE_INFO.berry.icon} value={player.berries} color={C.purple} />
+          {/* Berries live in the Berry Shop; the one active boost takes their old slot so it is never hidden */}
           {player.rationUntil > Date.now() ? <BoostPill icon="images/icons/jerky.png" label="+50% GATHER" until={player.rationUntil} color={C.orange} /> : null}
           {player.luckyUntil > Date.now() ? <BoostPill icon="images/icons/lumberjack.png" label="2x CLICKS" until={player.luckyUntil} color={C.green} /> : null}
           {player.bigBagUntil > Date.now() ? <BoostPill icon="images/icons/backpack.png" label="+100 CAPACITY" until={player.bigBagUntil} color={C.blue} /> : null}
