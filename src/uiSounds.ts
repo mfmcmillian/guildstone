@@ -53,3 +53,9 @@ export function playSuccessSound() {
 export function playErrorSound() {
   play(feedbackEntity, 'sounds/ui/error.mp3', 0.6)
 }
+
+let levelUpEntity: Entity | null = null
+export function playLevelUpSound() {
+  if (!levelUpEntity) levelUpEntity = createSound('sounds/ui/level_up.wav', 0.7)
+  play(levelUpEntity, 'sounds/ui/level_up.wav', 0.7)
+}

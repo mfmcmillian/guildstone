@@ -44,7 +44,7 @@ export function campHint(): string {
   return remoteConfig.camp.open ? `${remoteConfig.camp.name} at ${remoteConfig.camp.coords}` : `${remoteConfig.camp.name} opens soon`
 }
 
-/** True while the ring should offer sell + storage itself (camp closed, or explicitly enabled). */
-export function ringDepotEnabled(): boolean {
+/** True while the ring carries the economy stations itself (Depot, Workshop, Tool Bench, Shop): camp closed, or explicitly enabled. */
+export function ringStationsEnabled(): boolean {
   return remoteConfig.ringDepot && !remoteConfig.camp.open
 }

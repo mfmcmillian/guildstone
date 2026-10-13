@@ -12,7 +12,7 @@ import {
   StorageData,
   AfkPlayerProfile
 } from './playerProfile'
-import { CRAFT_SECS, MASTERY_MAX, player, TOOL_MAX } from './state'
+import { CRAFT_SECS, MASTERY_MAX, player, TOOL_MAX, MAX_LEVEL } from './state'
 import { claimAwayProgress, loadGuild } from './transactions'
 import { sanitizeAssassinPieces } from './suits'
 import { showAwaySummary } from './ui/uiState'
@@ -60,7 +60,7 @@ function sanitizeCurrency(value: CurrencyData | undefined): CurrencyData {
 
 function sanitizeSkills(value: SkillsData | undefined): SkillsData {
   const skill = (item: SkillsData['lumberjack'] | undefined) => ({
-    level: Math.min(50, Math.max(1, cleanAmount(item?.level))),
+    level: Math.min(MAX_LEVEL, Math.max(1, cleanAmount(item?.level))),
     xp: cleanAmount(item?.xp),
     suit: Math.min(4, cleanAmount(item?.suit))
   })

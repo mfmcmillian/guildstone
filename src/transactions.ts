@@ -1,9 +1,9 @@
 import { executeTask } from '@dcl/sdk/ecs'
 import { signedFetch } from '~system/SignedFetch'
-import { campHint, ringDepotEnabled } from './remoteConfig'
+import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
-import { BaseResource, Boost, flash, GuildInfo, GuildTechKey, Material, player, RESOURCE_INFO, SKILL_INFO, Skill, TOOL_NAME, toolPct } from './state'
+import { BaseResource, Boost, flash, GuildInfo, GuildTechKey, Material, player, RESOURCE_INFO, SKILL_INFO, Skill, TOOL_NAME, toolPct, setSkills } from './state'
 import { playErrorSound, playSuccessSound } from './uiSounds'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -61,7 +61,7 @@ export async function claimAwayProgress(): Promise<AwaySummary | null> {
     if (result.updatedAt >= lastServerUpdateAt) {
       lastServerUpdateAt = result.updatedAt
       if (result.backpack) player.backpack = result.backpack
-      if (result.skills) player.skills = result.skills
+      if (result.skills) setSkills(result.skills)
       if (result.mastery) player.mastery = result.mastery
     }
     if (result.got <= 0 || !result.skill || !result.resource) return null
@@ -139,7 +139,7 @@ export function requestGather(
       if (result.updatedAt >= lastServerUpdateAt) {
         lastServerUpdateAt = result.updatedAt
         if (result.backpack) player.backpack = result.backpack
-        if (result.skills) player.skills = result.skills
+        if (result.skills) setSkills(result.skills)
         if (result.mastery && target !== 'berry' && result.mastery[target].level > player.mastery[target].level) {
           masteryUp = `${SKILL_INFO[target].zoneName} MASTERY ${result.mastery[target].level}!`
         }
@@ -206,7 +206,7 @@ export function requestWork(skill: Skill, stop = false) {
       if (result.updatedAt >= lastServerUpdateAt) {
         lastServerUpdateAt = result.updatedAt
         if (result.backpack) player.backpack = result.backpack
-        if (result.skills) player.skills = result.skills
+        if (result.skills) setSkills(result.skills)
         if (result.mastery) player.mastery = result.mastery
       }
       if (result.started) return
@@ -214,7 +214,7 @@ export function requestWork(skill: Skill, stop = false) {
       const got = Math.max(0, Math.floor(result.got))
       const name = RESOURCE_INFO[SKILL_INFO[skill].resource].name
       if (got > 0) flash(`+${got} ${name}`)
-      else if (result.capped) flash(ringDepotEnabled() ? 'BACKPACK FULL - open the Depot!' : `BACKPACK FULL - bank it at ${campHint()}!`)
+      else if (result.capped) flash(ringStationsEnabled() ? 'BACKPACK FULL - open the Depot!' : `BACKPACK FULL - bank it at ${campHint()}!`)
       if (result.masteryUp) {
         flash(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
         playSuccessSound()
@@ -440,7 +440,7 @@ export function requestEquipSuit(skill: Skill, level: number, pieces?: string[])
       }
       if (result.updatedAt >= lastServerUpdateAt) {
         lastServerUpdateAt = result.updatedAt
-        player.skills = result.skills
+        setSkills(result.skills)
         player.equippedAssassinPieces = result.skills.assassin.suit > 0 ? sanitizeAssassinPieces(result.equippedSuits?.assassin) : []
       }
       const newLevel = player.skills[skill].suit

@@ -5,7 +5,7 @@ import { OutlinedText, Panel, Button, Icon } from './components'
 import { isMuted, setMuted, playButtonSound } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { togglePanel, ui } from './uiState'
-import { campHint, remoteConfig, ringDepotEnabled } from '../remoteConfig'
+import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
@@ -114,16 +114,17 @@ export function Dock() {
             />
           )
         })}
-        {/* Economy stays on the land. Until the camp opens (remote config) the ring carries the Depot itself. */}
-        {ringDepotEnabled() ? (
-          <Button label="DEPOT  (SELL / STORE)" icon="images/icons/backpack.png" color={C.green} size={S(20)} uiTransform={{ width: '100%', height: S(70), margin: { top: S(4) } }} onClick={() => togglePanel('bank')} />
-        ) : null}
-        <OutlinedText
-          value={remoteConfig.camp.open ? `Bank, craft, tools & shop: ${campHint()}` : `Craft, tools & shop: ${campHint()}`}
-          size={S(15)}
-          color={C.gray}
-          uiTransform={{ height: S(22), margin: { top: S(8) } }}
-        />
+        {/* Economy lives on the land once the camp opens (remote config). Until then the ring carries every station. */}
+        {ringStationsEnabled() ? (
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', margin: { top: S(6) } }}>
+            <Button label="DEPOT" icon="images/icons/backpack.png" color={C.green} size={S(19)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('bank')} />
+            <Button label="WORKSHOP" icon="images/icons/plank.png" color={C.orange} size={S(19)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('workshop')} />
+            <Button label="TOOL BENCH" icon="images/icons/lumberjack.png" color={C.blue} size={S(19)} uiTransform={{ width: S(186), height: S(70) }} onClick={() => togglePanel('forge')} />
+            <Button label="SHOP" icon="images/icons/berry.png" color={C.purple} size={S(19)} uiTransform={{ width: S(186), height: S(70) }} onClick={() => togglePanel('shop')} />
+          </UiEntity>
+        ) : (
+          <OutlinedText value={`Bank, craft, tools & shop: ${campHint()}`} size={S(15)} color={C.gray} uiTransform={{ height: S(22), margin: { top: S(8) } }} />
+        )}
       </Panel>
     </UiEntity>
   )

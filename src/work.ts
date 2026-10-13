@@ -1,6 +1,6 @@
 import { engine } from '@dcl/sdk/ecs'
-import { addXp, cycleXp, flash, gather, gatherMult, MASTERY_MAX, masteryXpForLevel, player, Skill, SKILL_INFO, WORK_CYCLE_SECS, ZoneId, ZONE_SKILL } from './state'
-import { refreshGuild, requestWork } from './transactions'
+import { addXp, craftTick, cycleXp, flash, gather, gatherMult, MASTERY_MAX, masteryXpForLevel, player, Skill, SKILL_INFO, WORK_CYCLE_SECS, ZoneId, ZONE_SKILL } from './state'
+import { refreshGuild, requestWork, syncCraftQueue } from './transactions'
 import { profileState } from './playerProfile'
 import { playButtonSound } from './uiSounds'
 import { refreshRemoteConfig } from './remoteConfig'
@@ -10,8 +10,8 @@ import { refreshRemoteConfig } from './remoteConfig'
  * 3-second cycle the land scene runs inside a zone runs here, wherever they are standing.
  * `player.activeZone` is reused so the shared HUD block (progress, rates, mastery, ladder) renders unchanged.
  *
- * Economy stays on the land and the server: the ring only gathers into the backpack. Banking, crafting,
- * tools and the shop are land-only, so every price lives in one place.
+ * Prices and recipes live on the server. The ring carries the Depot / Workshop / Tool Bench / Shop until the
+ * camp opens (remote config); after that it only gathers into the backpack and points players at the camp.
  *
  * Server traffic: instead of one signed request per cycle (every 3 s), the ring claims once per CLAIM_SECS (and when
  * the player stops or switches). Between claims the backpack counter ticks optimistically with the local
@@ -58,9 +58,11 @@ let guildElapsed = 0
 let claimElapsed = 0
 
 function afkSystem(dt: number) {
+  craftTick(dt)
   guildElapsed += dt
   if (guildElapsed >= 1) {
     guildElapsed = 0
+    syncCraftQueue()
     // Background guild refresh so HQ level-ups from other members get announced even with the panel closed.
     refreshGuild(3 * 60_000)
     refreshRemoteConfig()

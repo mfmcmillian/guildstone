@@ -45,6 +45,8 @@ export const WORK_CYCLE_SECS = 3 // demo speed (design: 5s)
 export const CRAFT_SECS = 2 // demo speed
 
 export interface SkillState { level: number; xp: number; suit: number }
+/** Profession level cap (mirrors the server). */
+export const MAX_LEVEL = 99
 export interface MasteryState { level: number; xp: number }
 
 // --- Zone Mastery (mirrors the server) --------------------------------------------------------------
@@ -398,12 +400,35 @@ export function activeClickAmount(base: number): number {
 export function addXp(skill: Skill, amount: number) {
   const s = player.skills[skill]
   s.xp += amount
-  while (s.xp >= xpForLevel(s.level) && s.level < 50) {
+  while (s.xp >= xpForLevel(s.level) && s.level < MAX_LEVEL) {
     s.xp -= xpForLevel(s.level)
     s.level++
-    flash(`${SKILL_INFO[skill].name} LEVEL ${s.level}!`)
+    celebrateLevelUp(skill, s.level)
   }
   skillsChanged()
+}
+
+/** Replace skills with the server's copy, celebrating any level the server reached before the local tick did. */
+export function setSkills(next: Record<Skill, SkillState>) {
+  for (const skill of SKILLS) {
+    const before = player.skills[skill]?.level ?? 1
+    if (next[skill] && next[skill].level > before) celebrateLevelUp(skill, next[skill].level)
+  }
+  player.skills = next
+  skillsChanged()
+}
+
+/** The most recent profession level-up, shown by the HUD banner for a few seconds. */
+export const levelUp = { skill: null as Skill | null, level: 0, at: 0 }
+const levelUpListeners: Array<(skill: Skill, level: number) => void> = []
+export function onLevelUp(listener: (skill: Skill, level: number) => void) {
+  levelUpListeners.push(listener)
+}
+export function celebrateLevelUp(skill: Skill, level: number) {
+  levelUp.skill = skill
+  levelUp.level = level
+  levelUp.at = Date.now()
+  levelUpListeners.forEach((l) => l(skill, level))
 }
 
 export function gather(skill: Skill, amount: number): number {
@@ -552,7 +577,7 @@ export function toolPct(skill: Skill): number {
 
 // --- Unlock ladder (mirrors the server) ----------------------------------------------------------------
 /** Profession levels that each grant a permanent +5% yield in that zone. */
-export const LEVEL_YIELD_STEPS = [5, 15, 25, 35, 45]
+export const LEVEL_YIELD_STEPS = [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]
 export function levelYieldPct(level: number): number {
   return LEVEL_YIELD_STEPS.filter((step) => level >= step).length * 0.05
 }

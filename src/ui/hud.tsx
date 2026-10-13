@@ -4,7 +4,7 @@ import { C, FONT, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Pill, Icon, Bar, Button, Panel } from './components'
 import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung, MASTERY_MAX, masteryXpForLevel, masteryYieldPct, masteryDoubleChance } from '../state'
 import { togglePanel, ui } from './uiState'
-import { campHint, ringDepotEnabled } from '../remoteConfig'
+import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 
 function CurrencyPill(props: { icon: string; value: number; color: Color4 }) {
@@ -101,7 +101,7 @@ export function Hud() {
             {(() => {
               const rung = nextRung(skill)
               return rung ? (
-                <OutlinedText value={`Next: Lv ${rung.level} unlocks ${rung.label}${rung.kind === 'tool' ? ' at camp' : ''}   (you are Lv ${player.skills[skill].level})`} size={S(15)} color={C.yellow} uiTransform={{ width: S(460), height: S(22), margin: { top: S(4) } }} />
+                <OutlinedText value={`Next: Lv ${rung.level} unlocks ${rung.label}${rung.kind === 'tool' ? (ringStationsEnabled() ? ' (Tool Bench)' : ' at camp') : ''}   (you are Lv ${player.skills[skill].level})`} size={S(15)} color={C.yellow} uiTransform={{ width: S(460), height: S(22), margin: { top: S(4) } }} />
               ) : null
             })()}
           </UiEntity>
@@ -132,7 +132,7 @@ export function Hud() {
             color={C.navySoft}
             uiTransform={{ width: S(700), height: S(128), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: { left: S(18), right: S(18), top: S(10), bottom: S(10) } }}
           >
-            {full ? <OutlinedText value={ringDepotEnabled() ? "BACKPACK FULL - OPEN THE DEPOT!" : `BACKPACK FULL - BANK IT AT ${campHint().toUpperCase()}!`} size={S(FONT.body + 2)} color={C.red} uiTransform={{ margin: { bottom: S(4) } }} /> : null}
+            {full ? <OutlinedText value={ringStationsEnabled() ? "BACKPACK FULL - OPEN THE DEPOT!" : `BACKPACK FULL - BANK IT AT ${campHint().toUpperCase()}!`} size={S(FONT.body + 2)} color={C.red} uiTransform={{ margin: { bottom: S(4) } }} /> : null}
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
               <Icon src="images/icons/backpack.png" size={S(94)} uiTransform={{ margin: { right: S(14) } }} />
               <UiEntity uiTransform={{ width: S(550), flexDirection: 'column' }}>
