@@ -56,6 +56,7 @@ export function stopWorking() {
 
 let guildElapsed = 0
 let claimElapsed = 0
+let cycleCarry = 0 // fractional items not yet paid out by the optimistic tick
 
 function afkSystem(dt: number) {
   craftTick(dt)
@@ -74,7 +75,11 @@ function afkSystem(dt: number) {
   if (player.workProgress >= 1) {
     player.workProgress -= 1
     // Optimistic local tick (items, XP, level-ups, mastery); the next claim replaces it with the server's numbers.
-    const got = gather(skill, gatherMult(skill))
+    // Whole items only; the fraction carries to the next tick like the server does.
+    const exact = gatherMult(skill) + cycleCarry
+    const whole = Math.floor(exact + 1e-9)
+    cycleCarry = Math.max(0, exact - whole)
+    const got = gather(skill, whole)
     if (got > 0) addXp(skill, cycleXp(skill))
     const m = player.mastery[skill]
     if (MASTERY_ENABLED && m.level < MASTERY_MAX) {

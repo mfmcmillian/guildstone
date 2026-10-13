@@ -2,7 +2,7 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, FONT, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Pill, Icon, Bar, Button, Panel } from './components'
-import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung, MASTERY_MAX, masteryXpForLevel, masteryYieldPct, masteryDoubleChance, MASTERY_ENABLED } from '../state'
+import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, fmtRate, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung, MASTERY_MAX, masteryXpForLevel, masteryYieldPct, masteryDoubleChance, MASTERY_ENABLED } from '../state'
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
@@ -87,7 +87,7 @@ export function Hud() {
             />
             {/* Rates: what one cycle pays and the hourly pace, so upgrades are measurable at a glance */}
             <OutlinedText
-              value={`+${gatherMult(skill)} ${RESOURCE_INFO[info.resource].name}  •  +${cycleXp(skill)} XP  every ${WORK_CYCLE_SECS}s   (${Math.round((gatherMult(skill) * 3600) / WORK_CYCLE_SECS).toLocaleString()}/hr)`}
+              value={`+${fmtRate(gatherMult(skill))} ${RESOURCE_INFO[info.resource].name}  •  +${cycleXp(skill)} XP  every ${WORK_CYCLE_SECS}s   (${Math.round((gatherMult(skill) * 3600) / WORK_CYCLE_SECS).toLocaleString()}/hr)`}
               size={S(17)}
               color={C.white}
               uiTransform={{ width: S(460), height: S(24), margin: { top: S(6) } }}

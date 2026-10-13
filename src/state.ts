@@ -483,17 +483,24 @@ export function backpackFull(): boolean {
   return backpackCount() >= backpackCap()
 }
 
-/** Mirrors the server's per-cycle amount exactly (same rounding order) so the HUD matches what arrives. */
+/** Base items per work cycle before bonuses (mirrors the server's AFK_CYCLE_BASE). */
+export const CYCLE_BASE = 2
+
+/**
+ * Exact per-cycle amount as the server computes it: one float chain, no intermediate rounding. The server pays
+ * whole items and carries the fraction into the next cycle, so over time you get exactly this on average.
+ */
 export function gatherMult(skill: Skill): number {
-  const base = SUIT_MULT[player.skills[skill].suit]
+  const base = CYCLE_BASE * SUIT_MULT[player.skills[skill].suit]
   const ration = player.rationUntil > Date.now() ? 1.5 : 1
   const resource = SKILL_INFO[skill].resource
   const guildPct = player.guild?.bonuses[`${resource}Pct` as keyof NonNullable<GuildInfo['bonuses']>] ?? 0
-  const beforeGuild = Math.max(1, Math.round(base * ration))
-  const afterGuild = Math.max(1, Math.round(beforeGuild * (1 + guildPct)))
-  const afterMastery = Math.max(1, Math.round(afterGuild * (1 + masteryYieldPct(player.mastery[skill].level))))
-  const afterTool = Math.max(1, Math.round(afterMastery * (1 + toolPct(skill))))
-  return Math.max(1, Math.round(afterTool * (1 + levelYieldPct(player.skills[skill].level))))
+  return base * ration * (1 + guildPct) * (1 + masteryYieldPct(player.mastery[skill].level)) * (1 + toolPct(skill)) * (1 + levelYieldPct(player.skills[skill].level))
+}
+
+/** "3.75" / "4" for HUD labels. */
+export function fmtRate(n: number): string {
+  return Number.isInteger(n) ? `${n}` : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 /** XP one gather cycle grants; mirrors the server (10 XP per item, guild XP bonus applied, min 1). */
