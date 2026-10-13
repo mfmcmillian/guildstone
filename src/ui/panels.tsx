@@ -474,9 +474,9 @@ type DepotItem = ItemId
 const DEPOT_ITEMS: DepotItem[] = [...BASE_RESOURCES, ...MATERIALS]
 /** Stack the player tapped; the confirm card replaces the grid while this is set. */
 let depotSelling: DepotItem | null = null
-let depotBankedAt = 0
 /** What the backpack held when this visit banked it, for the "DEPOSITED …" line. Cleared on close. */
 let depotDeposit: Partial<Record<BaseResource, number>> | null = null
+let depotVisitBanked = false
 
 /** HUD bag icon and dock button both land here. */
 export function openStorage() {
@@ -503,15 +503,21 @@ function rareHoldings(): Array<{ id: ItemId; amount: number }> {
 function closeDepot() {
   depotSelling = null
   depotDeposit = null
+  depotVisitBanked = false
   closePanel()
 }
 
-/** Bank whatever is in the backpack (at most once a second so a stream of work claims cannot spam it). */
+/**
+ * Bank whatever is in the backpack, once per visit (tapping the bag is the deposit). Anything gathered while the
+ * Bank stays open keeps filling the backpack as usual; otherwise every work tick would fire another store request
+ * and the DEPOSITED line would count the same items again.
+ */
 function bankBackpack() {
-  if (backpackCount() <= 0 || Date.now() - depotBankedAt < 1000) return
-  depotBankedAt = Date.now()
-  const snapshot: Partial<Record<BaseResource, number>> = { ...(depotDeposit ?? {}) }
-  for (const r of BASE_RESOURCES) if (player.backpack[r] > 0) snapshot[r] = (snapshot[r] ?? 0) + player.backpack[r]
+  if (depotVisitBanked) return
+  depotVisitBanked = true
+  if (backpackCount() <= 0) return
+  const snapshot: Partial<Record<BaseResource, number>> = {}
+  for (const r of BASE_RESOURCES) if (player.backpack[r] > 0) snapshot[r] = player.backpack[r]
   depotDeposit = snapshot
   requestDepot('storeBackpack')
 }
@@ -604,12 +610,12 @@ export function BankPanel() {
     <Modal title="BANK" color={C.green} {...bigFrame(fit, 'BANK')} onClose={closeDepot}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
         <OutlinedText
-          value={bag > 0 ? `DEPOSITING ${bag} FROM YOUR BACKPACK…` : depositText() ? `DEPOSITED ${depositText()}` : `YOUR BANK  •  ${total} ITEMS`}
+          value={depositText() ? `DEPOSITED ${depositText()}` : `YOUR BANK  •  ${total} ITEMS`}
           size={S(44)}
-          color={bag > 0 || depositText() ? C.green : C.white}
+          color={depositText() ? C.green : C.white}
         />
         <Text
-          value={`${total} items banked  •  tap any stack to sell it  •  whole stock is worth ${worth} coins`}
+          value={`${total} items banked  •  tap any stack to sell it  •  whole stock is worth ${worth} coins${bag > 0 ? `  •  ${bag} gathered since stays in your backpack` : ''}`}
           size={S(26)}
           color={C.textMuted}
           nowrap
