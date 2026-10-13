@@ -13,13 +13,13 @@ import { showShop, showToolBench, showWorkshop } from './guide'
 
 const skillColor = (s: (typeof SKILLS)[number]) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
 
-/** The only thing rendered while the UI is hidden: a small button where the dock normally sits. Work keeps running. */
+/** The only thing rendered while the UI is hidden: a small button in the top-right corner where the coin pill normally sits. Work keeps running. */
 export function ShowUiButton() {
   setScale(hudScale())
   const canvas = getCanvas()
   const working = activeSkill()
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(190), right: canvas.right + S(18) } }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(18), right: canvas.right + S(18) } }}>
       <Button
         label={working ? `ANTROM  •  ${SKILL_INFO[working].verb.toUpperCase()}` : 'SHOW ANTROM'}
         color={working ? skillColor(working) : C.purple}
