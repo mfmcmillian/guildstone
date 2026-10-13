@@ -79,7 +79,7 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
   }
   return (
     <UiEntity
-      uiTransform={{ width: S(200), height: S(236), flexDirection: 'column', alignItems: 'center', padding: S(10), margin: { left: S(6), right: S(6) } }}
+      uiTransform={{ width: S(210), height: S(244), flexDirection: 'column', alignItems: 'center', padding: S(16), margin: { left: S(6), right: S(6) } }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: equipped ? C.yellow : owned ? C.paper2 : C.navySoft }}
     >
       <UiEntity
@@ -138,7 +138,7 @@ function SuitRow(props: { key?: string; skill: Skill }) {
   const wornPieces = player.equippedAssassinPieces.length
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
-      <Panel flat color={C.paper2} uiTransform={{ width: S(250), height: S(236), alignItems: 'center', justifyContent: 'center', padding: S(10), margin: { right: S(6) } }}>
+      <Panel flat color={C.paper2} uiTransform={{ width: S(250), height: S(244), alignItems: 'center', justifyContent: 'center', padding: S(16), margin: { right: S(6) } }}>
         <UiEntity
           uiTransform={{ width: S(64), height: S(64), alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color }}
@@ -175,7 +175,7 @@ function SuitsTab() {
   const capText = [`${SUIT_CAP[0]} base`, ...suitParts, ...extras].join('  •  ') + (growth > 0 ? `   x${(1 + growth).toFixed(2)} from mastery & tools` : '')
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
-      <Panel flat color={C.paper2} uiTransform={{ width: '100%', height: S(74), flexDirection: 'row', alignItems: 'center', padding: { left: S(16), right: S(16) } }}>
+      <Panel flat color={C.paper2} uiTransform={{ width: '100%', height: S(96), flexDirection: 'row', alignItems: 'center', padding: { left: S(26), right: S(26) } }}>
         <Icon src="images/icons/backpack.png" size={S(50)} uiTransform={{ margin: { right: S(12) }, flexShrink: 0 }} />
         <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, flexShrink: 1, width: S(700) }}>
           <Text value={`BACKPACK CAPACITY  ${cap}`} size={S(FONT.body + 1)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(28) }} />
@@ -184,8 +184,7 @@ function SuitsTab() {
             size={S(15)}
             color={C.textMuted}
             align="middle-left"
-            nowrap
-            uiTransform={{ height: S(20) }}
+            uiTransform={{ height: S(40) }}
           />
         </UiEntity>
         <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-end', width: S(330), flexShrink: 0 }}>
@@ -223,8 +222,8 @@ function LadderChip(props: { key?: string; rung: LadderRung; reached: boolean; n
 
 export function SkillsPanel() {
   const suits = skillsTab === 'suits'
-  const designW = suits ? 1180 : 1100
-  const designH = suits ? 1230 : 800 + (expandedSkill ? 70 : 0)
+  const designW = suits ? 1220 : 1140
+  const designH = suits ? 1300 : 820 + (expandedSkill ? 70 : 0)
   fitModal(designW, designH)
   return (
     <Modal title={suits ? 'SUITS' : 'PROFESSIONS'} color={C.blue} width={designW} height={designH} onClose={closePanel}>
@@ -241,7 +240,7 @@ export function SkillsPanel() {
           <Panel
             key={s}
             flat
-            uiTransform={{ width: '100%', height: S(expanded ? 188 : 118), flexDirection: 'column', padding: { left: S(14), right: S(18), top: S(expanded ? 8 : 0) }, margin: { bottom: S(10) } }}
+            uiTransform={{ width: '100%', height: S(expanded ? 188 : 118), flexDirection: 'column', padding: { left: S(24), right: S(24), top: S(expanded ? 8 : 0) }, margin: { bottom: S(10) } }}
             color={C.paper2}
             onClick={() => {
               playButtonSound()
@@ -365,7 +364,7 @@ function StorageCard(props: { key?: string; item: DepotItem }) {
   const selected = depotSelection.has(props.item)
   return (
     <UiEntity
-      uiTransform={{ width: S(165), height: S(190), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(8), margin: { left: S(7), right: S(7), top: S(7), bottom: S(7) } }}
+      uiTransform={{ width: S(165), height: S(190), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(14), margin: { left: S(7), right: S(7), top: S(7), bottom: S(7) } }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: selected ? C.yellow : C.paper2 }}
       onMouseDown={() => {
         if (amount <= 0) return
@@ -420,25 +419,25 @@ function BackpackDepotView() {
         })}
       </UiEntity>
       <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
-        <UiEntity uiTransform={{ width: S(345), flexDirection: 'column', alignItems: 'center', margin: { right: S(8) } }}>
+        <UiEntity uiTransform={{ width: S(330), flexDirection: 'column', alignItems: 'center', margin: { right: S(8) } }}>
           <Button
             label={`STORE ${scopeLabel}  (${targetTotal})`}
             color={C.green}
             disabled={targetTotal === 0}
             size={S(22)}
-            uiTransform={{ width: S(345), height: S(82) }}
+            uiTransform={{ width: S(330), height: S(82) }}
             onClick={() => backpackAction('storeBackpack')}
           />
           <Text value="Moves resources into permanent Storage." size={S(21)} color={C.textMuted} uiTransform={{ height: S(54), margin: { top: S(5) } }} />
         </UiEntity>
-        <UiEntity uiTransform={{ width: S(345), flexDirection: 'column', alignItems: 'center', margin: { left: S(8) } }}>
+        <UiEntity uiTransform={{ width: S(330), flexDirection: 'column', alignItems: 'center', margin: { left: S(8) } }}>
           <Button
             label={`SELL ${scopeLabel} FOR  ${coins}`}
             icon={RESOURCE_INFO.coin.icon}
             color={C.orange}
             disabled={targetTotal === 0}
             size={S(22)}
-            uiTransform={{ width: S(345), height: S(82) }}
+            uiTransform={{ width: S(330), height: S(82) }}
             onClick={() => backpackAction('sellBackpack')}
           />
           <Text value="Permanently removes backpack resources." size={S(21)} color={C.textMuted} uiTransform={{ height: S(54), margin: { top: S(5) } }} />
@@ -501,16 +500,16 @@ export function BankPanel() {
 // ---------------------------------------------------------------- WORKSHOP
 export function WorkshopPanel() {
   const job = player.craftQueue[0]
-  fitModal(900, 600)
+  fitModal(960, 620)
   return (
-    <Modal title="WORKSHOP" color={C.orange} width={900} height={600} onClose={closePanel}>
+    <Modal title="WORKSHOP" color={C.orange} width={960} height={620} onClose={closePanel}>
       <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
         {RECIPES.map((r) => {
           const ok = canCraft(r)
           const have = player.storage[r.from]
           const maxTimes = Math.floor(have / r.amount)
           return (
-            <Panel key={r.out} flat color={C.paper2} uiTransform={{ width: S(200), height: S(380), alignItems: 'center', padding: S(10), margin: { left: S(6), right: S(6) } }}>
+            <Panel key={r.out} flat color={C.paper2} uiTransform={{ width: S(206), height: S(390), alignItems: 'center', padding: S(16), margin: { left: S(6), right: S(6) } }}>
               <Icon src={RESOURCE_INFO[r.out].icon} size={S(96)} />
               <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(FONT.body + 2)} color={C.white} />
               <Text value={`you have ${player.materials[r.out]}`} size={S(FONT.small)} color={C.textMuted} />
@@ -556,9 +555,9 @@ function Need(props: { key?: string; icon: string; have: number; need: number })
 
 /** Tool bench (the Forge station): permanent tool tiers bought with crafted materials. */
 export function ForgePanel() {
-  fitModal(940, 640)
+  fitModal(1000, 660)
   return (
-    <Modal title="TOOL BENCH" color={C.blue} width={940} height={640} onClose={closePanel}>
+    <Modal title="TOOL BENCH" color={C.blue} width={1000} height={660} onClose={closePanel}>
       <Text value="Craft better tools from your materials. Each tier is permanent and adds +10% yield in that zone, on top of suits and mastery." size={S(FONT.body)} color={C.textMuted} />
       <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(10) } }}>
         {SKILLS.map((s) => {
@@ -567,7 +566,7 @@ export function ForgePanel() {
           const cost = toolCost(s)
           const ok = canUpgradeTool(s)
           return (
-            <Panel key={s} flat color={C.paper2} uiTransform={{ width: S(212), height: S(470), alignItems: 'center', padding: S(10), margin: { left: S(5), right: S(5) } }}>
+            <Panel key={s} flat color={C.paper2} uiTransform={{ width: S(218), height: S(480), alignItems: 'center', padding: S(16), margin: { left: S(5), right: S(5) } }}>
               <UiEntity
                 uiTransform={{ width: S(90), height: S(90), alignItems: 'center', justifyContent: 'center' }}
                 uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: skillColor(s) }}
@@ -622,16 +621,16 @@ const SHOP_ITEMS = [
 ]
 
 export function ShopPanel() {
-  fitModal(820, 640)
+  fitModal(860, 660)
   return (
-    <Modal title="BERRY SHOP" color={C.purple} width={820} height={640} onClose={closePanel}>
+    <Modal title="BERRY SHOP" color={C.purple} width={860} height={660} onClose={closePanel}>
       <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(24) } }}>
         {SHOP_ITEMS.map((it) => {
           const ok = player.berries >= it.price
           const craftList = MATERIALS.filter((m) => (it.craft[m] ?? 0) > 0)
           const craftOk = craftList.every((m) => player.materials[m] >= (it.craft[m] ?? 0))
           return (
-            <Panel key={it.name} flat color={C.paper2} uiTransform={{ width: S(230), height: S(400), alignItems: 'center', padding: S(12), margin: { left: S(8), right: S(8) } }}>
+            <Panel key={it.name} flat color={C.paper2} uiTransform={{ width: S(236), height: S(410), alignItems: 'center', padding: S(16), margin: { left: S(8), right: S(8) } }}>
               <Icon src={it.icon} size={S(96)} />
               <OutlinedText value={it.name} size={S(FONT.body + 2)} />
               <Text value={`${it.desc} for ${boostMinutes()} min`} size={S(FONT.small)} color={C.textMuted} />
@@ -967,7 +966,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
             const kickArmed = manageArmed('kick', id)
             const crownArmed = manageArmed('transfer', id)
             return (
-              <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(74), flexDirection: 'row', alignItems: 'center', padding: { left: S(10), right: S(10) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
+              <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(80), flexDirection: 'row', alignItems: 'center', padding: { left: S(18), right: S(18) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
                 <Icon src={guildRoleIcon(role)} size={S(56)} uiTransform={{ margin: { right: S(8) } }} />
                 <UiEntity uiTransform={{ width: S(240), flexDirection: 'column' }}>
                   <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(24)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(240), height: S(30) }} />
@@ -1556,14 +1555,14 @@ export function GuildPanel() {
               size={S(20)}
               color={C.textMuted}
             />
-            <UiEntity uiTransform={{ width: '100%', height: S(420), flexDirection: 'column', overflow: 'scroll', margin: { top: S(10) } }}>
+            <UiEntity uiTransform={{ width: '100%', height: S(400), flexDirection: 'column', overflow: 'scroll', margin: { top: S(10) } }}>
               {guildDirectory.list.map((g) => {
                 const full = g.memberCount >= g.maxMembers
                 const closed = g.recruitMode === 'invite_only' || g.recruitMode === 'apply'
                 const label = closed ? (g.recruitMode === 'apply' ? 'APPLY IN KOA' : 'INVITE ONLY') : full ? 'FULL' : 'JOIN'
                 const statusIcon = closed ? (g.recruitMode === 'apply' ? GICON.status.apply : GICON.status.invite_only) : full ? GICON.status.full : GICON.status.open
                 return (
-                  <Panel key={g.id} flat color={C.paper} uiTransform={{ width: '100%', height: S(112), flexDirection: 'row', alignItems: 'center', padding: { left: S(14), right: S(14) }, margin: { bottom: S(10) }, flexShrink: 0 }}>
+                  <Panel key={g.id} flat color={C.paper} uiTransform={{ width: '100%', height: S(112), flexDirection: 'row', alignItems: 'center', padding: { left: S(22), right: S(22) }, margin: { bottom: S(10) }, flexShrink: 0 }}>
                     <UiEntity
                       uiTransform={{ width: S(118), height: S(66), alignItems: 'center', justifyContent: 'center', margin: { right: S(16) } }}
                       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: closed ? C.gray : C.purple }}
@@ -1641,28 +1640,28 @@ export function AwayPanel() {
       <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', padding: { top: S(26), bottom: S(6) } }}>
         <Text value={`Your ${info.name} kept working for ${formatAway(away.elapsed)}`} size={S(FONT.body + 2)} color={C.text} align="middle-center" nowrap />
 
-        <Panel flat color={C.paper2} uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: S(560), height: S(150), margin: { top: S(18) }, padding: S(12) }}>
+        {/* Explicit widths everywhere: unsized flex children overflow the chrome instead of wrapping */}
+        <Panel flat color={C.paper2} uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', width: S(600), height: S(150), margin: { top: S(18) }, padding: { left: S(28), right: S(20), top: S(12), bottom: S(12) } }}>
           <UiEntity
-            uiTransform={{ width: S(110), height: S(110), alignItems: 'center', justifyContent: 'center', margin: { right: S(18) } }}
+            uiTransform={{ width: S(110), height: S(110), alignItems: 'center', justifyContent: 'center', margin: { right: S(18) }, flexShrink: 0 }}
             uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color }}
           >
             <Icon src={res.icon} size={S(84)} />
           </UiEntity>
-          <UiEntity uiTransform={{ flexDirection: 'column', justifyContent: 'center' }}>
-            <OutlinedText value={`+${away.got} ${res.name.toUpperCase()}`} size={S(FONT.title)} color={C.white} align="middle-left" />
-            <Text value={`added to your backpack`} size={S(FONT.small)} color={C.textMuted} align="middle-left" nowrap />
+          <UiEntity uiTransform={{ flexDirection: 'column', justifyContent: 'center', width: S(400) }}>
+            <OutlinedText value={`+${away.got} ${res.name.toUpperCase()}`} size={S(FONT.title)} color={C.white} align="middle-left" uiTransform={{ width: S(400), height: S(50) }} />
+            <Text value={`added to your backpack`} size={S(FONT.small)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(400), height: S(26) }} />
           </UiEntity>
         </Panel>
 
-        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(16) } }}>
-          <Icon src={SKILL_ICON[away.skill]} size={S(44)} />
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: S(660), margin: { top: S(16) } }}>
+          <Icon src={SKILL_ICON[away.skill]} size={S(44)} uiTransform={{ flexShrink: 0 }} />
           <Text
             value={leveled ? `${info.name} +${away.xp} XP  •  Level ${away.levelBefore} -> ${away.levelAfter}!` : `${info.name} +${away.xp} XP`}
             size={S(FONT.body)}
             color={leveled ? C.greenDark : C.text}
             align="middle-left"
-            nowrap
-            uiTransform={{ margin: { left: S(8) } }}
+            uiTransform={{ width: S(560), margin: { left: S(8) } }}
           />
         </UiEntity>
 

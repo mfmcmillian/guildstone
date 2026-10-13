@@ -132,7 +132,7 @@ export function Button(props: Keyed & {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: { left: S(18), right: S(18) }
+          padding: { left: S(22), right: S(22) }
         }}
         uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color }}
         onMouseDown={
@@ -223,7 +223,7 @@ export function Modal(props: {
           position: { left: props.offsetX ?? 0 },
           width,
           height,
-          padding: 22 * s
+          padding: 36 * s
         }}
       >
         {/* Title tab */}
