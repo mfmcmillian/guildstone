@@ -47,6 +47,7 @@ import {
   RARE_DOUBLE_BASE,
   PROSPECTOR_PCT_PER_LEVEL,
   suitRecipe,
+  usedFor,
   haveItem,
   canAffordSuit,
   flash,
@@ -633,9 +634,9 @@ let workshopSkill: Skill = 'lumberjack'
 export function WorkshopPanel() {
   const job = player.craftQueue[0]
   const recipes = RECIPES.filter((r) => r.skill === workshopSkill)
-  fitModal(1120, 720)
+  fitModal(1120, 770)
   return (
-    <Modal title="WORKSHOP" color={C.orange} width={1120} height={720} onClose={closePanel}>
+    <Modal title="WORKSHOP" color={C.orange} width={1120} height={770} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(10) } }}>
         {SKILLS.map((s) => (
           <Button
@@ -657,11 +658,17 @@ export function WorkshopPanel() {
           // Tier recipes stay dim until the player wears the unlocking suit or already holds some of the raw.
           const locked = r.tier > 0 && have <= 0 && player.materials[r.out] <= 0 && player.skills[r.skill].suit < r.tier
           return (
-            <Panel key={r.out} flat color={locked ? C.navySoft : C.paper2} uiTransform={{ width: S(206), height: S(420), alignItems: 'center', padding: S(16), margin: { left: S(5), right: S(5) } }}>
+            <Panel key={r.out} flat color={locked ? C.navySoft : C.paper2} uiTransform={{ width: S(206), height: S(470), alignItems: 'center', padding: S(16), margin: { left: S(5), right: S(5) } }}>
               <Text value={r.tier === 0 ? 'BASE' : `TIER ${r.tier}`} size={S(14)} color={locked ? C.textMuted : C.yellow} nowrap uiTransform={{ height: S(18) }} />
               <Icon src={RESOURCE_INFO[r.out].icon} size={S(88)} />
               <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(FONT.body)} color={locked ? C.textMuted : C.white} />
               <Text value={`you have ${player.materials[r.out]}`} size={S(FONT.small)} color={C.textMuted} />
+              <Text
+                value={`Used for: ${usedFor(r.out).join(', ') || 'Relics & the Crown (coming later)'}`}
+                size={S(13)}
+                color={C.greenDark}
+                uiTransform={{ width: '100%', height: S(52), margin: { top: S(2) } }}
+              />
               <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(8), bottom: S(4) } }}>
                 <Icon src={RESOURCE_INFO[r.from].icon} size={S(40)} />
                 <Text value={`${r.amount}`} size={S(FONT.body + 2)} color={have >= r.amount ? C.greenDark : C.red} uiTransform={{ width: 'auto', minWidth: S(40) }} />

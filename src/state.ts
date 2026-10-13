@@ -102,11 +102,11 @@ export const RESOURCE_INFO: Record<ItemId | 'coin' | 'berry', { name: string; ic
 for (const skill of SKILLS) {
   LADDER[skill].forEach(([rawId, rawName, refId, refName], tier) => {
     if (tier === 0) return
-    RESOURCE_INFO[rawId] = { name: rawName, icon: `images/icons/res_${rawId}.jpg`, value: 0 }
-    RESOURCE_INFO[refId] = { name: refName, icon: `images/icons/res_${refId}.jpg`, value: 0 }
+    RESOURCE_INFO[rawId] = { name: rawName, icon: `images/icons/res_${rawId}.png`, value: 0 }
+    RESOURCE_INFO[refId] = { name: refName, icon: `images/icons/res_${refId}.png`, value: 0 }
   })
 }
-for (const [id, def] of Object.entries(COMBOS)) RESOURCE_INFO[id as RareRaw] = { name: def.name, icon: `images/icons/res_${id}.jpg`, value: 0 }
+for (const [id, def] of Object.entries(COMBOS)) RESOURCE_INFO[id as RareRaw] = { name: def.name, icon: `images/icons/res_${id}.png`, value: 0 }
 export function isBaseResource(id: string): id is BaseResource {
   return (BASE_RESOURCES as string[]).includes(id)
 }
@@ -668,6 +668,27 @@ export function suitRecipe(skill: Skill, level: number): SuitRecipe | null {
       return { cost: { [ref(skill, 3)]: 50, antrom_essence: 60, [comboL3[skill]]: 60, [ref('assassin', 3)]: 20, coins: 150000 }, level: 40 }
   }
 }
+/** Plain-language list of what a refined material is spent on ("Lumberjack suit L1 & L2, Axe tiers, Big Backpack"). */
+export function usedFor(material: MaterialKey): string[] {
+  const uses: string[] = []
+  for (const skill of SKILLS) {
+    const levels: number[] = []
+    for (let level = 1; level <= 4; level++) {
+      const r = suitRecipe(skill, level)
+      if (r && (r.cost[material] ?? 0) > 0) levels.push(level)
+    }
+    if (levels.length > 0) uses.push(`${SKILL_INFO[skill].name} suit L${levels.join('/')}`)
+  }
+  if ((MATERIALS as string[]).includes(material)) {
+    const owner = SKILLS.find((s) => SKILL_INFO[s].material === material)!
+    uses.push(`${TOOL_NAME[owner]} tiers`, 'other tool tiers')
+    if (material === 'plank' || material === 'brick') uses.push('Big Backpack boost')
+    if (material === 'jerky') uses.push('Ration boost')
+    if (material === 'bonedust') uses.push('Lucky Tools boost')
+  }
+  return uses
+}
+
 /** How many of a recipe item the player holds (coins, storage raws or refined materials). */
 export function haveItem(id: ItemId | 'coins'): number {
   if (id === 'coins') return player.coins
