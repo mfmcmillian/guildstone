@@ -1,7 +1,7 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128 } from './theme'
-import { OutlinedText, Icon } from './components'
+import { OutlinedText, Icon, CloseButton } from './components'
 import { levelUp, MAX_LEVEL, onLevelUp, SKILL_ICON, SKILL_INFO, Skill, skillLadder, TOOL_NAME } from '../state'
 import { playLevelUpSound } from '../uiSounds'
 import { S, setScale, hudScale, getCanvas } from './responsive'
@@ -12,6 +12,7 @@ const POP_SECS = 0.45
 const FADE_SECS = 0.6
 
 onLevelUp(() => playLevelUpSound())
+const dismiss = () => { levelUp.at = 0 }
 
 /** Overshooting ease so the banner "pops" in. */
 function easeOutBack(t: number): number {
@@ -62,10 +63,13 @@ export function LevelUpBanner() {
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(340), left: '50%' }, width: 0, height: 0, alignItems: 'flex-start', justifyContent: 'center' }}>
       {/* flexShrink 0: the zero-width anchor above would otherwise squash the panel down to its padding */}
+      {/* Tap anywhere on the banner (or the X) to dismiss early; at = 0 makes the next render return null */}
       <UiEntity
         uiTransform={{ width: S(W), height: S(H), flexShrink: 0, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(26 * k) }}
         uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panel }, textureSlices: SLICE_128, color: withAlpha(C.navy, alpha) }}
+        onMouseDown={dismiss}
       >
+        {k >= 1 ? <CloseButton onClick={dismiss} scale={S(1)} /> : null}
         {/* Ribbon */}
         <UiEntity
           uiTransform={{ width: S(560 * k), height: S(84 * k), alignItems: 'center', justifyContent: 'center', margin: { bottom: S(14 * k) } }}

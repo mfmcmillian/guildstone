@@ -212,18 +212,23 @@ export function Modal(props: {
   const width = props.width * s
   const height = props.height * s
   const titleWidth = (props.titleWidth ?? Math.max(260, props.title.length * 26)) * s
+  const pad = 36 * s
+  const contentTop = 26 * s
   return (
+    // Tapping the dimmed backdrop closes the panel; the frame swallows its own clicks so content taps never reach it.
     <UiEntity
       uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
       uiBackground={{ color: C.dim }}
+      onMouseDown={props.onClose}
     >
       <Panel
+        onClick={() => {}}
         uiTransform={{
           positionType: 'relative',
           position: { left: props.offsetX ?? 0 },
           width,
           height,
-          padding: 36 * s
+          padding: pad
         }}
       >
         {/* Title tab */}
@@ -241,7 +246,11 @@ export function Modal(props: {
         <OutlinedText value={props.title} size={(props.titleSize ?? FONT.title) * s} uiTransform={{ margin: { bottom: 6 * s } }} />
         </UiEntity>
         <CloseButton onClick={props.onClose} scale={s} />
-        <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', margin: { top: 26 * s } }}>{props.children}</UiEntity>
+        {/* Content stops at the frame padding so the bottom CLOSE tab (which straddles the frame edge like the title tab) never covers it. */}
+        <UiEntity uiTransform={{ width: '100%', height: height - pad * 2 - contentTop, flexDirection: 'column', margin: { top: contentTop } }}>{props.children}</UiEntity>
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s, left: (width - 320 * s) / 2 }, width: 320 * s, height: 68 * s }}>
+          <Button label="CLOSE" color={C.red} size={FONT.button * s} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onClose} />
+        </UiEntity>
       </Panel>
     </UiEntity>
   )

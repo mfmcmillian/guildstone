@@ -593,7 +593,7 @@ function SellConfirm(props: { item: ItemId }) {
         </UiEntity>
       )}
       <Spacer />
-      <Button label="BACK" color={C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(80) }} onClick={() => { depotSelling = null }} />
+      <Button label="BACK" color={C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(80), margin: { bottom: S(16) } }} onClick={() => { depotSelling = null }} />
     </Panel>
   )
 }
@@ -637,6 +637,14 @@ export function BankPanel() {
 
 // ---------------------------------------------------------------- WORKSHOP
 let workshopSkill: Skill = 'lumberjack'
+/** The server queues at most this many of one recipe per request (api/index.js craft 'enqueue'). */
+const CRAFT_MAX_PER_REQUEST = 1000
+/** Typed amount per recipe output; empty means "as many as I can" (capped at CRAFT_MAX_PER_REQUEST). */
+const craftAmounts: Partial<Record<MaterialKey, string>> = {}
+function craftAmountFor(out: MaterialKey, cap: number): number {
+  const typed = parseInt(craftAmounts[out] ?? '', 10)
+  return Number.isFinite(typed) && typed > 0 ? Math.min(typed, cap) : cap
+}
 
 /** "Lumberjack L2 + Miner L2" for a rare drop's suit gate. */
 function gateText(gate: Partial<Record<Skill, number>>): string {
@@ -680,7 +688,8 @@ export function WorkshopPanel() {
           {recipes.map((r) => {
             const have = player.storage[r.from]
             const ok = canCraft(r)
-            const maxTimes = craftMax(r)
+            const cap = Math.min(craftMax(r), CRAFT_MAX_PER_REQUEST)
+            const amount = craftAmountFor(r.out, cap)
             const extras = Object.entries(r.extra) as Array<[MaterialKey, number]>
             // Tier recipes stay dim until the player wears the unlocking suit or already holds some of the raw.
             const locked = r.tier > 0 && have <= 0 && player.materials[r.out] <= 0 && player.skills[r.skill].suit < r.tier
@@ -702,9 +711,31 @@ export function WorkshopPanel() {
                 {locked ? (
                   <Text value={`Wear ${SKILL_INFO[r.skill].name} L${r.tier}+ in the ${SKILL_INFO[r.skill].zoneName} to find ${RESOURCE_INFO[r.from].name}`} size={S(22)} color={C.gray} uiTransform={{ height: S(150) }} />
                 ) : (
+                  // Pick your own amount: type a number (empty = max), or MAX to fill it in. One request queues at most 1000.
                   <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
-                    <Button label="MAKE 1" color={C.orange} disabled={!ok} size={S(28)} uiTransform={{ width: S(270), height: S(72) }} onClick={() => requestCraft(r.out, 1)} />
-                    <Button label={`MAKE ALL (${maxTimes})`} color={C.green} disabled={!ok} size={S(26)} uiTransform={{ width: S(270), height: S(72), margin: { top: S(10) } }} onClick={() => requestCraft(r.out, maxTimes)} />
+                    <UiEntity uiTransform={{ width: S(270), height: S(60), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Input
+                        value={craftAmounts[r.out] ?? ''}
+                        placeholder={ok ? `${cap}` : '0'}
+                        fontSize={S(26)}
+                        color={C.text}
+                        textAlign="middle-center"
+                        uiTransform={{ width: S(150), height: S(60) }}
+                        onChange={(value) => {
+                          const digits = value.replace(/[^0-9]/g, '').slice(0, 4)
+                          craftAmounts[r.out] = digits && parseInt(digits, 10) > CRAFT_MAX_PER_REQUEST ? `${CRAFT_MAX_PER_REQUEST}` : digits
+                        }}
+                      />
+                      <Button label="MAX" color={C.navySoft} disabled={!ok} size={S(22)} uiTransform={{ width: S(110), height: S(60), minWidth: 0 }} onClick={() => { craftAmounts[r.out] = `${cap}` }} />
+                    </UiEntity>
+                    <Button label={ok ? `MAKE ${amount}` : 'MAKE'} color={C.green} disabled={!ok} size={S(28)} uiTransform={{ width: S(270), height: S(72), margin: { top: S(8) } }} onClick={() => requestCraft(r.out, amount)} />
+                    <Text
+                      value={ok ? `uses ${amount * r.amount} ${RESOURCE_INFO[r.from].name}${extras.length > 0 ? ' + ' + extras.map(([id, n]) => `${amount * n} ${RESOURCE_INFO[id].name}`).join(' + ') : ''}` : ' '}
+                      size={S(20)}
+                      color={C.textMuted}
+                      nowrap
+                      uiTransform={{ height: S(26), margin: { top: S(4) } }}
+                    />
                   </UiEntity>
                 )}
               </Panel>
@@ -929,6 +960,17 @@ function manageTap(op: 'kick' | 'transfer', member: string) {
   } else {
     armedManage = { op, member, at: Date.now() }
   }
+}
+/** LEAVE GUILD confirm: first tap arms (YES unlocks after 1 s so a double-tap can't skip it); NO disarms, and the arm expires on its own so a closed panel never reopens armed. */
+let leaveArmedAt = 0
+const LEAVE_YES_DELAY_MS = 1000
+const LEAVE_ARM_EXPIRE_MS = 10000
+const leaveArmed = () => leaveArmedAt > 0 && Date.now() - leaveArmedAt < LEAVE_ARM_EXPIRE_MS
+/** Roster hover: which member row to show the "last contributed" tooltip for. */
+let rosterHover: string | null = null
+function lastContributedText(lastAt: number | undefined): string {
+  if (!lastAt) return 'No contributions yet'
+  return `Last contributed ${timeAgo(lastAt)}`
 }
 const GUILD_RANK_LADDER: GuildRank[] = ['initiate', 'squire', 'knight', 'royal_guard']
 function rankFromRole(role: string): GuildRank {
@@ -1412,11 +1454,14 @@ export function GuildPanel() {
                         const role = guildRole(guild, id)
                         const isYou = id === wallet
                         const activeToday = (guild.contributions?.[id]?.lastAt ?? 0) > Date.now() - 24 * 60 * 60 * 1000
+                        const hovered = rosterHover === id
                         return (
                           <UiEntity
                             key={id}
                             uiTransform={{ width: S(258), height: S(36), flexShrink: 0, flexDirection: 'row', alignItems: 'center', margin: { right: S(4) } }}
-                            uiBackground={isYou ? { color: Color4.create(0.55, 0.35, 0.95, 0.18) } : undefined}
+                            uiBackground={hovered ? { color: Color4.create(0, 0, 0, 0.1) } : isYou ? { color: Color4.create(0.55, 0.35, 0.95, 0.18) } : undefined}
+                            onMouseEnter={() => { rosterHover = id }}
+                            onMouseLeave={() => { if (rosterHover === id) rosterHover = null }}
                           >
                             <UiEntity uiTransform={{ width: S(12), height: S(12), flexShrink: 0, margin: { left: S(6), right: S(6) } }} uiBackground={{ color: activeToday ? C.green : Color4.create(0, 0, 0, 0.15) }} />
                             {/* Rank as an icon, not a word: a text label next to a nowrap name overlapped it. Your own row is the purple highlight. */}
@@ -1434,7 +1479,19 @@ export function GuildPanel() {
                       })}
                   </UiEntity>
                   <Spacer />
-                  <Text value="Green dot = contributed in the last 24h.  Icon + color = rank.  Purple row = you." size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ flexShrink: 0, height: S(28) }} />
+                  {/* Footer doubles as the roster tooltip: hovering a row shows that member's last contribution instead of the legend. */}
+                  {rosterHover && guild.memberIds.includes(rosterHover) ? (
+                    <Text
+                      value={`${guild.memberNames?.[rosterHover] || shortWallet(rosterHover)}  •  ${lastContributedText(guild.contributions?.[rosterHover]?.lastAt)}  •  ${guild.contributions?.[rosterHover]?.points ?? 0} points`}
+                      size={S(20)}
+                      color={C.text}
+                      align="middle-left"
+                      nowrap
+                      uiTransform={{ flexShrink: 0, height: S(28) }}
+                    />
+                  ) : (
+                    <Text value="Green dot = contributed in the last 24h.  Icon + color = rank.  Purple row = you." size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ flexShrink: 0, height: S(28) }} />
+                  )}
                 </Panel>
 
                 {/* Top contributors */}
@@ -1493,8 +1550,24 @@ export function GuildPanel() {
                   )}
                 </Panel>
               </UiEntity>
-              <UiEntity uiTransform={{ width: S(1720), flexDirection: 'row', justifyContent: 'flex-end', margin: { top: S(10) } }}>
-                <Button label="LEAVE GUILD" icon={GICON.leave} color={C.gray} textColor={C.textMuted} size={S(20)} uiTransform={{ width: S(230), height: S(46) }} onClick={() => requestGuild('leave')} />
+              <UiEntity uiTransform={{ width: S(1720), height: S(46), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', margin: { top: S(10) } }}>
+                {leaveArmed() ? (
+                  // Armed: warning + YES (unlocked after a short delay) / NO. Leaders are told to hand off first; the server enforces it.
+                  <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text
+                      value={guildRole(guild, wallet) === 'leader' ? `Leave ${guild.tag}? Hand leadership to someone on the MANAGE tab first.` : `Leave ${guild.tag}? You'll lose your rank and contributions. Rejoining later starts fresh.`}
+                      size={S(22)}
+                      color={C.red}
+                      align="middle-right"
+                      nowrap
+                      uiTransform={{ width: S(1100), height: S(46), margin: { right: S(16) } }}
+                    />
+                    <Button label="YES, LEAVE" color={C.red} size={S(20)} disabled={Date.now() - leaveArmedAt < LEAVE_YES_DELAY_MS} uiTransform={{ width: S(200), height: S(46), margin: { right: S(10) } }} onClick={() => { leaveArmedAt = 0; requestGuild('leave') }} />
+                    <Button label="NO" color={C.navySoft} size={S(20)} uiTransform={{ width: S(120), height: S(46) }} onClick={() => { leaveArmedAt = 0 }} />
+                  </UiEntity>
+                ) : (
+                  <Button label="LEAVE GUILD" icon={GICON.leave} color={C.gray} textColor={C.textMuted} size={S(20)} uiTransform={{ width: S(230), height: S(46) }} onClick={() => { leaveArmedAt = Date.now() }} />
+                )}
               </UiEntity>
             </UiEntity>
           ) : null}
@@ -1966,7 +2039,7 @@ export function AwayPanel() {
         ) : null}
 
         <Spacer />
-        <Button label="COLLECT" color={C.green} size={S(34)} uiTransform={{ width: S(420), height: S(96) }} onClick={closePanel} />
+        <Button label="COLLECT" color={C.green} size={S(34)} uiTransform={{ width: S(420), height: S(96), margin: { bottom: S(16) } }} onClick={closePanel} />
       </UiEntity>
     </Modal>
   )
