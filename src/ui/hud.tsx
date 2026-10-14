@@ -59,7 +59,7 @@ export function Hud() {
       {/* Currencies: top-right (hidden while a menu is open) */}
       {menuOpen ? null : (
         <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + edgeY, right: canvas.right + edgeX }, flexDirection: 'column', alignItems: 'flex-end' }}>
-          <CurrencyPill icon={RESOURCE_INFO.coin.icon} value={player.coins} color={C.yellow} />
+          <CurrencyPill icon={RESOURCE_INFO.coin.icon} value={player.coins} color={C.gold} />
           {/* Berries live in the Berry Shop; the one active boost takes their old slot so it is never hidden */}
           {player.rationUntil > Date.now() ? <BoostPill icon="images/icons/jerky.png" label="+50% GATHER" until={player.rationUntil} color={C.orange} /> : null}
           {player.luckyUntil > Date.now() ? <BoostPill icon="images/icons/lumberjack.png" label="2x CLICKS" until={player.luckyUntil} color={C.green} /> : null}

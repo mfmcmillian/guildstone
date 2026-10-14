@@ -232,7 +232,7 @@ function SuitRow(props: { key?: string; skill: Skill }) {
           <Icon src={SKILL_ICON[s]} size={S(96)} />
         </UiEntity>
         <OutlinedText value={info.name.toUpperCase()} size={S(30)} uiTransform={{ margin: { top: S(10) } }} />
-        <OutlinedText value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(40)} color={st.suit > 0 ? C.yellow : C.textMuted} />
+        <OutlinedText value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(40)} color={st.suit > 0 ? C.gold : C.textMuted} />
         <Text value={st.suit > 0 ? `Tier ${st.suit} drops unlocked` : `Base ${info.resource} only`} size={S(24)} color={st.suit > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} />
         <Text value={st.suit > 0 ? `+${suitBag(st.suit)} backpack` : `no backpack bonus`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
         {set ? (
@@ -276,7 +276,7 @@ function SuitsTab() {
           />
         </UiEntity>
         <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-end', width: S(420), flexShrink: 0 }}>
-          <OutlinedText value={`${ownedCount} / 16 WEARABLES`} size={S(32)} color={C.yellow} align="middle-right" />
+          <OutlinedText value={`${ownedCount} / 16 WEARABLES`} size={S(32)} color={C.gold} align="middle-right" />
           <Text value={ownedSuitsKnown() ? 'Checked against your wallet' : 'Checking your wallet…'} size={S(22)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ height: S(30) }} />
         </UiEntity>
       </Panel>
@@ -360,14 +360,14 @@ export function SkillsPanel() {
             <UiEntity uiTransform={{ flexDirection: 'column', width: S(470) }}>
               <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
                 <Text value={SKILL_INFO[s].name} size={S(44)} align="middle-left" uiTransform={{ width: 'auto', height: S(58) }} />
-                <OutlinedText value={`Lv ${st.level}`} size={S(42)} color={C.yellow} uiTransform={{ width: 'auto', minWidth: S(140), height: S(58), margin: { left: S(16) } }} align="middle-left" />
+                <OutlinedText value={`Lv ${st.level}`} size={S(42)} color={C.gold} uiTransform={{ width: 'auto', minWidth: S(140), height: S(58), margin: { left: S(16) } }} align="middle-left" />
               </UiEntity>
               <Bar value={st.level >= MAX_LEVEL ? 1 : st.xp / need} color={skillColor(s)} height={S(46)} label={st.level >= MAX_LEVEL ? 'MAX LEVEL' : `${st.xp} / ${need} XP`} labelSize={S(26)} uiTransform={{ margin: { top: S(6) } }} />
             </UiEntity>
             {MASTERY_ENABLED ? <MasteryColumn skill={s} /> : null}
             <Spacer />
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
-              <Text value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(28)} color={st.suit > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
+              <Text value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(28)} color={st.suit > 0 ? C.gold : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
               <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6), bottom: S(6) } }}>
                 {[1, 2, 3, 4].map((lv) => (
                   <UiEntity
@@ -381,7 +381,7 @@ export function SkillsPanel() {
             </UiEntity>
             <RareDropColumn skill={s} />
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', margin: { left: S(30) } }}>
-              <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(28)} color={player.tools[s] > 0 ? C.yellow : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
+              <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(28)} color={player.tools[s] > 0 ? C.gold : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
               <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6), bottom: S(6) } }}>
                 {[1, 2, 3, 4, 5].map((lv) => (
                   <UiEntity
@@ -686,7 +686,7 @@ export function WorkshopPanel() {
             const locked = r.tier > 0 && have <= 0 && player.materials[r.out] <= 0 && player.skills[r.skill].suit < r.tier
             return (
               <Panel key={r.out} flat color={locked ? C.navySoft : C.paper2} uiTransform={{ width: S(330), height: S(640), alignItems: 'center', padding: S(18), margin: { left: S(7), right: S(7) } }}>
-                <Text value={r.tier === 0 ? 'BASE' : `TIER ${r.tier}`} size={S(22)} color={locked ? C.gray : C.yellow} nowrap uiTransform={{ height: S(30) }} />
+                <Text value={r.tier === 0 ? 'BASE' : `TIER ${r.tier}`} size={S(22)} color={locked ? C.gray : C.gold} nowrap uiTransform={{ height: S(30) }} />
                 <Icon src={RESOURCE_INFO[r.out].icon} size={S(130)} uiTransform={{ margin: { top: S(6) } }} />
                 <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(28)} color={locked ? C.gray : C.white} uiTransform={{ margin: { top: S(8) } }} />
                 <Text value={`you have ${player.materials[r.out]}`} size={S(22)} color={locked ? C.gray : C.textMuted} nowrap uiTransform={{ height: S(30) }} />
@@ -775,7 +775,7 @@ export function ForgePanel() {
                   <Icon src={SKILL_ICON[s]} size={S(120)} />
                 </UiEntity>
                 <OutlinedText value={TOOL_NAME[s].toUpperCase()} size={S(32)} uiTransform={{ margin: { top: S(12) } }} />
-                <OutlinedText value={cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(36)} color={C.yellow} />
+                <OutlinedText value={cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(36)} color={C.gold} />
                 <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8) } }}>
                   {[1, 2, 3, 4, 5].map((lv) => (
                     <UiEntity
@@ -1027,7 +1027,7 @@ const GICON = {
 const guildRoleIcon = (role: string) => GICON.rank[role] ?? GICON.rank.member
 
 function guildRoleColor(role: string): Color4 {
-  if (role === 'leader') return C.yellow
+  if (role === 'leader') return C.gold
   if (role === 'royal guard') return C.purple
   if (role === 'knight') return C.blue
   if (role === 'squire') return C.greenDark
@@ -1418,22 +1418,23 @@ export function GuildPanel() {
                             uiTransform={{ width: S(258), height: S(36), flexShrink: 0, flexDirection: 'row', alignItems: 'center', margin: { right: S(4) } }}
                             uiBackground={isYou ? { color: Color4.create(0.55, 0.35, 0.95, 0.18) } : undefined}
                           >
-                            <UiEntity uiTransform={{ width: S(12), height: S(12), flexShrink: 0, margin: { left: S(6), right: S(8) } }} uiBackground={{ color: activeToday ? C.green : Color4.create(0, 0, 0, 0.15) }} />
+                            <UiEntity uiTransform={{ width: S(12), height: S(12), flexShrink: 0, margin: { left: S(6), right: S(6) } }} uiBackground={{ color: activeToday ? C.green : Color4.create(0, 0, 0, 0.15) }} />
+                            {/* Rank as an icon, not a word: a text label next to a nowrap name overlapped it. Your own row is the purple highlight. */}
+                            <Icon src={guildRoleIcon(role)} size={S(26)} uiTransform={{ flexShrink: 0, margin: { right: S(6) } }} />
                             <Text
-                              value={`${guild.memberNames?.[id] || shortWallet(id)}${isYou ? ' (YOU)' : ''}`}
+                              value={guild.memberNames?.[id] || shortWallet(id)}
                               size={S(22)}
                               color={isYou ? C.purple : role === 'member' ? C.text : guildRoleColor(role)}
                               align="middle-left"
                               nowrap
-                              uiTransform={{ width: S(160), height: S(36) }}
+                              uiTransform={{ width: S(196), height: S(36), overflow: 'hidden' }}
                             />
-                            <Text value={role === 'member' ? '' : role === 'royal guard' ? 'GUARD' : role.toUpperCase()} size={S(20)} color={guildRoleColor(role)} align="middle-right" nowrap uiTransform={{ width: S(66), height: S(36) }} />
                           </UiEntity>
                         )
                       })}
                   </UiEntity>
                   <Spacer />
-                  <Text value="Green dot = contributed in the last 24h.  Names colored by rank." size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ flexShrink: 0, height: S(28) }} />
+                  <Text value="Green dot = contributed in the last 24h.  Icon + color = rank.  Purple row = you." size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ flexShrink: 0, height: S(28) }} />
                 </Panel>
 
                 {/* Top contributors */}
@@ -1451,8 +1452,8 @@ export function GuildPanel() {
                           uiTransform={{ width: '100%', height: S(40), flexDirection: 'row', alignItems: 'center', margin: { top: S(4) } }}
                           uiBackground={isYou ? { color: Color4.create(0.55, 0.35, 0.95, 0.18) } : undefined}
                         >
-                          <OutlinedText value={`${index + 1}`} size={S(24)} color={index === 0 ? C.yellow : index < 3 ? C.orange : C.textMuted} uiTransform={{ width: S(44) }} />
-                          <Text value={`${guild.memberNames?.[id] || shortWallet(id)}${isYou ? ' (YOU)' : ''}`} size={S(22)} color={isYou ? C.purple : C.text} align="middle-left" nowrap uiTransform={{ width: S(300) }} />
+                          <OutlinedText value={`${index + 1}`} size={S(24)} color={index === 0 ? C.gold : index < 3 ? C.orange : C.textMuted} uiTransform={{ width: S(44) }} />
+                          <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(22)} color={isYou ? C.purple : C.text} align="middle-left" nowrap uiTransform={{ width: S(300), overflow: 'hidden' }} />
                           <Text value={`${entry.points}`} size={S(24)} color={C.greenDark} align="middle-right" uiTransform={{ width: S(160) }} />
                         </UiEntity>
                       )
@@ -1502,7 +1503,7 @@ export function GuildPanel() {
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
               {guild.hqLevel >= GUILD_HQ_MAX && techComplete ? (
                 <Panel flat color={C.paper2} uiTransform={{ width: S(1600), height: S(460), alignItems: 'center', justifyContent: 'center', padding: S(34), margin: { top: S(32) } }}>
-                  <OutlinedText value="ALL GUILD GOALS COMPLETE!" size={S(52)} color={C.yellow} />
+                  <OutlinedText value="ALL GUILD GOALS COMPLETE!" size={S(52)} color={C.gold} />
                   <Text value={`HQ ${GUILD_HQ_MAX} and every Tech upgrade are maxed.`} size={S(32)} />
                   <Text value="No donations are needed right now." size={S(32)} color={C.greenDark} />
                   <Text
@@ -1514,7 +1515,7 @@ export function GuildPanel() {
                 </Panel>
               ) : guild.hqLevel >= GUILD_HQ_MAX ? (
                 <Panel flat color={C.paper2} uiTransform={{ width: S(1600), height: S(410), alignItems: 'center', justifyContent: 'center', padding: S(34), margin: { top: S(32) } }}>
-                  <OutlinedText value="HQ COMPLETE" size={S(52)} color={C.yellow} />
+                  <OutlinedText value="HQ COMPLETE" size={S(52)} color={C.gold} />
                   <Text value="Your remaining goals are in the TECH tab." size={S(32)} />
                   <Button label="VIEW TECH GOALS" color={C.purple} size={S(30)} uiTransform={{ width: S(400), height: S(76), margin: { top: S(24) } }} onClick={() => (guildTab = 'tech')} />
                 </Panel>
@@ -1580,7 +1581,7 @@ export function GuildPanel() {
 
           {guildTab === 'hq' ? (
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
-              <OutlinedText value="GUILD HEADQUARTERS" size={S(40)} color={C.yellow} />
+              <OutlinedText value="GUILD HEADQUARTERS" size={S(40)} color={C.gold} />
               <Text value="Permanent progress and bonuses shared by every guild member" size={S(26)} color={C.textMuted} />
               <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(20) } }}>
                 <StatCard label="MEMBERS" value={`${guild.memberCount} / ${guild.maxMembers}`} color={C.blue} sub={`${guild.maxMembers - guild.memberCount} spots open`} />
@@ -1625,7 +1626,7 @@ export function GuildPanel() {
                       <OutlinedText value={`HQ ${milestone.level}`} size={S(40)} color={complete ? C.white : C.purple} />
                       <Text value={`${milestone.level - guild.hqLevel > 0 ? `${milestone.level - guild.hqLevel} levels away` : 'Reached'}`} size={S(22)} color={complete ? C.white : C.textMuted} />
                       {milestone.unlock ? (
-                        <Text value={`Unlocks ${milestone.unlock}`} size={S(24)} color={complete ? C.white : C.yellow} uiTransform={{ margin: { top: S(8) } }} />
+                        <Text value={`Unlocks ${milestone.unlock}`} size={S(24)} color={complete ? C.white : C.gold} uiTransform={{ margin: { top: S(8) } }} />
                       ) : null}
                       <Text value={`+${formatPercent(milestone.level * 0.5)}% resources + XP`} size={S(22)} color={complete ? C.white : C.greenDark} uiTransform={{ margin: { top: S(milestone.unlock ? 2 : 10) } }} />
                       <Text value={`${milestone.memberCap} member slots`} size={S(22)} color={complete ? C.white : C.text} />
@@ -1638,7 +1639,7 @@ export function GuildPanel() {
 
           {guildTab === 'tech' ? (
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
-              <OutlinedText value={techComplete ? 'ALL TECH MAXED' : 'GUILD TECH'} size={S(40)} color={techComplete ? C.green : C.yellow} />
+              <OutlinedText value={techComplete ? 'ALL TECH MAXED' : 'GUILD TECH'} size={S(40)} color={techComplete ? C.green : C.gold} />
               <Text
                 value={
                   techComplete

@@ -16,6 +16,8 @@ export const C = {
   red: Color4.fromHexString('#ff4d4dff'),
   purple: Color4.fromHexString('#a259ffff'),
   yellow: Color4.fromHexString('#ffd23fff'),
+  // Bright yellow washes out on paper panels; use this for highlight words on light backgrounds.
+  gold: Color4.fromHexString('#b87a00ff'),
   gray: Color4.fromHexString('#b9c0d0ff'),
   dim: Color4.create(0, 0, 0, 0.45),
   clear: Color4.create(0, 0, 0, 0)

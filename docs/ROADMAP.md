@@ -1,0 +1,309 @@
+# AntromAFK — improvements roadmap
+
+Working list of everything queued for AntromAFK (wearable client `AntromAFK-Wearable` + backend `dcl-firebase-backend`). Client changes are batched into as few wearable republishes as possible because each publish goes through curation. Last updated 2026-10-14.
+
+Sections:
+
+1. [Next publish — already built, uncommitted](#1-next-publish--already-built-uncommitted)
+2. [Gems](#2-gems)
+3. [Language picker](#3-language-picker)
+4. [OG profession sets](#4-og-profession-sets)
+5. [Guild content — long term](#5-guild-content--long-term)
+6. [Backlog / housekeeping](#6-backlog--housekeeping)
+
+---
+
+# 1. Next publish — already built, uncommitted
+
+Client work sitting in the working tree, waiting to ride along with the next batch.
+
+- [x] Guild roster: name instead of wallet (server records/heals `memberNames`; client reads `guild.memberNames[id]`), rank icon replaces the overlapping text label, "(YOU)" removed in favor of the purple row.
+- [x] Readability: `C.gold` (`#b87a00`) replaces `C.yellow` everywhere text sits on paper/white (profession page, HUD coin pill, guide subtitle, workshop/tool bench tiers, guild headers, milestones, tech).
+- [ ] **Workshop cost tooltips.** Hovering a required-resource row (icon + `have/need`) shows a small paper tooltip: resource name and source. Raw resources: "Wood — Lumberjack, <zone>" from `SKILL_INFO`; refined materials: "Iron Ingot — crafted from Rock in the Workshop" from the recipe table. Pattern: `onMouseEnter`/`onMouseLeave` + module-level `hoveredCost` like `bagHover` in `hud.tsx`; cost rows live at `panels.tsx` ~157–165. Apply the same row component to tool bench and suit crafting costs.
+- [ ] **Share on X for daily berries.** A "SHARE ON X" button (Berry Shop and/or HUD) that opens a prefilled post and grants a small berry reward once per day. Details:
+  - Client: `openExternalUrl` to `https://twitter.com/intent/tweet?text=<prefilled>&url=<link>` with a short line like "Gathering in Antrom AFK — lvl N lumberjack, come idle with us" plus a hashtag and the play link. Requires adding `ALLOW_TO_OPEN_EXTERNAL_LINK` to `requiredPermissions` in `scene.json` (currently only `USE_FETCH`); that's a wearable republish and may draw a curation question, so bundle it with this batch.
+  - Reward: 3 berries per day (a ration costs 5, so it's a nudge, not an income). Served by signed `POST /antrom-afk/player/:address/share` with `serverActivity.lastShareAt` and a 20-hour cooldown (friendlier than a hard UTC day).
+  - Verification: **trust the click** (decided 2026-10-14). The client calls the share endpoint right after `openExternalUrl` succeeds; the server only enforces the cooldown. Abuse is capped at 3 berries/day/wallet. Keep the endpoint body open (`{ postUrl?: string }`) so a paste-the-link oEmbed check (`https://publish.twitter.com/oembed?url=...`, dedupe on post id in `afk_shares/{postId}`) can be added later without a client contract change.
+  - UI: button shows "SHARE ON X  +3 berries" when available, "SHARED  •  next in Xh" on cooldown. Flash + coin sound on grant.
+  - Guide entry and a line in the helper when the share is available and berries are low.
+- [ ] **Link to guildstone.dev.** A "GUILDSTONE.DEV" button that opens `https://guildstone.dev` via `openExternalUrl`. Place it in the settings panel and at the bottom of the welcome/guide screen; optionally a small text link in the Guild panel header. Uses the same `ALLOW_TO_OPEN_EXTERNAL_LINK` permission the X share button adds, so it ships in the same batch.
+- [ ] **Close button on the rare-find popup.** `RareFindBanner` (`ui/rareFind.tsx`) is a timed banner (5 s, auto-fade) with no way to dismiss it early; it sits over the centre of the screen and can cover whatever the player was doing. Add a `CloseButton` in the banner's corner (and make the banner body click-to-dismiss) by setting a `dismissedAt`/flag on `lastRareFind` so the next render returns `null`. Apply the same to `LevelUpBanner` (`ui/levelUp.tsx`) for consistency, since the two stack.
+- [ ] **Player feedback: pick-your-own amounts + inventory clarity.** Source: a player asking whether craft/sell is really "one or all", whether coins are KoA gold, and why new materials don't appear in the bank. Server already accepts any amount (`craft` 1–1000 per request; `sellStorage` any `amount` for one item), so all of this is client-side.
+  - **Workshop quantity picker.** Replace MAKE 1 / MAKE ALL with a stepper row: `-10  -1  [ N ]  +1  +10` plus presets `1 · 10 · 50 · 100 · HALF · MAX`, and a MAKE N button showing the inputs it will consume ("uses 500 Wood"). React-ECS `Input` works but is clunky on paper panels, so steppers + presets first, optional `Input` for typing. Cap N at `craftMax(r)` and at 1000 per request (server limit); above 1000, queue in chunks or show "max 1000 per batch".
+  - **Bank sell quantity picker.** Same control in `SellConfirm` (currently 10 / HALF / ALL) with a live "+X coins" preview; keep ALL as the orange button. Send `amount` as today.
+  - Not doing: coins-vs-gold copy and "show empty material slots" (player confusion came from KoA, no action).
+- [ ] **Berry Shop boosts cost berries + coins.** Today a boost costs berries only (Ration 5, Lucky Tools 8, Big Backpack 20) or the material alternative; coins have no personal sink outside guild donations. Add a coin component so both currencies matter. Proposal (tunable; base wood sells at 2 coins, so ~2,400 coins/hour active): Ration 5 berries + 250 coins, Lucky Tools 8 + 400, Big Backpack 20 + 750. The material-craft path stays coin-free so F2P crafters aren't double-charged.
+  - Backend: add `coins` to each `AFK_BOOSTS` entry; in `POST .../shop` check `currency.coins >= boost.coins` when paying with berries, deduct, return the new error "Not enough coins". Deploy with the next backend push.
+  - Client: mirror the prices in `SHOP_ITEMS` (`panels.tsx` ~822), show both icons on the buy button ("5 🫐 + 250 🪙" using the berry and coin icons), disable when either is short, and update the guide line.
+- [ ] **Double confirmation on LEAVE GUILD.** Leaving is destructive (contribution history, rank, and HQ/tech access go with it) and the button sits in the Guild panel next to routine actions. Add a confirm step: first click swaps the button to "LEAVE <TAG>? YES / NO" with a one-line warning ("You'll lose your rank and contributions. Rejoining later starts fresh."); YES only enabled after a short delay (~1 s) so a double-tap can't skip it; NO or closing the panel cancels. For leaders, the existing guard (must hand off leadership first) stays, and the confirm text says so. Lives in `panels.tsx` Guild section; `requestGuildAction('leave')` unchanged.
+- [ ] **Bottom CLOSE button on every modal.** The only close control today is the corner `CloseButton` in `Modal` (`components.tsx` ~243), which the scene's own UI can cover. Add a full-width "CLOSE" `Button` pinned to the bottom of the `Modal` frame (inside `Modal` so all seven panels and the welcome screen get it for free; reserve its height so panel content doesn't overlap). Also make the dimmed backdrop click-to-close as a third escape.
+- [ ] **Light up and pulse the action the helper is pointing at.** `nextStep()` in `guide.tsx` already knows the state (backpack full/almost full, tool ready at the Tool Bench, refine ready at the Workshop, berries ready for the Shop, suits unlocked). Map each step to its target control and render it highlighted + pulsing: bag pill in `hud.tsx` when ≥80% / full; TOOL BENCH, WORKSHOP, SHOP dock buttons in `dock.tsx`; PROFESSIONS button for the suits hint. Pulse = a `Date.now()`-driven sine on background alpha or scale (React-ECS has no animation API; the UI re-renders every frame so a tiny `pulse()` helper in `theme.ts` is enough). Keep it to one pulsing element at a time (the helper's current step) so it never turns into a Christmas tree.
+- [ ] **Make the settings button obvious and teach "minimize".** Today it's a small paper circle with a quill icon in the dock header (`dock.tsx` ~63) and the HIDE ANTROM UI action lives inside it. Changes: bigger button with a gear icon and a visible "SETTINGS" label; move "HIDE UI / MINIMIZE" to a first-class button in the dock header (next to settings) so it's discoverable without opening settings; rename the action to "MINIMIZE" everywhere and match the restore button label (`ShowUiButton`); one-time tooltip or welcome-step line: "Minimize Antrom from the top-right any time — gathering keeps running." Add a guide entry too.
+- [ ] Commit these once the next feature in the batch is ready (language picker and/or gems client).
+
+Backend side of these is already deployed (`memberNames` helpers, craft-suit lockout fix, signed-fetch `hashPayload` fix).
+
+---
+
+# 2. Gems
+
+Status: planning, no code yet.
+
+## Decisions so far
+
+- Gems are an **AFK-native premium currency**. We do not bridge or mirror KoA gem balances (353k outstanding, client-written, forgeable).
+- One-time **"thank you" credit** for players who bought gem packs in KoA with MANA: credit the gems they **purchased**, not the balance they hold. Source of truth is the `manaPurchases` Firestore ledger (50 / 130 / 280 MANA = Pouch 50 / Chest 150 / Vault 350), plus a Polygon sweep for pre-ledger buyers.
+- Players who haven't opened AFK yet get the credit waiting for them and a **one-time popup** on first login.
+- AFK gets its own **Gem shop**: gems bought with MANA (verified server-side), spent on speed-ups and convenience. Gems never buy suits, tools, raw resources, or coins.
+- Gems are **shop-only**. They are never earned through play, drops, guild milestones, leaderboards, or mail. The only sources are MANA purchases and the one-time KoA buyer credit. Design consequence: the HUD gem pill is zero for most players, so it should read as a shop entry point ("+ Get gems") rather than a stat.
+- Price anchor carried over from KoA: 1 gem ≈ 1 MANA; 1 gem skips ~10 minutes of waiting.
+- **Powerful but costly** (decided 2026-10-14, replaces the earlier "not pay-to-win" stance). Gems can push on real progression gates (away cap, gather time, backpack capacity, XP rate), but the price climbs with use. Nothing is gem-exclusive on the progression side: F2P can reach everything, buyers reach it faster and pay more for each extra step.
+- **Escalating price, not hard caps.** Each repeat purchase of the same sink within a day multiplies the base price: 1×, 2×, 4×, 8×… Target feel: roughly doubling an active F2P player's daily output costs ~60–100 gems ($6–10); tripling costs several hundred.
+- **Track gem-derived XP separately** (`skills.<name>.gemXp` or a profile-level `gemXp` total) from day one, so the Level leaderboard/airdrops can later rank on earned XP, weight gem XP, or ignore it. Cannot be reconstructed after the fact. Decision on how airdrops treat it is deferred, but the data starts on launch.
+
+## Economy facts that shape the sinks
+
+- Away gathering is bounded by **backpack capacity**, not time. 12h away = 14,400 cycles, but a player with no suits caps at 200 items in ~10 minutes; four L4 suits cap at ~16k. Capacity is the most valuable thing we can sell; price it accordingly.
+- **Boost uptime** is already ~50% for F2P (berries ~15/hour, ration costs 5). Gem boosts and a premium 2× boost close that gap and extend it.
+- **Suits** are NFT mints gated by level and resources and are sold for MANA as wearables. Gems never pay for suits.
+- **Crafting** has no XP, no cap, and runs offline. "Finish now" is pure convenience and needs no escalator.
+- **Guild progression** (HQ, tech, donation caps) stays gem-free so one wallet can't carry a guild.
+
+## Known buyers (from `manaPurchases`, as of 2026-10-14)
+
+| Wallet | Name | Bought | Credit |
+| --- | --- | --- | --- |
+| `0x3c31bf0b7a74b28196f131e3cb8bd768146669dd` | Wanaka | 5× Vault | 1,750 |
+| `0x09bc69a986e1b37fb01ef36124f4c2e14fa0ab6b` | Billzebub | 1× Vault | 350 |
+| `0x79ba25cb2465601408917405b0c8ae58024ac5d6` | Z#c5d6 | 1× Vault | 350 |
+
+Only Billzebub currently has an AFK profile. Re-run the query and the Polygon sweep right before granting.
+
+---
+
+## Phase 0 — Prep (no player-facing change)
+
+- [ ] **Polygon sweep for pre-ledger buyers.** ERC-20 MANA (`0xA1c57f48F0Deb89f569dFbE6E2B7f46D33606fD4`) transfers to shop wallet `0x12B0D322949273e5D622fFB0Cb387A3b75C0d2dd` with amounts 50 / 130 / 280. Diff against `manaPurchases`. Output: final credit list (wallet → gems).
+- [ ] **Decide AFK gem pack SKUs and MANA amounts.** Must not collide with any KoA amount (KoA uses 10, 26, 32, 14, 68, 340, 680, 1360, 50, 130, 280) so the shared ledger stays unambiguous. Proposal: Pouch 60 gems / 55 MANA, Chest 180 / 150, Vault 420 / 320 (same +15% / +25% bulk bonus shape, different numbers). Revisit against live MANA price.
+- [ ] **Confirm how verify-mana is reached from AFK.** Options: (a) call the existing `koa-dashboard` `/api/shop/verify-mana` endpoint with AFK product IDs; (b) port the verifier into `dcl-firebase-backend` so AFK has one backend. (b) is preferred so AFK stays signed-fetch end to end; need the koa-dashboard source to port the on-chain check.
+
+## Phase 1 — Backend (`dcl-firebase-backend/api/index.js`)
+
+- [ ] **Profile fields.** `currency.gems` (number) on `afk_v1_{wallet}`; `gemLedger` subcollection or array of `{ type, amount, ref, at }` for grants/purchases/spends (keeps audits possible; cap array length or use subcollection).
+- [ ] **Pending credit store.** `afk_gem_credits/{wallet}` = `{ gems, reason: 'koa_gem_pack_purchases', txHashes: [], createdAt, claimedAt: null }`. Written once by an admin script; claimed on first AFK session.
+- [ ] **Admin grant script** (`grant-gem-credits.js`, like `airdrop.js`): reads the final credit list, writes `afk_gem_credits`, dry-run + ledger file, idempotent.
+- [ ] **Claim on session start.** In the session-start / profile-load path, if `afk_gem_credits/{wallet}` exists and is unclaimed: credit `currency.gems`, mark claimed, and return `gemWelcome: { gems, reason }` in the response so the client can show the popup once. Works for both existing profiles and brand-new ones created later.
+- [ ] **Gem purchase endpoint.** Signed `POST /antrom-afk/player/:address/gems/purchase` `{ txHash, productId }`: verifies the on-chain transfer (recipient, amount matches productId, mined + success), checks `manaPurchases` for replay, writes the `manaPurchases` record, increments `currency.gems`, appends ledger. Returns `pending` while unmined so the client can poll (mirror KoA's bounded poll + persisted pending purchase).
+- [ ] **Pending purchase persistence.** `pendingManaPurchase` on the AFK profile so a crash mid-verification never loses a paid purchase (same pattern as KoA ShopMenu).
+- [ ] **Spend endpoint.** Signed `POST /antrom-afk/player/:address/gems/spend` `{ sink, ...params }` inside a transaction; server computes cost, checks balance, applies effect, appends ledger. Sinks below.
+- [ ] **Escalator helper.** `afkGemPrice(base, usesToday)` = `base * 2^usesToday`. Per-sink daily use counters in `serverActivity.gemDaily = { day, <sink>: n }`, reset at the same boundary the guild daily caps use. Every priced sink below goes through it unless marked "no escalator".
+- [ ] **Sink: finish craft queue.** `max(1, ceil(remainingSeconds / 600))` gems (1 per 10 min remaining). Completes the queue via `advanceAfkCraftQueue` with forced time. No escalator. Also offer "skip 30 min" for 3 gems.
+- [ ] **Sink: extend away cap.** 30 gems: next `/away` claim uses 24h instead of `AFK_AWAY_CAP_MS`. Sets `serverActivity.awayCapBonusUntil`. Capacity-bounded. Escalator applies if bought again the same day (rare).
+- [ ] **Sink: time skip.** Claim N hours of gathering instantly using the exact `/away` math (same yield, XP, rare drops, berries, capacity bound). 15 gems per hour, escalator per hour purchased today (15, 30, 60, 120…). Requires an active skill selected. Writes the XP it grants to `gemXp` as well as normal XP.
+- [ ] **Sink: permanent backpack expansion.** +100 capacity per step, 50 gems for the first, doubling each step (50, 100, 200, 400…), hard max +1,000. Stored as `profile.gemCapacityBonus`; `afkBackpackCapacity` adds it. The premium sink; no daily reset on the price (it's permanent).
+- [ ] **Sink: gem boosts.** Ration / lucky / bigBag for 2 / 3 / 5 gems, same effect as the berry versions, one-active rule still applies. Escalator per day.
+- [ ] **Sink: Royal Ration (gem-only boost).** 2× yield for 30 min, 15 gems, escalator. Counts as the active boost.
+- [ ] **Sink: XP tonic.** 2× skill XP for 60 min, 25 gems, escalator. Doubled portion is recorded to `gemXp`.
+- [ ] **Sink: resource substitution.** For tool bench / workshop upgrades, pay the shortfall in gems at 1 gem per 20 missing units (steep by design). No escalator; the rate is already punitive.
+- [ ] **Deliberately excluded (write these in the code comments):** paying for suit mints or suit level gates, guild HQ/tech/donation caps, buying coins directly.
+- [ ] **Shop payload.** Extend `GET .../shop` (or add `GET .../gems/shop`) to return gem packs, sink prices computed for this player (e.g. finish-craft cost right now), daily-cap remaining, and `currency.gems`.
+- [ ] **Leaderboard / airdrop interaction.** Time skip and XP tonic move Level XP. Record gem-derived XP in `gemXp` on every such grant and expose `earnedXp = totalXp - gemXp` in the leaderboard payload so airdrop criteria can use either. Decide the airdrop rule before the first post-launch airdrop.
+- [ ] **Env.** Shop recipient address, Polygon RPC URL, product table. Rotate nothing; add only.
+
+## Phase 2 — Client (`AntromAFK-Wearable/src`)
+
+- [ ] **Gem balance in HUD.** New `CurrencyPill` next to coins/berries, gem icon, `C.gold`-safe colors on paper panels. Shows a "+" / "Get gems" affordance when the balance is zero and opens the Gem shop on click, since most players will never earn any.
+- [ ] **Welcome popup.** On session-start response containing `gemWelcome`, show a one-time modal: "Thanks for supporting Knights of Antrom — your X purchased gems are waiting here." Button opens the Gem shop. Never shown again (server already marked claimed).
+- [ ] **Gem shop panel.** New tab or panel: gem packs (MANA buy flow: `crypto.currency.send` → persist pending → poll purchase endpoint → celebrate), and the speed-up sinks with live prices and daily-cap counters. Reuse `panels.tsx` paper styling; follow the existing shop panel layout.
+- [ ] **Finish-now / skip-30-min buttons** on the craft queue UI showing the computed gem cost and remaining time.
+- [ ] **Time skip control** (pick 1–4 hours, shows escalated price and the capacity bound: "fills your backpack after ~Xh").
+- [ ] **Extend-away-cap control** on the away/claim summary (12h → 24h, price).
+- [ ] **Backpack expansion** on the backpack panel: current bonus, next step price, max.
+- [ ] **Boost buttons** gain a "buy with gems" option beside the berry price, plus Royal Ration and XP tonic cards, each showing today's escalated price ("next: 30 gems").
+- [ ] **Resource shortfall → gems** option on tool bench / workshop upgrade buttons.
+- [ ] **Guide entry** explaining gems: shop-only, what they do, what they never do (no suits, tools, resources, coins, XP).
+- [ ] **Error states.** Not enough gems, cap reached, purchase pending, purchase failed, wallet rejected.
+
+## Phase 3 — Launch
+
+- [ ] Re-run buyer query + Polygon sweep, freeze the credit list.
+- [ ] Deploy backend (`vercel --prod`), run grant script with `--dry-run`, then live.
+- [ ] Publish wearable (batched with the pending roster/gold-color changes).
+- [ ] Announce: gem shop live; KoA gem-pack buyers have a credit waiting.
+- [ ] Watch for one week: purchases, sink mix, escalator depth (how many players hit 4×+), `gemXp` share of top-50 XP. Tune base prices from that, not from guesses.
+
+## Phase 4 — Revenue sinks that don't touch the race
+
+Additive to the Phase 1 power sinks. These monetize players who are already maxed on the escalators, and players who won't pay for power but will pay for identity. Ordered by expected revenue.
+
+- [ ] **Gem-only cosmetic wearables.** Non-suit pieces (cape, patron badge, title piece) unlockable only with gems, minted through the existing Rewards dispenser flow (`AFK_REWARDS_KEY_*` pattern). Zero power, real DCL value. Target price 300–500 gems. First one should be ready at or soon after shop launch so the KoA buyer credits have something worth buying.
+- [ ] **Season / supporter pass.** Play-driven reward track (cycles gathered, crafts, guild donations), same progression rate for everyone. Free track: small cosmetics/berries. Premium track (~150 gems/season): extra cosmetics, berry stipend, title, season wearable at the end. Recurs each season.
+- [ ] **Identity cosmetics.** Name color / title on guild roster and leaderboards, HUD themes (paper, parchment, dark, guild-colored), gather VFX, profile badges. 10–50 gems each. Needs a `cosmetics` map on the AFK profile and the leaderboard/roster payloads to carry title/color.
+- [ ] **Guild vanity + gifting.** Banner/emblem/colors, tag or name change, "guild boost" (10-min boost for every member, cap 2 per guild per day, logged to the guild). Social spending; one buyer benefits many.
+- [ ] **Convenience (no yield effect).** Remote deposit to storage, auto-sell rules, parallel craft queues (same total speed, different materials), longer queue length, free respec/mastery reset. 5–30 gems or a monthly QoL bundle.
+- [ ] **Pack shaping.** First purchase of each pack doubles the gems (one-time per wallet, tracked server-side), a launch starter bundle (gems + first cosmetic), a larger top tier. Usually lifts revenue more than any new sink.
+- [ ] **Still excluded:** suit mints/gates and guild progression.
+
+Sequencing: launch with Phase 1–3 (shop + craft/boost sinks + buyer credit), ship the first gem-only wearable within the first couple of weeks, then the pass. Cosmetics and guild vanity slot in as art is ready.
+
+## Open questions
+
+- Port verify-mana into `dcl-firebase-backend`, or call koa-dashboard? (Need the koa-dashboard source either way to confirm the exact checks.)
+- Final SKU numbers once MANA price is checked on the day.
+- ~~Should gems also be earnable in AFK?~~ Decided 2026-10-14: no. Shop-only.
+- Admin/support grants: do we want a signed admin-only route to credit gems (refunds, make-goods for bugs)? It's not "earning", but it's a second write path that needs the same ledger entry. Recommend yes, admin wallet only, ledger type `support_grant`.
+- Daily-cap reset time: UTC midnight vs rolling 24h. Guild daily caps already exist — match whatever they use.
+
+---
+
+# 3. Language picker
+
+Status: planning, no code yet. Requested 2026-10-14.
+
+## What exists to reuse
+
+- KoA already ships six languages with a working pattern: `LANGUAGE_OPTIONS = ['English','Spanish','French','German','Portuguese','Japanese']` (labels `English / Español / Français / Deutsch / Português / 日本語`) in `koa/Antrom3/src/ui/shared/constants.ts`, a ~1,300-key `MENU_TEXT` dictionary in `koa/Antrom3/src/menuI18n.ts`, and a wrapper `mt(text)` that returns the translation for the selected language or falls back to the English source string.
+- KoA persists the choice as `selectedLanguage` on the KoA player doc (client-written). AFK should store its own copy on the AFK profile (`afk_v1_{wallet}.settings.language`) but can **default from the KoA doc** when the AFK profile has no choice yet — same read-only cross-game lookup as pelts / gem credit. Players who already picked Español in KoA get Español in AFK on first login.
+- AFK has no i18n today: 0 hits for language/locale in `src/`. User-facing strings are inline JSX literals: ~118 in `ui/panels.tsx`, 6 in `hud.tsx`, 4 in `guide.tsx`, 2 each in `rareFind.tsx`, `levelUp.tsx`, `dock.tsx`, 1 in `components.tsx`. Plus data-driven names in `state.ts` (`SKILL_INFO` name/verb/zoneName, `RESOURCE_INFO` name, `TOOL_NAME`) and gate text helpers (`state.ts:69`), and server-provided strings (guild goal/milestone names, error messages) that come from `dcl-firebase-backend`.
+
+## Scope decision
+
+- [ ] **Languages for v1.** Proposal: same six as KoA so the dictionary work can be shared and the KoA default carries over cleanly. Drop any that nobody uses once we have data.
+- [ ] **What gets translated.** UI chrome (labels, buttons, headers, guide text, HUD), skill/resource/tool names, error toasts. **Not** player-entered text (names, guild names/tags) or numbers.
+- [ ] **Where the picker lives.** Settings area in the dock (gear icon → panel) plus a first-run prompt only if no KoA default was found. Flag icons or native labels, no dropdown (DCL UI dropdowns are awkward on paper panels).
+
+## Client work (`AntromAFK-Wearable/src`)
+
+- [ ] `src/i18n.ts`: `Language` type, `LANGUAGES` list with native labels, `getLanguage()` / `setLanguage()`, `t(text)` identical in shape to KoA's `mt` so KoA's dictionary rows can be copied where the strings match. Keep English as the key so untranslated strings still render.
+- [ ] `src/i18n.dict.ts`: the dictionary. Start by extracting every literal from the files above into keys; seed translations from KoA's `MENU_TEXT` where keys overlap (CLOSE, BACK, SELL, EQUIP, PROFESSION, GUILD, LEVEL, etc.), machine-draft the rest, then review.
+- [ ] Wrap literals: `value="..."` → `value={t('...')}`; template strings become `t('Lv {n}').replace('{n}', ...)` or a tiny `tf(key, vars)` helper. Keep `nowrap` widths in mind: German and Portuguese run ~30% longer than English, Japanese shorter. Audit the fixed-width `Text` boxes in `panels.tsx` (roster row 196px, tool labels, etc.) for overflow.
+- [ ] Data names: `SKILL_INFO`, `RESOURCE_INFO`, `TOOL_NAME` read through `t()` at render time (not at module load, or they freeze in English).
+- [ ] Font coverage: confirm the UI font renders Japanese (KoA does, so the DCL default font is fine; if we ever add a custom font this is the gate).
+- [ ] Picker UI: new `settings.tsx` panel (or a section in the existing dock) with language buttons, current language highlighted, saves immediately via the profile settings endpoint.
+- [ ] First-run: if no AFK choice and no KoA default, show the picker once before the welcome guide.
+- [ ] Persist locally too (module state) so switching is instant and survives a backend hiccup; backend copy is the source on next load.
+
+## Backend work (`dcl-firebase-backend/api/index.js`)
+
+- [ ] `settings.language` on the AFK profile, validated against the allowed list; accept it on the existing profile settings/save path (signed).
+- [ ] On AFK profile load, if `settings.language` is unset, read `players/{wallet}.selectedLanguage` (KoA) and return it as `languageDefault` so the client can adopt it without a round-trip.
+- [ ] Server-sent strings: either keep them English-only and have the client map known keys (guild goal ids → `t()`), or send stable ids alongside labels. Prefer ids; it keeps the backend out of translation.
+
+## Done when
+
+- [ ] All six languages selectable; switching re-renders every panel without reload.
+- [ ] No overflow/clipping in the longest language on the profession page, guild panel, workshop, tool bench, guide, HUD.
+- [ ] Returning KoA players land in their KoA language on first AFK login.
+
+---
+
+# 4. OG profession sets
+
+Status: planning, no code yet. Requested 2026-10-14. Goal: recognize the original KoA profession wearables in AFK with a side benefit that is not power.
+
+## The wearables
+
+Single upper-body items from three separate old collections (KoA `wearables-sdk/wearables-data.ts`):
+
+- Lumberjack `urn:decentraland:matic:collections-v2:0x844a933934fba88434dfade0b04b1d211e92d7c4:1`
+- Butcher `urn:decentraland:matic:collections-v2:0x855ec57cc60c28187a021a3757a80ac4758e0b06:0`
+- Miner `urn:decentraland:matic:collections-v2:0xf0b49e0f1b6ac8d06808d9e7c5b5ef91700b1f7d:0`
+
+Match by **exact item URN**. The Lumberjack collection also holds the Coin Aura wearable at item 0.
+
+## Safety rule
+
+OG pieces never enter the suit ladder. `skills.<prof>.suit` stays 0–4 and keeps driving capacity (`AFK_SUIT_CAP`), rare-drop gates/tiers, and craft gating exactly as today. OG is a separate additive flag with its own, small consumers. Every benefit is server-side.
+
+## Backend (`dcl-firebase-backend/api/index.js`)
+
+- [ ] `profile.veteran = { lumberjack: bool, miner: bool, butcher: bool, checkedAt }`. Cleaner `cleanAfkVeteran()` like the other profile sections.
+- [ ] Extend `fetchOwnedAfkSuitUrns` (or a sibling) to also collect the three OG URNs (exact match). Compute `veteran` from the result.
+- [ ] Refresh on session start and inside `POST .../suit` (it already does the lookup). On lookup failure keep the previous `veteran` value; never clear on error.
+- [ ] Return `veteran` in the profile payload.
+- [ ] **Benefit 1: recognition.** Nothing server-side beyond the flag. Leaderboard and guild payloads include `veteran` so badges can render for other players.
+- [ ] **Benefit 2: one-time L1 craft discount.** In the craft-suit cost calc, if `veteran[prof]` and the L1 suit for that profession has never been crafted by this wallet (`craftedSuits`), reduce resource cost by 25% (coins included). Record the discount in `craftedSuits` so it cannot apply twice, including across the lockout/resume path fixed earlier.
+- [ ] **Benefit 3 (optional, decide later): vendor +5%** on that profession's raw resource sell value. Coins only; not XP, capacity, drops, or yield.
+- [ ] Excluded: any effect on gather yield, XP, backpack capacity, rare drops, boosts, tools, or guild.
+
+## Client (`AntromAFK-Wearable/src`)
+
+- [ ] `suits.ts`: add the three OG URNs to the owned-wearables filter (exact match) and expose `isVeteran(skill)` for display; server flag wins when present.
+- [ ] Profession page: "Founding Set" card with the OG thumbnail (`pieceThumbnail` works for any URN), gold frame, "FOUNDER" tag, and the discount note on the L1 recipe when applicable ("Founder discount applied").
+- [ ] Founder badge on roster rows and leaderboard rows (small icon next to the name, same slot as the rank icon on the roster).
+- [ ] Guide entry: what the OG sets are, what they do in AFK, what they don't.
+- [ ] Later (Phase 4 cosmetics): a free Founder title / name color for veterans.
+
+## Done when
+
+- [ ] A wallet owning an OG piece sees the Founder card and badge within one session start; a wallet without one sees nothing new.
+- [ ] L1 craft for that profession shows and charges the discounted cost once; the second craft (if ever) is full price.
+- [ ] No change to capacity, rare drops, or craft gating for anyone (compare `afkBackpackCapacity` and craft-suit responses before/after for a veteran test wallet).
+
+---
+
+# 5. Guild content — long term
+
+Status: planning. Goal: years of guild progression with several kinds of progress, not just longer coin bars.
+
+## Where guilds are today (prod, 2026-10-14)
+
+- 6 guilds. HQ: ELF 100, KOA 100, SOT 55, BACON 52, ERS 3, COG 1 (HQ max 200). ELF/KOA have all six base techs at 5 (legacy import). Advanced tiers (6–10, open at HQ 100) and the five endgame nodes (Prospector HQ 50, Merchant 110, Architect 125, Quartermaster 150, Forager 175) are at 0 everywhere.
+- Remaining tech for a maxed guild ≈ 3.3M coins. Daily tech cap 1,000 coins/member → ~6 months for a fully active 20-member guild, 1–2 years at current activity (30 AFK players total). Plus HQ 100→200.
+- Only coins buy tech; tier raws and refined materials have no guild sink.
+
+## Enabler: server-defined tech catalogue (do this first)
+
+- [ ] Server sends the full tech catalogue with the guild payload: `{ key, tab, name, description, icon, max, costs[], unlockHq | unlockWonderStage, effect: { kind, perLevel } }`. Client renders tabs and cards from it; icons come from a pool of ~30 generic icons shipped in the bundle (`images/icons/tech/*`).
+- [ ] Effects resolved server-side in `afkGuildBonuses` via a small registry keyed by `effect.kind`, so new nodes of existing kinds (e.g. another `resourcePct`) need zero client work and no wearable republish.
+- [ ] Client: tabbed Guild Tech panel (tabs from catalogue, locked tabs shown with their unlock condition).
+
+## Tech tabs
+
+- [ ] **Economy** (exists): woodBoost, stoneBoost, meatBoost, xpBoost, craftDiscount, lootLuck, prospector, merchant, architect, quartermaster, forager.
+- [ ] **Logistics** (unlock HQ 50): Away Cap +1h/level (max +6h), Offline Workshop (craft queue speed while away), Pack Mules (backpack +25/level), Auto-Bank (bank when full, max 1 level), Forager's Eye (berry drop rate). Costs: coins + planks/bricks.
+- [ ] **Guild Hall wings** (unlock HQ 75 / 100 / 125 / 150, one per profession: Lumber Mill, Quarry, Smokehouse, Ossuary): per-line tier-raw rate +, refine ratio 5:1 → 4:1 at max, suit recipe discount for that line, +1 rare-drop progress carry. Costs are that line's tier raws and refined materials, which gives them a guild sink.
+- [ ] **Expedition** (unlock by Wonder stage 1): unlocks and improves contracts and boss hunts (payout +, extra contract slot, hunt damage from work cycles +).
+- [ ] **Legacy** (prestige, paid with Legacy points from seasons): cosmetic and tiny (+1% things), banner frames, hall decorations, title for all members.
+
+## Recurring activities (renewing content, all data-driven)
+
+- [ ] **Weekly contracts.** 3 rotating goals from a pool ("deliver 50k wood", "refine 500 Timber Beams", "every member gathers 2h", "donate 200 Hide"). Rewards: guild coins + a streak multiplier for next week. Contract pool is server config.
+- [ ] **Monthly boss hunt.** A beast with an HP pool; damage comes from donated resources and member work cycles over the month. Defeat tiers pay combo rares (Deepwood Amber, Shadow Sinew, Ghostwood, Bloodstone) to every contributor by share. Async, no real-time play needed.
+- [ ] **Zone control.** Weekly per-zone contest (most gathered by guild). Winner gets +5% in that zone next week and their tag on the zone sign. Pride > power.
+- [ ] **Seasons (quarterly).** Cross-guild scoreboard over contracts, hunts, HQ gained, zone wins. Season-end: wearables, banners, titles, Legacy points. Nothing resets.
+
+## Long-horizon projects
+
+- [ ] **Guild Wonders.** Three wonders (Guildstone Monument, Great Hall, Beacon), four stages each, costing millions across every resource type. Each stage: raises HQ cap (+25), unlocks a tech tab or node set, upgrades the guild banner tier, and later the in-world hall on the land scene. Multi-year at current pace by design.
+- [ ] **Guild focus.** Per-season specialization (Lumber / Stone / Beast / Shadow): +10% in that line, −5% elsewhere; chosen at season start. Guild identity + trade pressure between guilds.
+- [ ] **Mentorship.** Veteran linked to a newcomer; both get +5% while the newcomer is under level 20; mentor earns a Legacy point per graduated mentee.
+- [ ] **Guild exchange (later, carefully).** Internal resource swaps between members at fixed ratios. Big abuse surface (alts); only after per-wallet daily limits exist.
+
+## Pacing rules (write into the code comments when built)
+
+- Daily caps are the pacing lever, not prices. Every tab gets its own cap so one tab can't be rushed by starving another.
+- Every new tab must add a sink for a resource that currently has none (tier raws, refined materials) rather than another coin sink.
+- Rate bonuses stay additive and small; the economy already stacks HQ + tech + tools + level. Prefer convenience, cosmetics, and new activities over more % yield.
+- Nothing in guild content is gem-purchasable (see Gems, excluded list).
+
+## Cadence
+
+- Quarter 1: server-defined catalogue + tabs UI, Logistics tab, weekly contracts.
+- Quarter 2: Guild Hall wings (two of four), first boss hunt, Season 1.
+- Quarter 3: remaining wings, zone control, Wonder 1 stage 1.
+- Then: one new tab/wonder stage per season, contracts and hunts rotated from config without client releases.
+
+---
+
+# 6. Backlog / housekeeping
+
+Smaller items noted along the way, not scheduled.
+
+- [ ] **Backend: shop endpoint returns stale materials mid-craft.** `POST .../shop` reads `profile.materials` without `advanceAfkCraftQueue`, writes it back, and returns it; the client then overwrites `player.materials`, so planks in progress appear to drop until the next craft sync. Fix: run `advanceAfkCraftQueue` in the shop transaction (and any other endpoint that writes `materials`: tool bench, craft-suit) and persist `craftQueue`/`craftUpdatedAt` alongside. Deploy with the next backend push.
+- [ ] **Rotate the Rewards dispenser key** used for the 2026-10-13 Level top-50 airdrop (it was pasted into chat). Create a new dispenser in the Rewards dashboard, update `AIRDROP_REWARDS_KEY` where stored.
+- [ ] `airdrop.js --exclude <addresses>` flag (skip admin/test wallets without editing the ledger by hand).
+- [ ] **KoA `/player/:address` POST is unsigned and client-authoritative.** Gems, gold, level, everything can be set with curl. Not an AFK problem directly, but it bounds how much any KoA-derived data can be trusted (which is why AFK gems are shop-only). Fix lives in KoA: require signed-fetch on writes and move premium fields to increment-only endpoints.
+- [ ] Guild roster: optional "last contributed" tooltip now that the text labels are gone.
+- **Audio convention (decided 2026-10-14):** MP3 only. Current six clips are already MP3 (156 KB total). New clips (gem purchase, boost, language switch, etc.): mono, ~96 kbps, aim for under 50 KB each; everything ships inside the wearable bundle.
+- [ ] Mastery system is currently disabled; decide whether to re-enable or remove the dead UI/code.

@@ -89,7 +89,7 @@ export function WelcomePanel() {
   return (
     <Modal title="WELCOME TO ANTROM" color={C.green} width={W} height={H} scale={fit.scale} offsetX={fit.offsetX} titleSize={52} titleWidth={760} onClose={() => { welcomeDismissed = true }}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
-        <OutlinedText value="AN IDLE GAME YOU CARRY WITH YOU" size={S(44)} color={C.yellow} />
+        <OutlinedText value="AN IDLE GAME YOU CARRY WITH YOU" size={S(44)} color={C.gold} />
         <Text value="Four steps. That is the whole game." size={S(28)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(6) } }} />
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(30) } }}>
           {STEPS.map((step) => (
