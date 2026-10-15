@@ -215,14 +215,12 @@ export function Modal(props: {
   const pad = 36 * s
   const contentTop = 26 * s
   return (
-    // Tapping the dimmed backdrop closes the panel; the frame swallows its own clicks so content taps never reach it.
+    // No click-to-close on the backdrop: UI pointer events bubble to ancestors, so a handler here fires for every tap inside the frame too.
     <UiEntity
       uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
       uiBackground={{ color: C.dim }}
-      onMouseDown={props.onClose}
     >
       <Panel
-        onClick={() => {}}
         uiTransform={{
           positionType: 'relative',
           position: { left: props.offsetX ?? 0 },
