@@ -377,7 +377,6 @@ export function SkillsPanel() {
               </UiEntity>
               <Bar value={st.level >= MAX_LEVEL ? 1 : st.xp / need} color={skillColor(s)} height={S(46)} label={st.level >= MAX_LEVEL ? 'MAX LEVEL' : `${st.xp} / ${need} XP`} labelSize={S(26)} uiTransform={{ margin: { top: S(6) } }} />
             </UiEntity>
-            {MASTERY_ENABLED ? <MasteryColumn skill={s} /> : null}
             <Spacer />
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center' }}>
               <Text value={st.suit > 0 ? `SUIT L${st.suit}` : 'NO SUIT'} size={S(28)} color={st.suit > 0 ? C.gold : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
@@ -455,26 +454,6 @@ function RareDropColumn(props: { key?: string; skill: Skill }) {
         ))
       )}
       {active.length > 3 ? <Text value={`+${active.length - 3} more`} size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(26) }} /> : null}
-    </UiEntity>
-  )
-}
-
-/** Zone Mastery column on a profession row: level, progress, current bonus and the next milestone. */
-function MasteryColumn(props: { key?: string; skill: Skill }) {
-  const m = player.mastery[props.skill]
-  const maxed = m.level >= MASTERY_MAX
-  const need = masteryXpForLevel(m.level)
-  const dbl = masteryDoubleChance(m.level)
-  const next = nextMasteryMilestone(m.level)
-  const bonus = `+${Math.round(masteryYieldPct(m.level) * 100)}% yield${dbl > 0 ? `  •  ${Math.round(dbl * 100)}% double` : ''}`
-  return (
-    <UiEntity uiTransform={{ flexDirection: 'column', width: S(350), margin: { left: S(20) } }}>
-      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(40) }}>
-        <Text value={`${SKILL_INFO[props.skill].zoneName} MASTERY`} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(280), height: S(40) }} />
-        <OutlinedText value={`${m.level}`} size={S(32)} color={C.purple} uiTransform={{ width: S(60), height: S(40) }} align="middle-left" />
-      </UiEntity>
-      <Bar value={maxed ? 1 : m.xp / need} color={C.purple} height={S(30)} label={maxed ? 'MAXED' : `${m.xp} / ${need} cycles`} labelSize={S(20)} />
-      <Text value={next ? `${bonus}   •   next: Lv ${next} = ${Math.round(masteryDoubleChance(next) * 100)}% double` : bonus} size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(28), margin: { top: S(4) } }} />
     </UiEntity>
   )
 }

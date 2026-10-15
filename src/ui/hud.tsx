@@ -93,16 +93,6 @@ export function Hud() {
               color={C.white}
               uiTransform={{ width: S(460), height: S(24), margin: { top: S(6) } }}
             />
-            {MASTERY_ENABLED ? (
-            <Bar
-              value={player.mastery[skill].level >= MASTERY_MAX ? 1 : player.mastery[skill].xp / masteryXpForLevel(player.mastery[skill].level)}
-              color={C.purple}
-              height={S(20)}
-              label={`MASTERY ${player.mastery[skill].level}  •  +${Math.round(masteryYieldPct(player.mastery[skill].level) * 100)}% yield${masteryDoubleChance(player.mastery[skill].level) > 0 ? `  •  ${Math.round(masteryDoubleChance(player.mastery[skill].level) * 100)}% double` : ''}`}
-              labelSize={S(14)}
-              uiTransform={{ width: S(420), height: S(20), margin: { top: S(6) } }}
-            />
-            ) : null}
             {/* Unlock ladder hint: the next thing this profession level unlocks */}
             {(() => {
               const rung = nextRung(skill)
