@@ -5,6 +5,7 @@ import { OutlinedText, Text, Panel, Button, Icon, Modal } from './components'
 import { S, fitModal } from './responsive'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON, Skill, backpackCount, backpackCap, canUpgradeTool, RESOURCE_INFO, MATERIALS, TOOL_NAME } from '../state'
 import { profileState } from '../playerProfile'
+import { openSite } from '../links'
 import { activeSkill, toggleProfession } from '../work'
 import { ringStationsEnabled, campHint } from '../remoteConfig'
 import { ui } from './uiState'
@@ -122,7 +123,10 @@ export function WelcomePanel() {
             />
           ))}
         </UiEntity>
-        <Text value="More buttons appear as you unlock them. The yellow line at the top always tells you what to do next." size={S(24)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(26) } }} />
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(22) } }}>
+          <Text value="More buttons appear as you unlock them. The yellow line at the top always tells you what to do next." size={S(24)} color={C.textMuted} nowrap uiTransform={{ width: 'auto', margin: { right: S(24) } }} />
+          <Button key="welcome-site" label="GUILDSTONE.DEV" color={C.navySoft} textColor={C.yellow} size={S(20)} uiTransform={{ width: S(260), height: S(52), minWidth: 0 }} onClick={() => openSite()} />
+        </UiEntity>
       </UiEntity>
     </Modal>
   )

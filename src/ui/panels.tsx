@@ -4,6 +4,7 @@ import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
+import { share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import {
   GuildInfo,
   player,
@@ -923,7 +924,19 @@ export function ShopPanel() {
             <Icon src={RESOURCE_INFO.berry.icon} size={S(76)} />
             <OutlinedText value={`${player.berries}`} size={S(52)} color={C.purple} uiTransform={{ width: 'auto', minWidth: S(130), margin: { left: S(12), bottom: S(6) } }} align="middle-left" />
           </Pill>
-          <Text value="Berries drop at random while you work." size={S(26)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(22) } }} />
+          <Text value="Berries drop at random while you work." size={S(26)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(22), right: S(40) } }} />
+          {/* Share on X: +3 berries once per 20 h. Opens the client's external-link confirmation first. */}
+          <Button
+            key="share-x"
+            label={shareAvailable() ? `SHARE ON X  +${SHARE_BERRIES} BERRIES` : `SHARED  •  next in ${shareWaitText()}`}
+            icon={RESOURCE_INFO.berry.icon}
+            color={shareAvailable() ? C.blue : C.gray}
+            textColor={shareAvailable() ? C.white : C.textMuted}
+            disabled={!shareAvailable() || share.busy}
+            size={S(24)}
+            uiTransform={{ width: S(440), height: S(76), minWidth: 0 }}
+            onClick={() => shareOnX()}
+          />
         </UiEntity>
         <Text
           value={active ? `${active.item.name} is active for ${minutesLeft} more min  •  one boost at a time` : 'One boost at a time: pick the one you need right now.'}

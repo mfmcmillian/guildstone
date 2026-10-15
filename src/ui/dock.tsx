@@ -6,6 +6,7 @@ import { isMuted, setMuted, playButtonSound } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
+import { openSite } from '../links'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
@@ -122,6 +123,8 @@ export function Dock() {
         ) : (
           <OutlinedText value={`Bank, craft, tools & shop: ${campHint()}`} size={S(20)} color={C.gray} uiTransform={{ height: S(28), margin: { top: S(8) } }} />
         )}
+        {/* Site link: suits, materials and guilds explained. Opens the client's external-link confirmation. */}
+        <Button key="dock-site" label="GUILDSTONE.DEV" color={C.navy} textColor={C.yellow} size={S(17)} uiTransform={{ width: '100%', height: S(40), margin: { top: S(2) } }} onClick={() => openSite()} />
       </Panel>
     </UiEntity>
   )
