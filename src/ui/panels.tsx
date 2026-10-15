@@ -3,6 +3,7 @@ import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer } from './components'
 import { S, fitModal } from './responsive'
+import { LobbyTab, resetLobbyView } from './lobby'
 import {
   GuildInfo,
   player,
@@ -959,8 +960,13 @@ const guildForm = {
   settingsSeededFor: '',
   seeded: false
 }
-type GuildTabId = 'home' | 'donate' | 'hq' | 'tech' | 'manage'
-let guildTab: GuildTabId = 'home'
+type GuildTabId = 'lobby' | 'home' | 'donate' | 'hq' | 'tech' | 'manage' | 'find'
+let guildTab: GuildTabId = 'lobby'
+/** The GUILD button always lands on the Lobby. */
+export function resetGuildTab() {
+  guildTab = 'lobby'
+  resetLobbyView()
+}
 /** Two-tap confirmation for destructive officer actions: first tap arms, second tap within 5s fires. */
 let armedManage: { op: string; member: string; at: number } | null = null
 function manageArmed(op: string, member: string) {
@@ -1310,16 +1316,16 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
   )
 }
 
-const GUILD_TAB_ICON: Record<GuildTabId, string> = { home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, manage: GICON.settings }
+const GUILD_TAB_ICON: Record<GuildTabId, string> = { lobby: 'images/icons/guild/invite.png', home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, manage: GICON.settings, find: 'images/icons/guild/application.png' }
 
-function GuildTab(props: { id: GuildTabId; label: string }) {
+function GuildTab(props: { id: GuildTabId; label: string; width?: number }) {
   return (
     <Button
       label={props.label}
       icon={GUILD_TAB_ICON[props.id]}
       color={guildTab === props.id ? C.purple : C.navySoft}
-      size={S(32)}
-      uiTransform={{ width: S(330), height: S(78), margin: { left: S(8), right: S(8) } }}
+      size={S(30)}
+      uiTransform={{ width: S(props.width ?? 270), height: S(78), margin: { left: S(8), right: S(8) } }}
       onClick={() => {
         guildTab = props.id
       }}
@@ -1393,6 +1399,7 @@ export function GuildPanel() {
             uiTransform={{ height: S(30), margin: { top: S(4) } }}
           />
           <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8), bottom: S(10) } }}>
+            <GuildTab id="lobby" label="LOBBY" />
             <GuildTab id="home" label="HOME" />
             <GuildTab id="donate" label="DONATE" />
             <GuildTab id="hq" label="HQ" />
@@ -1847,11 +1854,17 @@ export function GuildPanel() {
           ) : null}
 
           {guildTab === 'manage' && canEdit ? <GuildManageTab guild={guild} wallet={wallet} /> : null}
+          {guildTab === 'lobby' ? <LobbyTab height={920} /> : null}
         </UiEntity>
       ) : (
         <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
-          <Text value="Guilds share one HQ: every level every member funds gives everyone more resources and XP." size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { bottom: S(14) } }} />
-          <UiEntity uiTransform={{ width: S(CONTENT_W), height: S(1060), flexDirection: 'row', justifyContent: 'center' }}>
+          <UiEntity uiTransform={{ flexDirection: 'row', margin: { bottom: S(12) } }}>
+            <GuildTab id="lobby" label="LOBBY" width={360} />
+            <GuildTab id="find" label="FIND A GUILD" width={360} />
+          </UiEntity>
+          {guildTab === 'lobby' ? <LobbyTab height={1000} /> : null}
+          {guildTab !== 'lobby' ? <Text value="Guilds share one HQ: every level every member funds gives everyone more resources and XP." size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { bottom: S(14) } }} /> : null}
+          {guildTab !== 'lobby' ? <UiEntity uiTransform={{ width: S(CONTENT_W), height: S(960), flexDirection: 'row', justifyContent: 'center' }}>
             <Panel flat color={C.paper2} uiTransform={{ width: S(520), height: '100%', alignItems: 'center', padding: S(26), margin: { right: S(14) } }}>
               <OutlinedText value="CREATE A GUILD" size={S(40)} />
               <Text value="Start your own and invite friends by tag." size={S(22)} color={C.textMuted} uiTransform={{ margin: { top: S(6) } }} />
@@ -1953,7 +1966,7 @@ export function GuildPanel() {
                 <Button label="JOIN BY TAG" color={C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(78) }} onClick={() => requestGuild('join', { tag: guildForm.joinTag })} />
               </UiEntity>
             </Panel>
-          </UiEntity>
+          </UiEntity> : null}
         </UiEntity>
       )}
     </Modal>

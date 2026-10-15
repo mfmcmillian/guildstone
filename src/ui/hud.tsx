@@ -6,7 +6,7 @@ import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_S
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
-import { bankBagNow } from './panels'
+import { bankBagNow, resetGuildTab } from './panels'
 import { playButtonSound } from '../uiSounds'
 import { nextStep, showGuild } from './guide'
 
@@ -190,7 +190,7 @@ export function Hud() {
               label={player.guild ? `[${player.guild.tag}]` : 'GUILD'}
               icon="images/icons/suit.png"
               color={C.purple}
-              onClick={() => togglePanel('guild')}
+              onClick={() => { resetGuildTab(); togglePanel('guild') }}
               uiTransform={{ height: S(96), minWidth: S(340), margin: { bottom: S(12) } }}
               size={S(FONT.button + 10)}
             />

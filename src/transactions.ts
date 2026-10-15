@@ -760,7 +760,7 @@ export async function loadGuild(guildId?: string | null) {
 }
 
 export type GuildAction = 'create' | 'join' | 'leave' | 'import' | 'donate' | 'motd' | 'manage'
-export type GuildManageOp = 'settings' | 'kick' | 'rank' | 'transfer' | 'disband'
+export type GuildManageOp = 'settings' | 'kick' | 'rank' | 'transfer' | 'disband' | 'invite'
 export type GuildRank = 'royal_guard' | 'knight' | 'squire' | 'initiate'
 export interface GuildRequestDetails {
   name?: string
@@ -821,6 +821,7 @@ export function requestGuild(action: GuildAction, details: GuildRequestDetails =
         else if (details.op === 'rank') flash(`RANK SET: ${(details.rank ?? '').replace('_', ' ').toUpperCase()}`)
         else if (details.op === 'transfer') flash('LEADERSHIP TRANSFERRED')
         else if (details.op === 'disband') flash('GUILD DISBANDED')
+        else if (details.op === 'invite') flash('INVITE SENT')
       }
       // Membership changed: the public directory counts are stale.
       if (action !== 'motd') guildDirectory.loadedAt = 0
