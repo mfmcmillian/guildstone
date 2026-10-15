@@ -118,11 +118,13 @@ export function Dock() {
         {/* Economy lives on the land once the camp opens (remote config). Until then the ring carries every station. */}
         {ringStationsEnabled() ? (
           // Stations appear the first time they matter (guide.tsx), so a new player only sees the Depot.
-          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', margin: { top: S(6) } }}>
-            <Button label="BANK" icon="images/icons/backpack.png" color={C.green} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10), right: S(12) } }} onClick={() => togglePanel('bank')} />
-            {showWorkshop() ? <Button label="WORKSHOP" icon="images/icons/plank.png" color={C.orange} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('workshop')} /> : null}
-            {showToolBench() ? <Button label="TOOL BENCH" icon="images/icons/lumberjack.png" color={C.blue} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10), right: S(12) } }} onClick={() => togglePanel('forge')} /> : null}
-            {showShop() ? <Button label="SHOP" icon="images/icons/berry.png" color={C.purple} size={S(20)} uiTransform={{ width: S(186), height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('shop')} /> : null}
+          // 2x2 grid. Percentage widths: fixed 186+12+186 equalled the row exactly and rounding pushed every button onto
+          // its own row, which made the dock tall enough to cover the GUILD/PROFESSIONS buttons.
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', margin: { top: S(6) } }}>
+            <Button label="BANK" icon="images/icons/backpack.png" color={C.green} size={S(20)} uiTransform={{ width: '48%', minWidth: 0, height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('bank')} />
+            {showWorkshop() ? <Button label="WORKSHOP" icon="images/icons/plank.png" color={C.orange} size={S(20)} uiTransform={{ width: '48%', minWidth: 0, height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('workshop')} /> : null}
+            {showToolBench() ? <Button label="TOOL BENCH" icon="images/icons/lumberjack.png" color={C.blue} size={S(20)} uiTransform={{ width: '48%', minWidth: 0, height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('forge')} /> : null}
+            {showShop() ? <Button label="SHOP" icon="images/icons/berry.png" color={C.purple} size={S(20)} uiTransform={{ width: '48%', minWidth: 0, height: S(70), margin: { bottom: S(10) } }} onClick={() => togglePanel('shop')} /> : null}
           </UiEntity>
         ) : (
           <OutlinedText value={`Bank, craft, tools & shop: ${campHint()}`} size={S(20)} color={C.gray} uiTransform={{ height: S(28), margin: { top: S(8) } }} />
