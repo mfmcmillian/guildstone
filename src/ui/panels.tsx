@@ -4,6 +4,7 @@ import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
+import { dragOffset, startDrag } from './drag'
 import { share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import {
   GuildInfo,
@@ -1432,7 +1433,8 @@ export function GuildPanel() {
   if (guildTab === 'manage' && !canEdit) guildTab = 'home'
 
   return (
-    <Modal title="GUILD" color={C.purple} {...bigFrame(fit, 'GUILD')} onClose={closePanel}>
+    // Drag test: GUILD is the only window you can move (grab the title tab). Session-only offset from drag.ts.
+    <Modal title="GUILD" color={C.purple} {...bigFrame(fit, 'GUILD')} offsetX={fit.offsetX + dragOffset.guild.dx} offsetY={dragOffset.guild.dy} onTitleDown={() => startDrag('guild')} onClose={closePanel}>
       {guild ? (
         <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
           <OutlinedText value={`[${guild.tag}]  ${guild.name}`} size={S(40)} />

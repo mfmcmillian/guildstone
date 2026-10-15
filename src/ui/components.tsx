@@ -202,10 +202,13 @@ export function Modal(props: {
   width: number
   height: number
   offsetX?: number
+  offsetY?: number
   titleWidth?: number
   titleSize?: number
   /** Uniform scale for the frame (width/height are design values). Defaults to the current responsive scale set by fitModal(). */
   scale?: number
+  /** Mouse-down on the title tab (used to start a window drag). */
+  onTitleDown?: Callback
   onClose: Callback
   children?: Kids
 }) {
@@ -224,7 +227,7 @@ export function Modal(props: {
       <Panel
         uiTransform={{
           positionType: 'relative',
-          position: { left: props.offsetX ?? 0 },
+          position: { left: props.offsetX ?? 0, top: props.offsetY ?? 0 },
           width,
           height,
           padding: pad
@@ -241,6 +244,7 @@ export function Modal(props: {
             justifyContent: 'center'
           }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: props.color }}
+          onMouseDown={props.onTitleDown}
         >
         <OutlinedText value={props.title} size={(props.titleSize ?? FONT.title) * s} uiTransform={{ margin: { bottom: 6 * s } }} />
         </UiEntity>
