@@ -739,9 +739,9 @@ export function WorkshopPanel() {
                           craftAmounts[r.out] = digits && parseInt(digits, 10) > CRAFT_MAX_PER_REQUEST ? `${CRAFT_MAX_PER_REQUEST}` : digits
                         }}
                       />
-                      <Button label="MAX" color={C.navySoft} disabled={!ok} size={S(22)} uiTransform={{ width: S(110), height: S(60), minWidth: 0 }} onClick={() => { craftAmounts[r.out] = `${cap}` }} />
+                      <Button key={`max-${r.out}`} label="MAX" color={C.navySoft} disabled={!ok} size={S(22)} uiTransform={{ width: S(110), height: S(60), minWidth: 0 }} onClick={() => { craftAmounts[r.out] = `${cap}` }} />
                     </UiEntity>
-                    <Button label={ok ? `MAKE ${amount}` : 'MAKE'} color={C.green} disabled={!ok} size={S(28)} uiTransform={{ width: S(270), height: S(72), margin: { top: S(8) } }} onClick={() => requestCraft(r.out, amount)} />
+                    <Button key={`make-${r.out}`} label={ok ? `MAKE ${amount}` : 'MAKE'} color={C.green} disabled={!ok} size={S(28)} uiTransform={{ width: S(270), height: S(72), margin: { top: S(8) } }} onClick={() => requestCraft(r.out, amount)} />
                     <Text
                       value={ok ? `uses ${amount * r.amount} ${RESOURCE_INFO[r.from].name}${extras.length > 0 ? ' + ' + extras.map(([id, n]) => `${amount * n} ${RESOURCE_INFO[id].name}`).join(' + ') : ''}` : ' '}
                       size={S(20)}
