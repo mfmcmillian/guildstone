@@ -79,7 +79,7 @@ export function Dock() {
           />
         </UiEntity>
         <OutlinedText
-          value={connecting ? connectingText : working ? `${SKILL_INFO[working].verb} in the ${titleCase(SKILL_INFO[working].zoneName)}. Tap again to stop` : 'Pick a profession to enter its zone'}
+          value={connecting ? connectingText : working ? `${SKILL_INFO[working].verb} in the ${titleCase(SKILL_INFO[working].zoneName)}` : 'Pick a profession to enter its zone'}
           size={S(20)}
           color={working ? C.white : C.yellow}
           uiTransform={{ height: S(28), margin: { bottom: S(8) } }}
