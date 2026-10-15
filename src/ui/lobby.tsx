@@ -168,64 +168,70 @@ const me = () => profileState.walletAddress ?? ''
 // ---- Leaderboards ----------------------------------------------------------------------------------------------
 function BoardColumn(props: { id: BoardId; height: number }) {
   const id = props.id as Exclude<BoardId, 'chat'>
-  const rows = boardRows(id, 15)
+  const rows = boardRows(id, 50)
   const playerBoard = !(id === 'hq' || id === 'points' || id === 'weekly')
   const rank = playerBoard ? myBoardRank(id) : 0
+  const listH = props.height - 28 - 44 - 10 - (playerBoard ? 36 : 0)
   return (
     <Panel flat color={C.navySoft} uiTransform={{ width: S(CHAT_W), height: S(props.height), padding: S(14), flexDirection: 'column' }}>
-      <OutlinedText value={BOARD_TITLE[id]} size={S(26)} color={C.gold} uiTransform={{ width: '100%', height: S(36), margin: { bottom: S(8) } }} />
+      <OutlinedText value={BOARD_TITLE[id]} size={S(28)} color={C.gold} uiTransform={{ width: '100%', height: S(40), margin: { bottom: S(10) } }} />
       {rows.length === 0 ? (
-        <Text value={lobby.board.loading && lobby.board.loadedAt === 0 ? 'Loading...' : 'Nothing here yet.'} size={S(24)} color={C.textMuted} uiTransform={{ width: '100%', height: S(40) }} />
+        <Text value={lobby.board.loading && lobby.board.loadedAt === 0 ? 'Loading...' : 'Nothing here yet.'} size={S(26)} color={C.textMuted} uiTransform={{ width: '100%', height: S(40) }} />
       ) : (
-        rows.map((r, i) => (
-          <UiEntity
-            key={`row-${id}-${r.key}`}
-            uiTransform={{ width: '100%', height: S(48), flexDirection: 'row', alignItems: 'center', padding: { left: S(12), right: S(12) }, margin: { bottom: S(4) } }}
-            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: r.mine ? C.purple : i % 2 === 0 ? C.navy : C.navySoft }}
-            onMouseDown={() => {
-              if (!playerBoard || r.key === me()) return
-              if (!lobby.online.some((p) => p.address === r.key)) return
-              playButtonSound()
-              lobby.selected = r.key
-            }}
-          >
-            <OutlinedText value={`#${i + 1}`} size={S(24)} color={i < 3 ? C.gold : C.textMuted} align="middle-left" uiTransform={{ width: S(70), height: S(34) }} />
-            <Text value={`${r.name}${r.tag ? `  [${r.tag}]` : ''}`} size={S(24)} color={C.white} align="middle-left" nowrap uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(34) }} />
-            <Text value={r.value} size={S(24)} color={r.mine ? C.white : C.yellow} align="middle-right" nowrap uiTransform={{ width: S(360), height: S(34) }} />
-          </UiEntity>
-        ))
+        // Scrolls: top 50, big rows.
+        <UiEntity uiTransform={{ width: '100%', height: S(listH), flexDirection: 'column', overflow: 'scroll' }}>
+          {rows.map((r, i) => (
+            <UiEntity
+              key={`row-${id}-${r.key}`}
+              uiTransform={{ width: '100%', height: S(64), flexShrink: 0, flexDirection: 'row', alignItems: 'center', padding: { left: S(16), right: S(16) }, margin: { bottom: S(6) } }}
+              uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: r.mine ? C.purple : i % 2 === 0 ? C.navy : C.navySoft }}
+              onMouseDown={() => {
+                if (!playerBoard || r.key === me()) return
+                if (!lobby.online.some((p) => p.address === r.key)) return
+                playButtonSound()
+                lobby.selected = r.key
+              }}
+            >
+              <OutlinedText value={`#${i + 1}`} size={S(30)} color={i < 3 ? C.gold : C.textMuted} align="middle-left" uiTransform={{ width: S(90), height: S(40) }} />
+              <Text value={`${r.name}${r.tag ? `  [${r.tag}]` : ''}`} size={S(30)} color={C.white} align="middle-left" nowrap uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
+              <Text value={r.value} size={S(30)} color={r.mine ? C.white : C.yellow} align="middle-right" nowrap uiTransform={{ width: S(420), height: S(40) }} />
+            </UiEntity>
+          ))}
+        </UiEntity>
       )}
-      {playerBoard && rank > 15 ? <Text value={`You are #${rank}`} size={S(22)} color={C.purple} uiTransform={{ width: '100%', height: S(32), margin: { top: S(6) } }} /> : null}
+      {playerBoard ? <Text value={rank > 0 ? `You are #${rank}` : 'You are not ranked here yet'} size={S(24)} color={C.purple} uiTransform={{ width: '100%', height: S(32), margin: { top: S(4) } }} /> : null}
     </Panel>
   )
 }
 
 // ---- Online list + player card ---------------------------------------------------------------------------------
 function OnlineColumn(props: { height: number }) {
-  const rowH = 62
-  const max = Math.floor((props.height - 20 - 44) / (rowH + 4))
-  const list = lobby.online.slice(0, max)
+  const rowH = 84
+  const list = lobby.online
   return (
     <Panel flat color={C.navySoft} uiTransform={{ width: S(SIDE_W), height: S(props.height), padding: S(10), flexDirection: 'column' }}>
-      <OutlinedText value={`ONLINE  •  ${lobby.online.length}`} size={S(26)} color={C.gold} uiTransform={{ width: '100%', height: S(36), margin: { bottom: S(8) } }} />
+      <OutlinedText value={`ONLINE  •  ${lobby.online.length}`} size={S(28)} color={C.gold} uiTransform={{ width: '100%', height: S(40), margin: { bottom: S(10) } }} />
       {list.length === 0 ? (
-        <Text value={lobby.loadedOnce ? 'Nobody else is on right now.' : 'Looking around...'} size={S(22)} color={C.textMuted} uiTransform={{ width: '100%', height: S(36) }} />
+        <Text value={lobby.loadedOnce ? 'Nobody else is on right now.' : 'Looking around...'} size={S(24)} color={C.textMuted} uiTransform={{ width: '100%', height: S(36) }} />
       ) : (
-        list.map((p) => (
-          <UiEntity
-            key={`on-${p.address}`}
-            uiTransform={{ width: '100%', height: S(rowH), flexDirection: 'column', justifyContent: 'center', padding: { left: S(12), right: S(12) }, margin: { bottom: S(4) } }}
-            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: p.address === me() ? C.purple : C.navy }}
-            onMouseDown={() => {
-              if (p.address === me()) return
-              playButtonSound()
-              lobby.selected = p.address
-            }}
-          >
-            <Text value={`${p.name}${p.tag ? `  [${p.tag}]` : ''}`} size={S(23)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(30) }} />
-            <Text value={statusLine(p)} size={S(19)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(26) }} />
-          </UiEntity>
-        ))
+        // Scrolls: everyone online, big rows.
+        <UiEntity uiTransform={{ width: '100%', height: S(props.height - 20 - 50), flexDirection: 'column', overflow: 'scroll' }}>
+          {list.map((p) => (
+            <UiEntity
+              key={`on-${p.address}`}
+              uiTransform={{ width: '100%', height: S(rowH), flexShrink: 0, flexDirection: 'column', justifyContent: 'center', padding: { left: S(16), right: S(16) }, margin: { bottom: S(6) } }}
+              uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: p.address === me() ? C.purple : C.navy }}
+              onMouseDown={() => {
+                if (p.address === me()) return
+                playButtonSound()
+                lobby.selected = p.address
+              }}
+            >
+              <Text value={`${p.name}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(36) }} />
+              <Text value={statusLine(p)} size={S(23)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(30) }} />
+            </UiEntity>
+          ))}
+        </UiEntity>
       )}
     </Panel>
   )
