@@ -801,8 +801,8 @@ export function WorkshopPanel() {
               <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(440), height: S(80), margin: { right: S(4), bottom: S(4) } }}>
                 <Icon src={RESOURCE_INFO[id].icon} size={S(60)} uiTransform={{ flexShrink: 0 }} />
                 <UiEntity uiTransform={{ flexDirection: 'column', width: S(372), margin: { left: S(8) } }}>
-                  <Text value={def.name} size={S(27)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
-                  <Text value={`Wear ${gateText(def.gate)}`} size={S(23)} color={C.gray} align="middle-left" nowrap uiTransform={{ height: S(30) }} />
+                  <Text value={def.name} size={S(32)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(38) }} />
+                  <Text value={`Wear ${gateText(def.gate)}`} size={S(26)} color={C.gray} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
                 </UiEntity>
               </UiEntity>
             ))}
