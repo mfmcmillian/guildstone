@@ -974,8 +974,12 @@ function manageTap(op: 'kick' | 'transfer', member: string) {
     armedManage = { op, member, at: Date.now() }
   }
 }
-/** LEAVE GUILD confirm: first tap arms (YES unlocks after 1 s so a double-tap can't skip it); NO disarms, and the arm expires on its own so a closed panel never reopens armed. */
+/**
+ * LEAVE GUILD confirm, two stages: LEAVE GUILD arms -> YES, LEAVE -> LEAVE FOR GOOD. Each YES unlocks after 1 s so a
+ * double-tap can't skip it; NO disarms, and the arm expires on its own so a closed panel never reopens armed.
+ */
 let leaveArmedAt = 0
+let leaveStage: 1 | 2 = 1
 const LEAVE_YES_DELAY_MS = 1000
 const LEAVE_ARM_EXPIRE_MS = 10000
 const leaveArmed = () => leaveArmedAt > 0 && Date.now() - leaveArmedAt < LEAVE_ARM_EXPIRE_MS
@@ -1568,18 +1572,28 @@ export function GuildPanel() {
                   // Armed: warning + YES (unlocked after a short delay) / NO. Leaders are told to hand off first; the server enforces it.
                   <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Text
-                      value={guildRole(guild, wallet) === 'leader' ? `Leave ${guild.tag}? Hand leadership to someone on the MANAGE tab first.` : `Leave ${guild.tag}? You'll lose your rank and contributions. Rejoining later starts fresh.`}
+                      value={
+                        guildRole(guild, wallet) === 'leader'
+                          ? `Leave ${guild.tag}? Hand leadership to someone on the MANAGE tab first.`
+                          : leaveStage === 2
+                            ? `Last chance. This cannot be undone: your rank and ${guild.contributions?.[wallet]?.points ?? 0} points in ${guild.tag} are gone for good.`
+                            : `Leave ${guild.tag}? You'll lose your rank and contributions. Rejoining later starts fresh.`
+                      }
                       size={S(22)}
                       color={C.red}
                       align="middle-right"
                       nowrap
                       uiTransform={{ width: S(1100), height: S(46), margin: { right: S(16) } }}
                     />
-                    <Button label="YES, LEAVE" color={C.red} size={S(20)} disabled={Date.now() - leaveArmedAt < LEAVE_YES_DELAY_MS} uiTransform={{ width: S(200), height: S(46), margin: { right: S(10) } }} onClick={() => { leaveArmedAt = 0; requestGuild('leave') }} />
-                    <Button label="NO" color={C.navySoft} size={S(20)} uiTransform={{ width: S(120), height: S(46) }} onClick={() => { leaveArmedAt = 0 }} />
+                    {leaveStage === 2 ? (
+                      <Button label="LEAVE FOR GOOD" color={C.red} size={S(20)} disabled={Date.now() - leaveArmedAt < LEAVE_YES_DELAY_MS} uiTransform={{ width: S(260), height: S(46), margin: { right: S(10) } }} onClick={() => { leaveArmedAt = 0; leaveStage = 1; requestGuild('leave') }} />
+                    ) : (
+                      <Button label="YES, LEAVE" color={C.red} size={S(20)} disabled={Date.now() - leaveArmedAt < LEAVE_YES_DELAY_MS} uiTransform={{ width: S(200), height: S(46), margin: { right: S(10) } }} onClick={() => { leaveStage = 2; leaveArmedAt = Date.now() }} />
+                    )}
+                    <Button label="NO" color={C.navySoft} size={S(20)} uiTransform={{ width: S(120), height: S(46) }} onClick={() => { leaveArmedAt = 0; leaveStage = 1 }} />
                   </UiEntity>
                 ) : (
-                  <Button label="LEAVE GUILD" icon={GICON.leave} color={C.gray} textColor={C.textMuted} size={S(20)} uiTransform={{ width: S(230), height: S(46) }} onClick={() => { leaveArmedAt = Date.now() }} />
+                  <Button label="LEAVE GUILD" icon={GICON.leave} color={C.gray} textColor={C.textMuted} size={S(20)} uiTransform={{ width: S(230), height: S(46) }} onClick={() => { leaveStage = 1; leaveArmedAt = Date.now() }} />
                 )}
               </UiEntity>
             </UiEntity>
@@ -1736,7 +1750,7 @@ export function GuildPanel() {
                 color={C.textMuted}
               />
               {[0, 1].map((row) => (
-                <UiEntity key={row} uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(18) } }}>
+                <UiEntity key={row} uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(14) } }}>
                   {GUILD_TECH_KEYS.slice(row * 5, row * 5 + 5).map((key: GuildTechKey, column) => {
                     const node = guild.techTree[key]
                     if (!node) return null
@@ -1751,7 +1765,7 @@ export function GuildPanel() {
                         key={key}
                         flat
                         color={locked ? C.navySoft : C.paper2}
-                        uiTransform={{ width: S(330), height: S(430), padding: S(16), margin: { right: column === 4 ? 0 : S(17) }, alignItems: 'center', opacity: locked ? 0.7 : 1 }}
+                        uiTransform={{ width: S(330), height: S(412), padding: S(16), margin: { right: column === 4 ? 0 : S(17) }, alignItems: 'center', opacity: locked ? 0.7 : 1 }}
                       >
                         <Icon src={GUILD_TECH_ICON[key]} size={S(64)} />
                         <OutlinedText value={GUILD_TECH[key].name.toUpperCase()} size={S(26)} color={locked ? C.textMuted : C.white} uiTransform={{ margin: { top: S(4) } }} />
