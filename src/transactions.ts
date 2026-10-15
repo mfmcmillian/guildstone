@@ -336,7 +336,7 @@ export function requestDepot(action: DepotAction, items: DepotItem[] = [], amoun
       }
 
       if (action === 'storeBackpack') {
-        if (result.items > 0) flash(`DEPOSITED ${result.items} ITEMS`)
+        if (result.items > 0) flash(`${result.items} ITEMS DEPOSITED TO YOUR BANK`)
       } else {
         flash(result.items > 0 ? `SOLD ${result.items} ITEMS  +${result.coins} COINS` : 'NOTHING TO SELL')
         if (result.items > 0) playSuccessSound()
