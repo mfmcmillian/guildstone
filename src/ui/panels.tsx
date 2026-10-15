@@ -44,6 +44,7 @@ import {
   RareRaw,
   RareDropDef,
   RARE_RAWS,
+  RARE_DROPS,
   RARE_MATERIALS,
   COMBOS,
   gateMet,
@@ -160,7 +161,12 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
               const have = haveItem(id)
               const icon = id === 'coins' ? RESOURCE_INFO.coin.icon : RESOURCE_INFO[id].icon
               return (
-                <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(136), height: S(34), margin: { left: S(2), right: S(2) } }}>
+                <UiEntity
+                  key={id}
+                  uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(136), height: S(34), margin: { left: S(2), right: S(2) } }}
+                  onMouseEnter={() => { costHint = itemSource(id) }}
+                  onMouseLeave={() => { if (costHint === itemSource(id)) costHint = null }}
+                >
                   <Icon src={icon} size={S(30)} />
                   <Text value={`${compact(have)}/${compact(need)}`} size={S(20)} color={have >= need ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: S(100), height: S(34), margin: { left: S(4) } }} />
                 </UiEntity>
@@ -302,11 +308,11 @@ function SuitsTab() {
       </UiEntity>
       <SuitRow skill={suitsSkill} />
       <Text
-        value={isSetLine(suitsSkill)
+        value={costHint ?? (isSetLine(suitsSkill)
           ? 'Ether Assassin pieces are bought in the Marketplace. Each worn piece counts as one suit level.'
-          : `Craft ${SKILL_INFO[suitsSkill].name} suits here with materials and coins: the wearable is minted to your wallet. Wear it to unlock the next tier of drops in the ${SKILL_INFO[suitsSkill].zoneName}; every worn suit also adds bag space.`}
+          : `Craft ${SKILL_INFO[suitsSkill].name} suits here with materials and coins: the wearable is minted to your wallet. Wear it to unlock the next tier of drops in the ${SKILL_INFO[suitsSkill].zoneName}; every worn suit also adds bag space.`)}
         size={S(24)}
-        color={C.textMuted}
+        color={costHint ? C.gold : C.textMuted}
         uiTransform={{ width: S(1500), height: S(70), margin: { top: S(18) } }}
       />
     </UiEntity>
@@ -677,6 +683,29 @@ function craftAmountFor(out: MaterialKey, cap: number): number {
   return Number.isFinite(typed) && typed > 0 ? Math.min(typed, cap) : cap
 }
 
+/** Cost tooltip: which cost row is hovered (shown in the panel's footer line, not floating). */
+let costHint: string | null = null
+const zoneOf = (s: Skill) => SKILL_INFO[s].zoneName.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+
+/** Where an item comes from, in one line: "Hardwood: rare find in the Lumber Camp with a Lumberjack L1+ suit". */
+export function itemSource(id: ItemId | 'coins'): string {
+  if (id === 'coins') return 'Coins: sell Wood, Rock, Meat or Bone in the Bank'
+  const name = RESOURCE_INFO[id].name
+  for (const s of SKILLS) {
+    const tier = LADDER[s].findIndex(([raw]) => raw === id)
+    if (tier === 0) return `${name}: gathered by ${SKILL_INFO[s].name}s in the ${zoneOf(s)}`
+    const matTier = LADDER[s].findIndex(([, , mat]) => mat === id)
+    if (matTier >= 0) {
+      const r = RECIPES.find((x) => x.out === id)
+      const extras = r ? (Object.entries(r.extra) as Array<[MaterialKey, number]>).map(([m, n]) => ` + ${n} ${RESOURCE_INFO[m].name}`).join('') : ''
+      return `${name}: refined in the Workshop from ${r?.amount ?? 10} ${RESOURCE_INFO[LADDER[s][matTier][0]].name}${extras}`
+    }
+  }
+  const drop = RARE_DROPS[id as RareRaw]
+  if (drop) return `${name}: rare find in the ${drop.zones.map(zoneOf).join(' / ')} with ${gateText(drop.gate)}${Object.keys(drop.gate).length === 1 ? '+ suit' : ' suits'}`
+  return name
+}
+
 /** "Lumberjack L2 + Miner L2" for a rare drop's suit gate. */
 function gateText(gate: Partial<Record<Skill, number>>): string {
   const entries = Object.entries(gate) as Array<[Skill, number]>
@@ -685,10 +714,14 @@ function gateText(gate: Partial<Record<Skill, number>>): string {
 }
 
 /** One recipe input: icon, amount needed (green when covered), and what the player holds. */
-function Ingredient(props: { key?: string; icon: string; need: number; have: number; dim: boolean }) {
+function Ingredient(props: { key?: string; item: ItemId; need: number; have: number; dim: boolean }) {
   return (
-    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(280), height: S(52) }}>
-      <Icon src={props.icon} size={S(46)} uiTransform={{ flexShrink: 0 }} />
+    <UiEntity
+      uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(280), height: S(52) }}
+      onMouseEnter={() => { costHint = itemSource(props.item) }}
+      onMouseLeave={() => { if (costHint === itemSource(props.item)) costHint = null }}
+    >
+      <Icon src={RESOURCE_INFO[props.item].icon} size={S(46)} uiTransform={{ flexShrink: 0 }} />
       <Text value={`${props.need}`} size={S(28)} color={props.dim ? C.gray : props.have >= props.need ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: S(60), height: S(52), margin: { left: S(8) } }} />
       <Text value={`have ${props.have}`} size={S(22)} color={props.dim ? C.gray : C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(160), height: S(52) }} />
     </UiEntity>
@@ -731,9 +764,9 @@ export function WorkshopPanel() {
                 <OutlinedText value={RESOURCE_INFO[r.out].name.toUpperCase()} size={S(28)} color={locked ? C.gray : C.white} uiTransform={{ margin: { top: S(8) } }} />
                 <Text value={`you have ${player.materials[r.out]}`} size={S(22)} color={locked ? C.gray : C.textMuted} nowrap uiTransform={{ height: S(30) }} />
                 <Text value="MAKE 1 FROM" size={S(20)} color={locked ? C.gray : C.textMuted} nowrap uiTransform={{ height: S(26), margin: { top: S(12) } }} />
-                <Ingredient icon={RESOURCE_INFO[r.from].icon} need={r.amount} have={have} dim={locked} />
+                <Ingredient item={r.from} need={r.amount} have={have} dim={locked} />
                 {extras.map(([id, n]) => (
-                  <Ingredient key={id} icon={RESOURCE_INFO[id].icon} need={n} have={player.materials[id]} dim={locked} />
+                  <Ingredient key={id} item={id} need={n} have={player.materials[id]} dim={locked} />
                 ))}
                 {r.tier === 0 ? (
                   <Text value="Also feeds every tier recipe ->" size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(26), margin: { top: S(8) } }} />
@@ -774,10 +807,10 @@ export function WorkshopPanel() {
           })}
         </UiEntity>
         <UiEntity uiTransform={{ width: S(1000), height: S(56), alignItems: 'center', justifyContent: 'center', margin: { top: S(16) } }}>
-          {job ? (
+          {job && !costHint ? (
             <Bar value={job.elapsed / craftSecs()} color={C.orange} height={S(50)} label={`Making ${RESOURCE_INFO[job.material].name}...  ${job.remaining} left`} labelSize={S(26)} />
           ) : (
-            <Text value="Queue is empty. The workshop keeps working while you're away." size={S(24)} color={C.textMuted} nowrap />
+            <Text value={costHint ?? "Queue is empty. The workshop keeps working while you're away."} size={S(24)} color={costHint ? C.gold : C.textMuted} nowrap />
           )}
         </UiEntity>
         <Spacer />
@@ -805,11 +838,15 @@ export function WorkshopPanel() {
 }
 
 // ---------------------------------------------------------------- FORGE
-function Need(props: { key?: string; icon: string; have: number; need: number }) {
+function Need(props: { key?: string; item: ItemId; have: number; need: number }) {
   const ok = props.have >= props.need
   return (
-    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(50), margin: { bottom: S(4) } }}>
-      <Icon src={props.icon} size={S(44)} />
+    <UiEntity
+      uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(50), margin: { bottom: S(4) } }}
+      onMouseEnter={() => { costHint = itemSource(props.item) }}
+      onMouseLeave={() => { if (costHint === itemSource(props.item)) costHint = null }}
+    >
+      <Icon src={RESOURCE_INFO[props.item].icon} size={S(44)} />
       <Text value={`${props.have}/${props.need}`} size={S(26)} color={ok ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(50), margin: { left: S(8) } }} />
     </UiEntity>
   )
@@ -821,7 +858,7 @@ export function ForgePanel() {
   return (
     <Modal title="TOOL BENCH" color={C.blue} {...bigFrame(fit, 'TOOL BENCH')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
-        <Text value="Craft better tools from your materials. Each tier is permanent and adds +10% yield in that zone, on top of suits and guild bonuses." size={S(26)} color={C.textMuted} nowrap />
+        <Text value={costHint ?? 'Craft better tools from your materials. Each tier is permanent and adds +10% yield in that zone, on top of suits and guild bonuses.'} size={S(26)} color={costHint ? C.gold : C.textMuted} nowrap />
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(20) } }}>
           {SKILLS.map((s) => {
             const st = player.skills[s]
@@ -862,7 +899,7 @@ export function ForgePanel() {
                       <Text value={`Lv ${st.level}/${cost.level}`} size={S(26)} color={st.level >= cost.level ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(50), margin: { left: S(8) } }} />
                     </UiEntity>
                     {MATERIALS.filter((m) => cost.materials[m] > 0).map((m) => (
-                      <Need key={m} icon={RESOURCE_INFO[m].icon} have={player.materials[m]} need={cost.materials[m]} />
+                      <Need key={m} item={m} have={player.materials[m]} need={cost.materials[m]} />
                     ))}
                   </UiEntity>
                 ) : (
@@ -943,7 +980,7 @@ export function ShopPanel() {
                 <Text value={`OR CRAFT FROM ${craftList.map((m) => `${it.craft[m]} ${RESOURCE_INFO[m].name.toUpperCase()}`).join(' + ')}`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(24), bottom: S(6) } }} />
                 <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
                   {craftList.map((m) => (
-                    <Need key={m} icon={RESOURCE_INFO[m].icon} have={player.materials[m]} need={it.craft[m] ?? 0} />
+                    <Need key={m} item={m} have={player.materials[m]} need={it.craft[m] ?? 0} />
                   ))}
                 </UiEntity>
                 <Button
