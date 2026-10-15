@@ -14,7 +14,7 @@ let bagHover = false
 
 function CurrencyPill(props: { icon: string; value: number; color: Color4 }) {
   return (
-    <Pill uiTransform={{ height: S(72), padding: { left: S(8), right: S(30) }, margin: { bottom: S(12) } }} color={C.paper}>
+    <Pill uiTransform={{ height: S(72), padding: { left: S(8), right: S(30) }, margin: { bottom: S(12) } }} color={C.navySoft}>
       <Icon src={props.icon} size={S(60)} />
       <OutlinedText value={`${props.value}`} size={S(FONT.body + 12)} color={props.color} uiTransform={{ width: 'auto', minWidth: S(100), margin: { left: S(10), bottom: S(5) } }} align="middle-left" />
     </Pill>
