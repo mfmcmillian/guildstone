@@ -1,7 +1,7 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, FONT, TEX, SLICE_128 } from './theme'
-import { OutlinedText, Panel, Button, Icon } from './components'
+import { C, FONT } from './theme'
+import { OutlinedText, Panel, Button } from './components'
 import { isMuted, setMuted, playButtonSound } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { togglePanel, ui } from './uiState'
@@ -62,43 +62,25 @@ export function Dock() {
       }}
     >
       <Panel flat color={C.navySoft} uiTransform={{ width: S(420), padding: S(18), flexDirection: 'column' }}>
-        <UiEntity uiTransform={{ width: '100%', height: S(44), flexDirection: 'row', alignItems: 'center' }}>
-          <UiEntity uiTransform={{ width: S(44), height: S(44) }} />
-          <OutlinedText value="ANTROM AFK" size={S(FONT.body + 6)} color={C.yellow} uiTransform={{ width: S(296), height: S(40) }} />
-          {/* Settings toggle: a circle button with the quill icon; opens the small panel below the header */}
-          <UiEntity
-            uiTransform={{ width: S(44), height: S(44), alignItems: 'center', justifyContent: 'center' }}
-            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: ui.settingsOpen ? C.purple : C.paper }}
-            onMouseDown={() => {
-              playButtonSound()
-              ui.settingsOpen = !ui.settingsOpen
-            }}
-          >
-            <Icon src="images/icons/guild/act_settings.png" size={S(32)} />
-          </UiEntity>
+        <OutlinedText value="ANTROM AFK" size={S(FONT.body + 6)} color={C.yellow} uiTransform={{ width: '100%', height: S(40) }} />
+        {/* Hide the whole Antrom UI (the floating button brings it back) and a sound toggle beside it */}
+        <UiEntity uiTransform={{ width: '100%', height: S(60), flexDirection: 'row', margin: { top: S(6), bottom: S(8) } }}>
+          <Button
+            label="HIDE UI"
+            color={C.blue}
+            size={S(22)}
+            uiTransform={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, height: S(60), margin: { right: S(6) } }}
+            onClick={() => { ui.hidden = true }}
+          />
+          <Button
+            label={isMuted() ? 'SOUND: OFF' : 'SOUND: ON'}
+            color={isMuted() ? C.gray : C.green}
+            textColor={isMuted() ? C.textMuted : C.white}
+            size={S(20)}
+            uiTransform={{ width: S(150), height: S(60), minWidth: 0 }}
+            onClick={() => setMuted(!isMuted())}
+          />
         </UiEntity>
-        {ui.settingsOpen ? (
-          <Panel flat color={C.paper2} uiTransform={{ width: '100%', padding: S(14), flexDirection: 'column', margin: { top: S(6), bottom: S(8) } }}>
-            <Button
-              label={isMuted() ? 'SOUNDS: OFF' : 'SOUNDS: ON'}
-              color={isMuted() ? C.gray : C.green}
-              textColor={isMuted() ? C.textMuted : C.white}
-              size={S(20)}
-              uiTransform={{ width: '100%', height: S(60), margin: { bottom: S(8) } }}
-              onClick={() => setMuted(!isMuted())}
-            />
-            <Button
-              label="HIDE ANTROM UI"
-              color={C.blue}
-              size={S(20)}
-              uiTransform={{ width: '100%', height: S(60) }}
-              onClick={() => {
-                ui.hidden = true
-                ui.settingsOpen = false
-              }}
-            />
-          </Panel>
-        ) : null}
         <OutlinedText
           value={connecting ? connectingText : working ? `${SKILL_INFO[working].verb} - tap again to stop` : 'Pick a profession to start'}
           size={S(20)}

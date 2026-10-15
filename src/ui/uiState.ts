@@ -8,8 +8,7 @@ export const ui = {
   /** Set once after login when the server granted away progress; drives the "while you were away" panel. */
   away: null as AwaySummary | null,
   /** Wearable settings: hide every Antrom element except the small SHOW button. */
-  hidden: false,
-  settingsOpen: false
+  hidden: false
 }
 
 export function openPanel(id: PanelId) {
