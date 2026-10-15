@@ -1,6 +1,6 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, FONT, TEX, SLICE_128 } from './theme'
+import { C, FONT, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Pill, Icon, Bar, Button, Panel } from './components'
 import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, fmtRate, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung, MASTERY_MAX, masteryXpForLevel, masteryYieldPct, masteryDoubleChance, MASTERY_ENABLED } from '../state'
 import { togglePanel, ui } from './uiState'
@@ -8,7 +8,7 @@ import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { bankBagNow, resetGuildTab } from './panels'
 import { playButtonSound } from '../uiSounds'
-import { nextStep, showGuild } from './guide'
+import { nextStep, showGuild, stepTarget } from './guide'
 
 let bagHover = false
 
@@ -155,7 +155,7 @@ export function Hud() {
               {/* The backpack: what you are carrying right now. Tap the bag to bank it in place (the BANK button opens the panel). */}
               <UiEntity
                 uiTransform={{ width: S(104), height: S(104), alignItems: 'center', justifyContent: 'center', margin: { right: S(10) } }}
-                uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: bagHover ? C.blue : C.navySoft }}
+                uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: bagHover ? C.blue : stepTarget() === 'bag' ? glow(C.blue) : C.navySoft }}
                 onMouseEnter={() => { bagHover = true }}
                 onMouseLeave={() => { bagHover = false }}
                 onMouseDown={() => {
@@ -195,7 +195,7 @@ export function Hud() {
               size={S(FONT.button + 10)}
             />
           ) : null}
-          <Button label="PROFESSIONS" icon="images/icons/lumberjack.png" color={C.blue} onClick={() => togglePanel('skills')} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />
+          <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' ? glow(C.blue) : C.blue} onClick={() => togglePanel('skills')} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />
         </UiEntity>
       )}
     </UiEntity>

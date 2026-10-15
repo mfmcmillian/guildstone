@@ -33,9 +33,12 @@ export const showShop = () => player.berries > 0 || anyBoostActive()
 export const showGuild = () => !!player.guild || topLevel() >= 5
 
 // --- What next -------------------------------------------------------------------------------------
+export type StepTarget = 'bag' | 'workshop' | 'forge' | 'shop' | 'professions'
 export interface NextStep {
   text: string
   color: Color4
+  /** The control to light up for this step (see glow() in theme.ts). */
+  target?: StepTarget
 }
 
 export function nextStep(): NextStep | null {
@@ -47,17 +50,17 @@ export function nextStep(): NextStep | null {
   const cap = backpackCap()
 
   if (!working) return { text: 'Pick a profession on the right to start gathering', color: C.yellow }
-  if (bag >= cap) return { text: `Backpack full: tap the bag to bank it${stations ? '' : ` at ${campHint()}`}`, color: C.red }
-  if (bag >= cap * 0.8) return { text: `Backpack almost full: tap the bag to bank it soon`, color: C.yellow }
+  if (bag >= cap) return { text: `Backpack full: tap the bag to bank it${stations ? '' : ` at ${campHint()}`}`, color: C.red, target: 'bag' }
+  if (bag >= cap * 0.8) return { text: `Backpack almost full: tap the bag to bank it soon`, color: C.yellow, target: 'bag' }
   const refine = refineReady()
   if (refine && !anyTool()) {
     const info = SKILL_INFO[refine]
-    return { text: `Open the ${at('WORKSHOP')}: 10 ${RESOURCE_INFO[info.resource].name} -> 1 ${RESOURCE_INFO[info.material].name}`, color: C.yellow }
+    return { text: `Open the ${at('WORKSHOP')}: 10 ${RESOURCE_INFO[info.resource].name} -> 1 ${RESOURCE_INFO[info.material].name}`, color: C.yellow, target: 'workshop' }
   }
   const upgrade = upgradeReady()
-  if (upgrade) return { text: `You can craft your ${TOOL_NAME[upgrade]} at the ${at('TOOL BENCH')}: +10% yield`, color: C.green }
-  if (topLevel() >= 10 && !anySuit()) return { text: 'Suits unlock rare drops: PROFESSIONS -> SUITS', color: C.yellow }
-  if (player.berries >= 5 && !anyBoostActive()) return { text: `${player.berries} berries: grab a 10-minute boost in the ${at('SHOP')}`, color: C.yellow }
+  if (upgrade) return { text: `You can craft your ${TOOL_NAME[upgrade]} at the ${at('TOOL BENCH')}: +10% yield`, color: C.green, target: 'forge' }
+  if (topLevel() >= 10 && !anySuit()) return { text: 'Suits unlock rare drops: PROFESSIONS -> SUITS', color: C.yellow, target: 'professions' }
+  if (player.berries >= 5 && !anyBoostActive()) return { text: `${player.berries} berries: grab a 10-minute boost in the ${at('SHOP')}`, color: C.yellow, target: 'shop' }
   return null
 }
 
@@ -124,3 +127,6 @@ export function WelcomePanel() {
     </Modal>
   )
 }
+
+/** The control the helper is pointing at right now (one at a time, so it never becomes a light show). */
+export const stepTarget = (): StepTarget | null => nextStep()?.target ?? null

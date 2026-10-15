@@ -117,7 +117,8 @@ export function Button(props: Keyed & {
 }) {
   const disabled = props.disabled ?? false
   const color = disabled ? C.gray : props.color ?? C.green
-  const pressId = `${props.key ?? ''}:${props.label}:${color.r}:${color.g}:${color.b}`
+  // Keyed buttons dip by key (their colour may animate, e.g. glow()); unkeyed ones fall back to label + colour.
+  const pressId = props.key ? `${props.key}:${props.label}` : `${props.label}:${color.r}:${color.g}:${color.b}`
   const pressed = !disabled && (pressedUntil[pressId] ?? 0) > Date.now()
   return (
     <UiEntity

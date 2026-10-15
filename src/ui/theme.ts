@@ -48,3 +48,10 @@ export const FONT = {
 
 // Screen zones reserved by the Decentraland explorer HUD
 export const SAFE = { topLeftW: 330, topLeftH: 84, bottomLeftW: 370, bottomLeftH: 170 }
+
+// Helper pulse: the UI re-renders every frame, so a time-driven blend is all an attention cue needs.
+const WHITE = Color4.create(1, 1, 1, 1)
+/** 0..1 sine, one beat per `periodMs`. */
+export const pulse = (periodMs = 1000) => 0.5 + 0.5 * Math.sin(((Date.now() % periodMs) / periodMs) * Math.PI * 2)
+/** `color` breathing toward white. Use on the one control the helper line is pointing at. */
+export const glow = (color: Color4): Color4 => Color4.lerp(color, WHITE, 0.4 * pulse())
