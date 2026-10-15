@@ -118,9 +118,9 @@ export function Hud() {
       {!menuOpen ? (() => {
         const step = nextStep()
         return step ? (
-          <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 206 : 40), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
-            <Panel flat color={C.navySoft} uiTransform={{ width: S(980), height: S(52), flexShrink: 0, alignItems: 'center', justifyContent: 'center', padding: { left: S(20), right: S(20) } }}>
-              <OutlinedText value={step.text} size={S(24)} color={step.color} uiTransform={{ width: S(940), height: S(40) }} />
+          <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 150 : 40), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+            <Panel flat color={C.navySoft} uiTransform={{ width: S(760), height: S(44), flexShrink: 0, alignItems: 'center', justifyContent: 'center', padding: { left: S(16), right: S(16) } }}>
+              <OutlinedText value={step.text} size={S(21)} color={step.color} uiTransform={{ width: S(728), height: S(34) }} />
             </Panel>
           </UiEntity>
         ) : null
@@ -128,7 +128,7 @@ export function Hud() {
 
       {/* Toast */}
       {toast ? (
-        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 272 : 104), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 204 : 96), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
           <OutlinedText value={toast} size={S(FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(800) }} />
         </UiEntity>
       ) : null}
