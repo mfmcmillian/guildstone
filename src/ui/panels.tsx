@@ -18,10 +18,6 @@ import {
   backpackGrowthPct,
   suitBag,
   xpForLevel,
-  MASTERY_MAX,
-  masteryXpForLevel,
-  masteryYieldPct,
-  masteryDoubleChance,
   nextMasteryMilestone,
   RECIPES,
   canCraft,
@@ -69,7 +65,7 @@ import {
   guildRole,
   guildSellMult,
   craftSecs,
-  boostMinutes, MAX_LEVEL, MASTERY_ENABLED
+  boostMinutes, MAX_LEVEL
 } from '../state'
 import { closePanel, openPanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
