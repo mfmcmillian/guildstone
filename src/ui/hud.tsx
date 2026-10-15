@@ -7,6 +7,7 @@ import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { bankBagNow, resetGuildTab } from './panels'
+import { openSite } from '../links'
 import { playButtonSound } from '../uiSounds'
 import { nextStep, showGuild, stepTarget } from './guide'
 
@@ -128,11 +129,11 @@ export function Hud() {
         <UiEntity
           uiTransform={{
             positionType: 'absolute',
-            position: { bottom: canvas.bottom + S(34), left: '25%' },
+            position: { bottom: canvas.bottom + S(8), left: '25%' },
             width: '50%',
-            height: S(145),
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'flex-end'
           }}
         >
           <Panel
@@ -168,6 +169,8 @@ export function Hud() {
               </UiEntity>
             </UiEntity>
           </Panel>
+          {/* Wiki: guildstone.dev explains suits, materials and guilds. The client asks before opening the link. */}
+          <Button key="hud-wiki" label="WIKI" color={C.navySoft} textColor={C.yellow} size={S(18)} uiTransform={{ width: S(200), height: S(38), minWidth: 0, margin: { top: S(4) } }} onClick={() => openSite()} />
         </UiEntity>
       )}
 
