@@ -14,6 +14,9 @@ export const ASSASSIN_COLLECTION = 'urn:decentraland:matic:collections-v2:0x0bf1
 export interface SuitPiece {
   urn: string
   name: string
+  /** Set pieces only: marketplace rarity and list price, shown on the card so the buy order is obvious. */
+  rarity?: string
+  mana?: number
 }
 
 /** Per profession, 4 entries. For tiered lines index = level−1; for set lines index = piece. */
@@ -21,11 +24,13 @@ const SUIT_PIECES: Record<Skill, SuitPiece[]> = {
   butcher: [0, 3, 6, 9].map((id, i) => ({ urn: `${SUIT_COLLECTION}:${id}`, name: `Butcher L${i + 1}` })),
   lumberjack: [1, 4, 7, 10].map((id, i) => ({ urn: `${SUIT_COLLECTION}:${id}`, name: `Lumberjack L${i + 1}` })),
   miner: [2, 5, 8, 11].map((id, i) => ({ urn: `${SUIT_COLLECTION}:${id}`, name: `Miner L${i + 1}` })),
+  // Cheapest first. The set has no order (suit level = pieces worn), so list it the way a player should buy.
+  // Prices are marketplace list prices as of 2026-10-14.
   assassin: [
-    { urn: `${ASSASSIN_COLLECTION}:0`, name: 'Ether Assassin Boots' },
-    { urn: `${ASSASSIN_COLLECTION}:1`, name: 'Ether Assassin Gloves' },
-    { urn: `${ASSASSIN_COLLECTION}:3`, name: 'Ether Assassin Pants' },
-    { urn: `${ASSASSIN_COLLECTION}:2`, name: 'Ether Assassin Armor' }
+    { urn: `${ASSASSIN_COLLECTION}:1`, name: 'Ether Assassin Gloves', rarity: 'Rare', mana: 3 },
+    { urn: `${ASSASSIN_COLLECTION}:2`, name: 'Ether Assassin Armor', rarity: 'Epic', mana: 6.5 },
+    { urn: `${ASSASSIN_COLLECTION}:3`, name: 'Ether Assassin Pants', rarity: 'Legendary', mana: 19 },
+    { urn: `${ASSASSIN_COLLECTION}:0`, name: 'Ether Assassin Boots', rarity: 'Exotic', mana: 37.5 }
   ]
 }
 

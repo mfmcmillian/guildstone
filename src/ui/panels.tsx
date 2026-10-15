@@ -144,7 +144,8 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
         uiTransform={{ margin: { top: S(10) } }}
       />
       <Text
-        value={set ? `Piece ${level} of 4` : `Tier ${level} drops  •  +${SUIT_CAP[level]} bag`}
+        // Set pieces: rarity + list price so the cheapest-first order explains itself; wearing any N pieces is suit level N.
+        value={set ? `${(piece.rarity ?? '').toUpperCase()}  •  ${piece.mana ?? '?'} MANA` : `Tier ${level} drops  •  +${SUIT_CAP[level]} bag`}
         size={S(22)}
         color={owned ? C.text : C.textMuted}
         nowrap
@@ -200,7 +201,12 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
           onClick={() => (set ? toggleSet(true) : requestEquipSuit(skill, level))}
         />
       ) : (
-        <Text value={checking ? 'CHECKING…' : set ? 'NOT OWNED  •  buy it in the Marketplace' : 'NOT OWNED'} size={S(20)} color={C.textMuted} uiTransform={{ height: S(64) }} />
+        <Text
+          value={checking ? 'CHECKING…' : set ? (index === 0 ? 'START HERE  •  cheapest piece in the Marketplace' : `NOT OWNED  •  any ${level} pieces worn = suit L${level}`) : 'NOT OWNED'}
+          size={S(20)}
+          color={set && index === 0 ? C.greenDark : C.textMuted}
+          uiTransform={{ height: S(64) }}
+        />
       )}
     </UiEntity>
   )
