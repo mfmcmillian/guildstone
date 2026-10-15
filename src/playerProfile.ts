@@ -1,6 +1,7 @@
 import { engine, executeTask, PlayerIdentityData, RealmInfo } from '@dcl/sdk/ecs'
 import { getPlayer } from '@dcl/sdk/players'
 import { signedFetch } from '~system/SignedFetch'
+import { getUserData } from '~system/UserIdentity'
 import { isServer } from '@dcl/sdk/network'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -153,6 +154,29 @@ function resolveLocalPlayer(): ResolvedPlayer | null {
 
   const walletAddress = Array.from(walletAddresses)[0]
   return getPlayer({ userId: walletAddress })
+}
+
+interface IdentitySnapshot {
+  userId: string
+  name: string
+  isGuest: boolean
+}
+
+// Player entity / comms first (what the deployed ring has always used). If neither has the
+// identity yet, ask the client directly: it knows who is logged in from the moment it launches,
+// independent of the comms room. In the local preview comms can take 1-2 minutes to connect.
+async function resolveIdentity(): Promise<IdentitySnapshot | null> {
+  const scenePlayer = resolveLocalPlayer()
+  if (scenePlayer?.userId) return { userId: scenePlayer.userId, name: scenePlayer.name, isGuest: scenePlayer.isGuest }
+  try {
+    const { data } = await getUserData({})
+    if (data?.userId && /^0x[a-fA-F0-9]{40}$/.test(data.userId)) {
+      return { userId: data.userId, name: data.displayName, isGuest: !data.hasConnectedWeb3 }
+    }
+  } catch {
+    // Older/unsupported client: fall through and keep polling the player entity.
+  }
+  return null
 }
 
 function profileUrl(walletAddress: string): string {
@@ -430,8 +454,12 @@ export async function loadOrCreatePlayerProfile(): Promise<void> {
   profileState.error = null
 
   try {
-    const scenePlayer = resolveLocalPlayer()
-    if (!scenePlayer?.userId) throw new Error('Client player identity is not ready')
+    const scenePlayer = await resolveIdentity()
+    if (!scenePlayer) {
+      // Not an error: the client has no identity for us yet. Go back to idle and poll again.
+      profileState.status = 'idle'
+      return
+    }
 
     const walletAddress = scenePlayer.userId.toLowerCase()
     const displayName = scenePlayer.name || 'Adventurer'
@@ -483,7 +511,6 @@ export function initializePlayerProfile() {
     elapsed += dt
     if (elapsed < 0.5) return
     elapsed = 0
-    if (!resolveLocalPlayer()) return
     executeTask(loadOrCreatePlayerProfile)
   })
 }
