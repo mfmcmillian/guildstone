@@ -43,6 +43,12 @@ export function Dock() {
   if (ui.open !== null) return null
   const working = activeSkill()
   const connecting = profileState.status !== 'ready'
+  const connectingText =
+    profileState.status === 'guest'
+      ? 'Guest session - sign in with a wallet to play'
+      : profileState.status === 'error'
+        ? 'Server unreachable - retrying...'
+        : 'Connecting to your profile...'
 
   return (
     // Right column, in the band between the currency pills (top-right) and the GUILD/PROFESSIONS buttons
@@ -94,7 +100,7 @@ export function Dock() {
           </Panel>
         ) : null}
         <OutlinedText
-          value={connecting ? 'Connecting to your profile...' : working ? `${SKILL_INFO[working].verb} - tap again to stop` : 'Pick a profession to start'}
+          value={connecting ? connectingText : working ? `${SKILL_INFO[working].verb} - tap again to stop` : 'Pick a profession to start'}
           size={S(20)}
           color={working ? C.white : C.yellow}
           uiTransform={{ height: S(28), margin: { bottom: S(8) } }}
