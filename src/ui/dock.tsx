@@ -37,6 +37,9 @@ export function ShowUiButton() {
  * Wearable-only dock (top-left): the stations the land scene puts in the world become buttons, and the
  * zones become a profession picker. Hidden while a panel is open so modals get the full screen.
  */
+/** 'LUMBER CAMP' -> 'Lumber Camp' for sentence use. */
+const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+
 export function Dock() {
   setScale(hudScale())
   const canvas = getCanvas()
@@ -45,9 +48,9 @@ export function Dock() {
   const connecting = profileState.status !== 'ready'
   const connectingText =
     profileState.status === 'guest'
-      ? 'Guest session - sign in with a wallet to play'
+      ? 'Guest session. Sign in with a wallet to play'
       : profileState.status === 'error'
-        ? 'Server unreachable - retrying...'
+        ? 'Server unreachable, retrying...'
         : 'Connecting to your profile...'
 
   return (
@@ -82,7 +85,7 @@ export function Dock() {
           />
         </UiEntity>
         <OutlinedText
-          value={connecting ? connectingText : working ? `${SKILL_INFO[working].verb} - tap again to stop` : 'Pick a profession to start'}
+          value={connecting ? connectingText : working ? `${SKILL_INFO[working].verb} in the ${titleCase(SKILL_INFO[working].zoneName)}. Tap again to stop` : 'Pick a profession to enter its zone'}
           size={S(20)}
           color={working ? C.white : C.yellow}
           uiTransform={{ height: S(28), margin: { bottom: S(8) } }}
