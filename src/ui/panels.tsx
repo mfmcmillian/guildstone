@@ -563,17 +563,21 @@ function InventoryTile(props: { key?: string; item: ItemId; amount: number; sell
   )
 }
 
-/** Confirmation card for one stack: sell 10, half or all, or back out. */
+/** Typed sell amount per item; empty means "all". */
+const sellAmounts: Partial<Record<string, string>> = {}
+
+/** Confirmation card for one stack: type an amount (or HALF / ALL), see the coins, sell, or back out. */
 function SellConfirm(props: { item: ItemId }) {
   const item = props.item
   const have = storedAmount(item)
   const sellable = DEPOT_ITEMS.includes(item)
   const each = RESOURCE_INFO[item].value * guildSellMult()
   const coinsFor = (n: number) => Math.round(n * each)
-  const options = [10, Math.floor(have / 2), have].filter((n, i, all) => n > 0 && all.indexOf(n) === i)
-  const label = (n: number) => (n === have ? 'ALL' : n === Math.floor(have / 2) ? 'HALF' : `${n}`)
+  const typed = parseInt(sellAmounts[item] ?? '', 10)
+  const amount = Number.isFinite(typed) && typed > 0 ? Math.min(typed, have) : have
   const sell = (n: number) => {
     requestDepot('sellStorage', [item], n === have ? undefined : n)
+    sellAmounts[item] = ''
     depotSelling = null
   }
   return (
@@ -584,20 +588,33 @@ function SellConfirm(props: { item: ItemId }) {
       {sellable ? (
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
           <Text value={`Sells for ${Math.round(each * 100) / 100} coins each${guildSellMult() > 1 ? '  (guild Merchant bonus included)' : ''}`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(4) } }} />
-          <Text value="HOW MANY DO YOU WANT TO SELL?" size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(40) } }} />
-          <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(14) } }}>
-            {options.map((n) => (
-              <Button
-                key={`${item}-${n}`}
-                label={`SELL ${label(n)}  (+${coinsFor(n)})`}
-                icon={RESOURCE_INFO.coin.icon}
-                color={n === have ? C.orange : C.green}
-                size={S(26)}
-                uiTransform={{ width: S(330), height: S(88), margin: { left: S(8), right: S(8) } }}
-                onClick={() => sell(n)}
-              />
-            ))}
+          <Text value="HOW MANY DO YOU WANT TO SELL?" size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(30) } }} />
+          {/* Type a number (empty = all), or HALF / ALL to fill it in; the SELL button shows the coins. */}
+          <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(12) } }}>
+            <Input
+              value={sellAmounts[item] ?? ''}
+              placeholder={`${have}`}
+              fontSize={S(30)}
+              color={C.text}
+              textAlign="middle-center"
+              uiTransform={{ width: S(220), height: S(72), margin: { right: S(10) } }}
+              onChange={(value) => {
+                const digits = value.replace(/[^0-9]/g, '').slice(0, 6)
+                sellAmounts[item] = digits && parseInt(digits, 10) > have ? `${have}` : digits
+              }}
+            />
+            <Button key={`${item}-half`} label="HALF" color={C.navySoft} size={S(24)} disabled={have < 2} uiTransform={{ width: S(140), height: S(72), minWidth: 0, margin: { right: S(8) } }} onClick={() => { sellAmounts[item] = `${Math.floor(have / 2)}` }} />
+            <Button key={`${item}-all`} label="ALL" color={C.navySoft} size={S(24)} uiTransform={{ width: S(140), height: S(72), minWidth: 0 }} onClick={() => { sellAmounts[item] = `${have}` }} />
           </UiEntity>
+          <Button
+            key={`${item}-sell`}
+            label={`SELL ${amount === have ? 'ALL' : amount}  (+${coinsFor(amount)})`}
+            icon={RESOURCE_INFO.coin.icon}
+            color={amount === have ? C.orange : C.green}
+            size={S(28)}
+            uiTransform={{ width: S(460), height: S(88), margin: { top: S(14) } }}
+            onClick={() => sell(amount)}
+          />
           <Text value="Selling is permanent. Keep some for crafting and guild donations." size={S(22)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(18) } }} />
         </UiEntity>
       ) : (
