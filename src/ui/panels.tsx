@@ -485,13 +485,20 @@ let depotDeposit: Partial<Record<BaseResource, number>> | null = null
 let depotVisitBanked = false
 
 /** HUD bag icon and dock button both land here. */
-export function openStorage() {
+/** Tapping the HUD bag banks the backpack on the spot, without opening the Bank panel. */
+let bagBankBusyUntil = 0
+export function bankBagNow() {
   if (!ringStationsEnabled()) {
     flash(`YOUR STORAGE IS AT ${campHint().toUpperCase()}`)
     return
   }
-  depotSelling = null
-  openPanel('bank')
+  if (backpackCount() <= 0) {
+    flash('BACKPACK IS EMPTY')
+    return
+  }
+  if (Date.now() < bagBankBusyUntil) return
+  bagBankBusyUntil = Date.now() + 1500
+  requestDepot('storeBackpack')
 }
 
 function storedAmount(item: DepotItem): number {

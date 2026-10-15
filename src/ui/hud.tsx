@@ -6,7 +6,7 @@ import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_S
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
-import { openStorage } from './panels'
+import { bankBagNow } from './panels'
 import { playButtonSound } from '../uiSounds'
 import { nextStep, showGuild } from './guide'
 
@@ -152,7 +152,7 @@ export function Hud() {
           >
             {full ? <OutlinedText value={ringStationsEnabled() ? "BACKPACK FULL - TAP THE BAG TO BANK IT!" : `BACKPACK FULL - BANK IT AT ${campHint().toUpperCase()}!`} size={S(FONT.body + 2)} color={C.red} uiTransform={{ margin: { bottom: S(4) } }} /> : null}
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              {/* The backpack: what you are carrying right now. Tap the bag to bank it. */}
+              {/* The backpack: what you are carrying right now. Tap the bag to bank it in place (the BANK button opens the panel). */}
               <UiEntity
                 uiTransform={{ width: S(104), height: S(104), alignItems: 'center', justifyContent: 'center', margin: { right: S(10) } }}
                 uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: bagHover ? C.blue : C.navySoft }}
@@ -160,7 +160,7 @@ export function Hud() {
                 onMouseLeave={() => { bagHover = false }}
                 onMouseDown={() => {
                   playButtonSound()
-                  openStorage()
+                  bankBagNow()
                 }}
               >
                 <Icon src="images/icons/backpack.png" size={S(90)} />
