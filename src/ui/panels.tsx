@@ -898,9 +898,9 @@ export function ForgePanel() {
 // ---------------------------------------------------------------- BERRY SHOP
 // Boosts can be bought with Berries or crafted from materials (mirrors the server's AFK_BOOSTS).
 const SHOP_ITEMS = [
-  { name: 'RATION', desc: '+50% gather', icon: 'images/icons/meat.png', price: 5, craft: { jerky: 20 } as Partial<Record<Material, number>>, boost: 'ration' as const },
-  { name: 'LUCKY TOOLS', desc: '2x click drops', icon: 'images/icons/lumberjack.png', price: 8, craft: { bonedust: 20 } as Partial<Record<Material, number>>, boost: 'lucky' as const },
-  { name: 'BIG BACKPACK', desc: '+100 capacity', icon: 'images/icons/backpack.png', price: 20, craft: { plank: 15, brick: 15 } as Partial<Record<Material, number>>, boost: 'bigBag' as const }
+  { name: 'RATION', desc: '+50% gather', icon: 'images/icons/meat.png', price: 5, coins: 250, craft: { jerky: 20 } as Partial<Record<Material, number>>, boost: 'ration' as const },
+  { name: 'LUCKY TOOLS', desc: '2x click drops', icon: 'images/icons/lumberjack.png', price: 8, coins: 400, craft: { bonedust: 20 } as Partial<Record<Material, number>>, boost: 'lucky' as const },
+  { name: 'BIG BACKPACK', desc: '+100 capacity', icon: 'images/icons/backpack.png', price: 20, coins: 750, craft: { plank: 15, brick: 15 } as Partial<Record<Material, number>>, boost: 'bigBag' as const }
 ]
 
 /** The boost currently running, if any (only one can be active at a time). */
@@ -936,7 +936,7 @@ export function ShopPanel() {
           {SHOP_ITEMS.map((it) => {
             const isActive = active?.item.boost === it.boost
             const blocked = active !== null
-            const ok = !blocked && player.berries >= it.price
+            const ok = !blocked && player.berries >= it.price && player.coins >= it.coins
             const craftList = MATERIALS.filter((m) => (it.craft[m] ?? 0) > 0)
             const craftOk = !blocked && craftList.every((m) => player.materials[m] >= (it.craft[m] ?? 0))
             return (
@@ -946,17 +946,25 @@ export function ShopPanel() {
                 <Text value={isActive ? `ACTIVE  •  ${minutesLeft} min left` : `${it.desc} for ${boostMinutes()} min`} size={S(28)} color={isActive ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(38), margin: { top: S(4) } }} />
                 <Text value={!isActive && boostMinutes() > 10 ? 'Extended by guild Quartermaster' : ' '} size={S(22)} color={C.greenDark} nowrap uiTransform={{ height: S(30) }} />
                 <Spacer />
-                <Text value="BUY WITH BERRIES" size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { bottom: S(6) } }} />
+                <Text value="BUY WITH BERRIES + COINS" size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { bottom: S(6) } }} />
                 <Button
-                  label={`${it.price}`}
+                  key={`buy-${it.boost}`}
+                  label={`${it.price}  +  ${it.coins}`}
                   icon={RESOURCE_INFO.berry.icon}
                   color={C.purple}
                   disabled={!ok}
-                  size={S(34)}
-                  uiTransform={{ width: S(300), height: S(84) }}
+                  size={S(32)}
+                  uiTransform={{ width: S(360), height: S(84) }}
                   onClick={() => requestBoost(it.boost)}
                 />
-                <Text value={`OR CRAFT FROM ${craftList.map((m) => `${it.craft[m]} ${RESOURCE_INFO[m].name.toUpperCase()}`).join(' + ')}`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(24), bottom: S(6) } }} />
+                <Text
+                  value={!blocked && player.berries >= it.price && player.coins < it.coins ? `need ${it.coins - player.coins} more coins` : `${it.price} berries + ${it.coins} coins`}
+                  size={S(20)}
+                  color={!blocked && player.berries >= it.price && player.coins < it.coins ? C.red : C.textMuted}
+                  nowrap
+                  uiTransform={{ height: S(28), margin: { top: S(4) } }}
+                />
+                <Text value={`OR CRAFT FROM ${craftList.map((m) => `${it.craft[m]} ${RESOURCE_INFO[m].name.toUpperCase()}`).join(' + ')}  (no coins)`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(16), bottom: S(6) } }} />
                 <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center' }}>
                   {craftList.map((m) => (
                     <Need key={m} item={m} have={player.materials[m]} need={it.craft[m] ?? 0} />

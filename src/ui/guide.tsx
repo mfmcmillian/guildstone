@@ -60,7 +60,7 @@ export function nextStep(): NextStep | null {
   const upgrade = upgradeReady()
   if (upgrade) return { text: `You can craft your ${TOOL_NAME[upgrade]} at the ${at('TOOL BENCH')}: +10% yield`, color: C.green, target: 'forge' }
   if (topLevel() >= 10 && !anySuit()) return { text: 'Suits unlock rare drops: PROFESSIONS -> SUITS', color: C.yellow, target: 'professions' }
-  if (player.berries >= 5 && !anyBoostActive()) return { text: `${player.berries} berries: grab a 10-minute boost in the ${at('SHOP')}`, color: C.yellow, target: 'shop' }
+  if (player.berries >= 5 && player.coins >= 250 && !anyBoostActive()) return { text: `${player.berries} berries: grab a 10-minute boost in the ${at('SHOP')}`, color: C.yellow, target: 'shop' }
   return null
 }
 
