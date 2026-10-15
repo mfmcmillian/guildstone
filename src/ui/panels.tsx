@@ -318,7 +318,7 @@ let expandedSkill: Skill | null = null
 /** One box in the unlock track: top line (level or heading), bottom line (what it gives). */
 function LadderChip(props: { key?: string; top: string; bottom: string; tone: 'reached' | 'next' | 'locked'; width?: number }) {
   const bg = props.tone === 'reached' ? C.greenDark : props.tone === 'next' ? C.yellow : C.navySoft
-  const fg = props.tone === 'locked' ? C.textMuted : C.white
+  const fg = props.tone === 'locked' ? C.textMuted : props.tone === 'next' ? C.text : C.white
   return (
     <UiEntity
       uiTransform={{ width: S(props.width ?? 200), height: S(84), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(4), right: S(4) } }}
