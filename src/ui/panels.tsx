@@ -791,18 +791,18 @@ export function WorkshopPanel() {
         </UiEntity>
         <Spacer />
         {/* Combo rares are never refined here, so this is the one place that says where they come from. */}
-        <Panel flat color={C.navySoft} uiTransform={{ width: S(CONTENT_W), height: S(230), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24) } }}>
-          <UiEntity uiTransform={{ flexDirection: 'column', width: S(300), flexShrink: 0, margin: { right: S(16) } }}>
-            <OutlinedText value="SPECIAL FINDS" size={S(28)} color={C.yellow} align="middle-left" />
-            <Text value="Not refined here: they drop in the zones when you wear the right suits, and go straight into suit recipes." size={S(20)} color={C.gray} align="middle-left" uiTransform={{ height: S(110) }} />
+        <Panel flat color={C.navySoft} uiTransform={{ width: S(CONTENT_W), height: S(260), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24) }, margin: { bottom: S(30) } }}>
+          <UiEntity uiTransform={{ flexDirection: 'column', width: S(320), flexShrink: 0, margin: { right: S(16) } }}>
+            <OutlinedText value="SPECIAL FINDS" size={S(34)} color={C.yellow} align="middle-left" />
+            <Text value="Not refined here: they drop in the zones when you wear the right suits, and go straight into suit recipes." size={S(23)} color={C.gray} align="middle-left" uiTransform={{ height: S(130) }} />
           </UiEntity>
-          <UiEntity uiTransform={{ flexDirection: 'row', flexWrap: 'wrap', width: S(1340) }}>
+          <UiEntity uiTransform={{ flexDirection: 'row', flexWrap: 'wrap', width: S(1336) }}>
             {(Object.entries(COMBOS) as Array<[RareRaw, RareDropDef]>).map(([id, def]) => (
-              <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(440), height: S(64), margin: { right: S(6), bottom: S(2) } }}>
-                <Icon src={RESOURCE_INFO[id].icon} size={S(52)} uiTransform={{ flexShrink: 0 }} />
-                <UiEntity uiTransform={{ flexDirection: 'column', width: S(380), margin: { left: S(8) } }}>
-                  <Text value={def.name} size={S(22)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(28) }} />
-                  <Text value={`Wear ${gateText(def.gate)}`} size={S(20)} color={C.gray} align="middle-left" nowrap uiTransform={{ height: S(26) }} />
+              <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(440), height: S(80), margin: { right: S(4), bottom: S(4) } }}>
+                <Icon src={RESOURCE_INFO[id].icon} size={S(60)} uiTransform={{ flexShrink: 0 }} />
+                <UiEntity uiTransform={{ flexDirection: 'column', width: S(372), margin: { left: S(8) } }}>
+                  <Text value={def.name} size={S(27)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
+                  <Text value={`Wear ${gateText(def.gate)}`} size={S(23)} color={C.gray} align="middle-left" nowrap uiTransform={{ height: S(30) }} />
                 </UiEntity>
               </UiEntity>
             ))}
