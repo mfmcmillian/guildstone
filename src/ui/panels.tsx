@@ -2056,7 +2056,7 @@ export function AwayPanel() {
   ]
   const tile = { width: S(548), height: S(620), alignItems: 'center' as const, padding: S(30) }
   return (
-    <Modal title={title} color={C.green} {...bigFrame(fit, title)} onClose={closePanel}>
+    <Modal title={title} color={C.green} {...bigFrame(fit, title, 'away')} onClose={closePanel}>
       <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', padding: { top: S(10) } }}>
         <OutlinedText value={`YOUR ${info.name.toUpperCase()} KEPT WORKING FOR ${formatAway(away.elapsed).toUpperCase()}`} size={S(40)} color={C.white} />
         <Text value="Everything below is already in your Bank." size={S(26)} color={C.textMuted} nowrap uiTransform={{ margin: { top: S(6) } }} />

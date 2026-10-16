@@ -4,10 +4,22 @@ import { engine, InputAction, PrimaryPointerInfo, UiCanvasInformation, inputSyst
  * Drag-to-move for the big modal windows. Mouse-down on the title tab arms a drag; a system then follows
  * PrimaryPointerInfo.screenCoordinates until the pointer is released. Offsets are session-only and in canvas pixels.
  */
-export type DragId = 'guild' | 'bank' | 'workshop' | 'forge' | 'shop' | 'skills'
+export type DragId = 'guild' | 'bank' | 'workshop' | 'forge' | 'shop' | 'skills' | 'away'
 
 type Offset = { dx: number; dy: number }
-export const dragOffset: Record<DragId, Offset> = { guild: { dx: 0, dy: 0 }, bank: { dx: 0, dy: 0 }, workshop: { dx: 0, dy: 0 }, forge: { dx: 0, dy: 0 }, shop: { dx: 0, dy: 0 }, skills: { dx: 0, dy: 0 } }
+export const dragOffset: Record<DragId, Offset> = {
+  guild: { dx: 0, dy: 0 },
+  bank: { dx: 0, dy: 0 },
+  workshop: { dx: 0, dy: 0 },
+  forge: { dx: 0, dy: 0 },
+  shop: { dx: 0, dy: 0 },
+  skills: { dx: 0, dy: 0 },
+  away: { dx: 0, dy: 0 }
+}
+
+/** Two presses on the same title tab within this window snap it back to centre. */
+const DOUBLE_TAP_MS = 350
+let lastTap: { id: DragId; at: number } | null = null
 
 let active: { id: DragId; startX: number; startY: number; baseDx: number; baseDy: number } | null = null
 let logged = false
@@ -22,6 +34,14 @@ function pointer(): { x: number; y: number } | null {
 }
 
 export function startDrag(id: DragId) {
+  const now = Date.now()
+  if (lastTap && lastTap.id === id && now - lastTap.at < DOUBLE_TAP_MS) {
+    lastTap = null
+    active = null
+    resetDrag(id)
+    return
+  }
+  lastTap = { id, at: now }
   const p = pointer()
   if (!p) {
     if (!logged) console.log('[drag] no PrimaryPointerInfo.screenCoordinates in this client; windows stay put')
