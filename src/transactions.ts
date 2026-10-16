@@ -24,7 +24,7 @@ import {
   MASTERY_ENABLED
 } from './state'
 import { sanitizeCraftedSuits, sanitizeMaterials, sanitizePendingCraft, sanitizeRareProgress, sanitizeStorage } from './backpackPersistence'
-import { playErrorSound, playRareFindSound, playSuccessSound } from './uiSounds'
+import { playBoostSound, playCraftDoneSound, playErrorSound, playRareFindSound, playSuccessSound } from './uiSounds'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 
@@ -370,7 +370,13 @@ function requestCraftAction(action: 'enqueue' | 'sync', material?: MaterialKey, 
         player.materials = sanitizeMaterials(result.materials)
         player.coins = result.currency.coins
         player.berries = result.currency.berries
+        // A job that was in the queue and is gone now finished (the server settles the queue on every call).
+        const finished = player.craftQueue.filter((j) => !result.craftQueue.some((k) => k.material === j.material))
         player.craftQueue = result.craftQueue
+        if (finished.length > 0) {
+          playCraftDoneSound()
+          flash(`${RESOURCE_INFO[finished[0].material].name.toUpperCase()} READY IN YOUR BANK`)
+        }
       }
       if (action === 'enqueue' && result.queued > 0) flash(`QUEUED ${result.queued} ${RESOURCE_INFO[material!].name.toUpperCase()}`)
     } catch (error) {
@@ -529,6 +535,7 @@ export function requestBoost(boost: Boost, pay: 'berries' | 'materials' = 'berri
         if (result.materials) player.materials = result.materials
         applyBoosts(result.boosts)
       }
+      playBoostSound()
       if (boost === 'ration') flash('RATION ACTIVE +50%')
       else if (boost === 'lucky') flash('LUCKY TOOLS ACTIVE 2x')
       else flash('BIG BACKPACK ACTIVE')

@@ -610,7 +610,7 @@ function SellConfirm(props: { item: ItemId }) {
         </UiEntity>
       )}
       <Spacer />
-      <Button label="BACK" color={C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(80), margin: { bottom: S(16) } }} onClick={() => { depotSelling = null }} />
+      <Button label="BACK" sound="cancel" color={C.navySoft} size={S(28)} uiTransform={{ width: S(300), height: S(80), margin: { bottom: S(16) } }} onClick={() => { depotSelling = null }} />
     </Panel>
   )
 }
@@ -1653,7 +1653,7 @@ export function GuildPanel() {
                     ) : (
                       <Button label="YES, LEAVE" color={C.red} size={S(20)} disabled={Date.now() - leaveArmedAt < LEAVE_YES_DELAY_MS} uiTransform={{ width: S(200), height: S(46), margin: { right: S(10) } }} onClick={() => { leaveStage = 2; leaveArmedAt = Date.now() }} />
                     )}
-                    <Button label="NO" color={C.navySoft} size={S(20)} uiTransform={{ width: S(120), height: S(46) }} onClick={() => { leaveArmedAt = 0; leaveStage = 1 }} />
+                    <Button label="NO" sound="cancel" color={C.navySoft} size={S(20)} uiTransform={{ width: S(120), height: S(46) }} onClick={() => { leaveArmedAt = 0; leaveStage = 1 }} />
                   </UiEntity>
                 ) : (
                   <Button label="LEAVE GUILD" icon={GICON.leave} color={C.gray} textColor={C.textMuted} size={S(20)} uiTransform={{ width: S(230), height: S(46) }} onClick={() => { leaveStage = 1; leaveArmedAt = Date.now() }} />

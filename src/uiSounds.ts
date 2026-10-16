@@ -39,7 +39,24 @@ function play(entity: Entity | null, path: string, volume: number) {
 
 export function initializeUiSounds() {
   if (!clickEntity) clickEntity = createSound('sounds/ui/ui_button_click.mp3', 0.4)
-  if (!feedbackEntity) feedbackEntity = createSound('sounds/ui/notification.mp3', 0.6)
+  if (!feedbackEntity) feedbackEntity = createSound('sounds/loot/coin.mp3', 0.55)
+}
+
+/** Softer "close" for CLOSE / X buttons so dismissing a window doesn't sound like pressing an action. */
+export function playCancelSound() {
+  play(clickEntity, 'sounds/ui/menu_cancel.mp3', 0.45)
+}
+
+/** A Workshop job finished while you were watching (own entity so it never cuts off a coin). */
+let craftEntity: Entity | null = null
+export function playCraftDoneSound() {
+  if (!craftEntity) craftEntity = createSound('sounds/ui/craft_done.mp3', 0.6)
+  play(craftEntity, 'sounds/ui/craft_done.mp3', 0.6)
+}
+
+/** Boost bought in the Berry Shop. */
+export function playBoostSound() {
+  play(feedbackEntity, 'sounds/ui/boost.mp3', 0.6)
 }
 
 export function playButtonSound() {

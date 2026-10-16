@@ -106,7 +106,7 @@ function ChatColumn(props: { height: number }) {
         <UiEntity key={`inv-${inv.guildId}`} uiTransform={{ width: '100%', height: S(56), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(10) }, padding: { left: S(14), right: S(8) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: C.purple }}>
           <OutlinedText value={`[${inv.tag}] ${inv.name} invited you${inv.byName ? `  •  from ${inv.byName}` : ''}`} size={S(22)} align="middle-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(32) }} />
           <Button key={`acc-${inv.guildId}`} label="ACCEPT" color={C.green} size={S(18)} uiTransform={{ width: S(140), height: S(42), minWidth: 0, margin: { right: S(6) } }} onClick={() => acceptInvite(inv)} />
-          <Button key={`later-${inv.guildId}`} label="LATER" color={C.gray} textColor={C.textMuted} size={S(18)} uiTransform={{ width: S(110), height: S(42), minWidth: 0 }} onClick={() => { dismissedInvites.add(inv.guildId) }} />
+          <Button key={`later-${inv.guildId}`} label="LATER" sound="cancel" color={C.gray} textColor={C.textMuted} size={S(18)} uiTransform={{ width: S(110), height: S(42), minWidth: 0 }} onClick={() => { dismissedInvites.add(inv.guildId) }} />
         </UiEntity>
       ))}
 
@@ -280,7 +280,7 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
         }}
       />
       {lobby.admin ? <Button key="card-block" label="BLOCK (ADMIN)" color={C.red} size={S(22)} uiTransform={btn} onClick={() => adminChat('block', p.address)} /> : null}
-      <Button key="card-back" label="BACK" color={C.gray} textColor={C.textMuted} size={S(22)} uiTransform={{ width: '100%', height: S(56) }} onClick={() => { lobby.selected = null }} />
+      <Button key="card-back" label="BACK" sound="cancel" color={C.gray} textColor={C.textMuted} size={S(22)} uiTransform={{ width: '100%', height: S(56) }} onClick={() => { lobby.selected = null }} />
     </Panel>
   )
 }

@@ -1,7 +1,7 @@
 import ReactEcs, { UiEntity, UiTransformProps, Callback } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, SLICE_PILL, FONT } from './theme'
-import { playButtonSound } from '../uiSounds'
+import { playButtonSound, playCancelSound } from '../uiSounds'
 import { S, currentScale } from './responsive'
 
 export { getCanvas, fitPanel, fitModal, S } from './responsive'
@@ -112,6 +112,8 @@ export function Button(props: Keyed & {
   size?: number
   icon?: string
   disabled?: boolean
+  /** 'cancel' for CLOSE / BACK style buttons (softer clip). Default 'click'. */
+  sound?: 'click' | 'cancel'
   onClick?: Callback
   uiTransform?: UiTransformProps
 }) {
@@ -141,7 +143,8 @@ export function Button(props: Keyed & {
             ? undefined
             : () => {
                 pressedUntil[pressId] = Date.now() + 140
-                playButtonSound()
+                if (props.sound === 'cancel') playCancelSound()
+                else playButtonSound()
                 props.onClick?.()
               }
         }
@@ -165,7 +168,7 @@ export function CloseButton(props: { onClick: Callback; scale?: number }) {
       uiTransform={{ positionType: 'absolute', position: { top: -18 * s, right: -18 * s }, width: 56 * s, height: 56 * s, alignItems: 'center', justifyContent: 'center' }}
       uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: C.red }}
       onMouseDown={() => {
-        playButtonSound()
+        playCancelSound()
         props.onClick()
       }}
     >
@@ -252,7 +255,7 @@ export function Modal(props: {
         {/* Content stops at the frame padding so the bottom CLOSE tab (which straddles the frame edge like the title tab) never covers it. */}
         <UiEntity uiTransform={{ width: '100%', height: height - pad * 2 - contentTop, flexDirection: 'column', margin: { top: contentTop } }}>{props.children}</UiEntity>
         <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s, left: (width - 320 * s) / 2 }, width: 320 * s, height: 68 * s }}>
-          <Button label="CLOSE" color={C.red} size={FONT.button * s} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onClose} />
+          <Button label="CLOSE" color={C.red} sound="cancel" size={FONT.button * s} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onClose} />
         </UiEntity>
       </Panel>
     </UiEntity>
