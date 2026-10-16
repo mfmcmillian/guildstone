@@ -1,6 +1,7 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, FONT, TEX, SLICE_128, glow } from './theme'
+import { C, FONT, TEX, SLICE_128, SLICE_PILL, glow } from './theme'
+import { lobby, tickLobbyBackground } from '../lobby'
 import { OutlinedText, Pill, Icon, Bar, Button, Panel } from './components'
 import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, fmtRate, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung } from '../state'
 import { togglePanel, ui } from './uiState'
@@ -38,9 +39,24 @@ function BoostPill(props: { icon: string; label: string; until: number; color: C
   )
 }
 
+/** Red count in the top-right corner of the GUILD button. */
+function unreadBadge(count: number) {
+  if (count <= 0) return null
+  return (
+    <UiEntity
+      uiTransform={{ positionType: 'absolute', position: { top: S(-12), right: S(-10) }, minWidth: S(44), height: S(44), padding: { left: S(10), right: S(10) }, alignItems: 'center', justifyContent: 'center' }}
+      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: C.red }}
+    >
+      <OutlinedText value={`${count}`} size={S(24)} uiTransform={{ margin: { bottom: S(3) } }} />
+    </UiEntity>
+  )
+}
+
 export function Hud() {
   // HUD sizes are relative to the real canvas; positions sit inside the explorer's own HUD insets.
   setScale(hudScale())
+  // Keep the lobby badge fresh while the GUILD button is on screen and the Lobby tab itself isn't.
+  if (showGuild() && ui.open !== 'guild') tickLobbyBackground()
   const canvas = getCanvas()
   const edgeX = S(18)
   const edgeY = S(18)
@@ -179,14 +195,18 @@ export function Hud() {
         <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: canvas.bottom + S(24), right: canvas.right + edgeX }, flexDirection: 'column', alignItems: 'flex-end' }}>
           {/* Guild appears at Lv 5 (or once in one) so the first minutes are just gather -> bank */}
           {showGuild() ? (
-            <Button
-              label={player.guild ? `[${player.guild.tag}]` : 'GUILD'}
-              icon="images/icons/suit.png"
-              color={C.purple}
-              onClick={() => { resetGuildTab(); togglePanel('guild') }}
-              uiTransform={{ height: S(96), minWidth: S(340), margin: { bottom: S(12) } }}
-              size={S(FONT.button + 10)}
-            />
+            <UiEntity uiTransform={{ height: S(96), minWidth: S(340), margin: { bottom: S(12) } }}>
+              <Button
+                label={player.guild ? `[${player.guild.tag}]` : 'GUILD'}
+                icon="images/icons/suit.png"
+                color={C.purple}
+                onClick={() => { resetGuildTab(); togglePanel('guild') }}
+                uiTransform={{ width: '100%', height: '100%' }}
+                size={S(FONT.button + 10)}
+              />
+              {/* Unread lobby chat since the Lobby tab was last open (slow background poll; see tickLobbyBackground). */}
+              {unreadBadge(lobby.unread)}
+            </UiEntity>
           ) : null}
           <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' ? glow(C.blue) : C.blue} onClick={() => togglePanel('skills')} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />
         </UiEntity>

@@ -43,15 +43,30 @@ export const lobby = {
   selected: null as string | null,
   /** Client-side mutes: hidden from the feed for this session. */
   muted: new Set<string>(),
-  board: { players: [] as BoardPlayer[], guilds: [] as BoardGuild[], loadedAt: 0, loading: false }
+  board: { players: [] as BoardPlayer[], guilds: [] as BoardGuild[], loadedAt: 0, loading: false },
+  /** Messages from other players that arrived while the Lobby tab wasn't showing. Drives the HUD badge. */
+  unread: 0,
+  /** True while the Lobby tab is on screen; set each frame by LobbyTab. */
+  visible: false
 }
 
 let pollInFlight = false
 let lastPollAt = 0
+/** Background cadence when the Lobby isn't open: enough for a badge, cheap on the server. */
+const LOBBY_BACKGROUND_POLL_MS = 30_000
 
 /** Call every frame from the lobby tab; it rate-limits itself. */
 export function tickLobby() {
+  lobby.visible = true
+  lobby.unread = 0
   if (Date.now() - lastPollAt < LOBBY_POLL_MS) return
+  pollLobby()
+}
+
+/** Call every frame from the HUD while the GUILD button is shown; polls slowly so the unread badge stays fresh. */
+export function tickLobbyBackground() {
+  lobby.visible = false
+  if (Date.now() - lastPollAt < LOBBY_BACKGROUND_POLL_MS) return
   pollLobby()
 }
 
@@ -67,6 +82,11 @@ export function pollLobby() {
       if (Array.isArray(body.messages) && body.messages.length > 0) {
         const seen = new Set(lobby.messages.map((m) => m.id))
         const fresh = body.messages.filter((m) => !seen.has(m.id))
+        // First load is history, not news; after that count what others said while the Lobby was closed.
+        if (lobby.loadedOnce && !lobby.visible) {
+          const me = (profileState.walletAddress || '').toLowerCase()
+          lobby.unread = Math.min(99, lobby.unread + fresh.filter((m) => m.from.toLowerCase() !== me && !lobby.muted.has(m.from)).length)
+        }
         lobby.messages = [...lobby.messages, ...fresh].slice(-100)
         lobby.lastAt = Math.max(lobby.lastAt, ...body.messages.map((m) => m.at))
       }
