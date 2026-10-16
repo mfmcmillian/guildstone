@@ -4,7 +4,7 @@ Working list of everything queued for AntromAFK (wearable client `AntromAFK-Wear
 
 Sections:
 
-1. [Next publish — already built, uncommitted](#1-next-publish--already-built-uncommitted)
+1. [Next publish — built and committed on fantasy-ui](#1-next-publish--built-and-committed-on-fantasy-ui)
 2. [Gems](#2-gems)
 3. [Language picker](#3-language-picker)
 4. [OG profession sets](#4-og-profession-sets)
@@ -13,9 +13,9 @@ Sections:
 
 ---
 
-# 1. Next publish — already built, uncommitted
+# 1. Next publish — built and committed on fantasy-ui
 
-Client work sitting in the working tree, waiting to ride along with the next batch.
+Client work on branch `fantasy-ui`, ready to pack and resubmit as v0.2.0.
 
 - [x] Guild roster: name instead of wallet (server records/heals `memberNames`; client reads `guild.memberNames[id]`), rank icon replaces the overlapping text label, "(YOU)" removed in favor of the purple row.
 - [x] Readability: `C.gold` (`#b87a00`) replaces `C.yellow` everywhere text sits on paper/white (profession page, HUD coin pill, guide subtitle, workshop/tool bench tiers, guild headers, milestones, tech).
@@ -40,9 +40,15 @@ Client work sitting in the working tree, waiting to ride along with the next bat
 - [x] **Light up and pulse the action the helper is pointing at.** (Done 2026-10-15: `glow()` lerps the target button toward white on a 1.6 s pulse; one target at a time via `stepTarget()`.) `nextStep()` in `guide.tsx` already knows the state (backpack full/almost full, tool ready at the Tool Bench, refine ready at the Workshop, berries ready for the Shop, suits unlocked). Map each step to its target control and render it highlighted + pulsing: bag pill in `hud.tsx` when ≥80% / full; TOOL BENCH, WORKSHOP, SHOP dock buttons in `dock.tsx`; PROFESSIONS button for the suits hint. Pulse = a `Date.now()`-driven sine on background alpha or scale (React-ECS has no animation API; the UI re-renders every frame so a tiny `pulse()` helper in `theme.ts` is enough). Keep it to one pulsing element at a time (the helper's current step) so it never turns into a Christmas tree.
 - [x] **Settings cog replaced.** (Done 2026-10-15: the dock header now has small HIDE and SOUND/MUTED buttons beside the title; the collapsible settings panel is gone.)
 - [x] **Guild Lobby.** (Done 2026-10-15, ring only.) GUILD now opens on a LOBBY tab for members and guildless players alike: global chat (signed `POST .../chat`, 200 chars, 1 per 3 s, server word-mask, admin delete/block via `AFK_CHAT_ADMINS` env), an ONLINE list from the leaderboard snapshot (active < 5 min; "Chopping • Lv 65" while the gather heartbeat is fresh) with clan tags, a player card (levels, suits, guild) with **INVITE TO [TAG]** for officers (new `manage` op `invite` → `guildInvites` on the target profile, surfaced as an ACCEPT banner in their lobby; cleared on any join) / **JOIN [TAG]** for guildless players / MUTE, and a leaderboard row (LEVELS, per-profession XP, SUITS, GUILD HQ, GUILD PTS, THIS WEEK — weekly bucket `guild.weekly` keyed Monday 00:00 UTC). Polls `GET .../lobby?since=` every 4 s only while the tab is on screen; the ring buffer lives in one doc (`afk_v1_lobby`). Not done: GUILD-only channel, LFG flag, system lines for rare finds / HQ ups, land-scene parity, unread badge.
-- [ ] Commit these once the next feature in the batch is ready (language picker and/or gems client).
+- [x] **Movable windows.** (Done 2026-10-15.) Every big window (Bank, Workshop, Tool Bench, Berry Shop, Professions/Suits, Guild, away summary) drags by its title tab; double-tap the tab to re-centre. Built on `PrimaryPointerInfo.screenCoordinates` + `inputSystem.isPressed(IA_POINTER)` in `ui/drag.ts`; `bigFrame(fit, title, dragId)` wires it. Positions are session-only for now.
+  - [ ] **Save window positions.** Signed `POST /antrom-afk/player/:address/layout` writing `uiLayout` (seven keys, offsets as a fraction of canvas size so monitors of different sizes agree); ring seeds from the profile on load, clamps, and writes once per drag with a 1 s debounce. ~30 min.
+- [x] **Unread lobby badge** on the HUD GUILD button (done 2026-10-15): background poll every 30 s while the Lobby isn't open, counts others' messages, caps 99, clears when the Lobby tab shows. Guild window title reads `[TAG] GUILD`.
+- [x] **WIKI button** under the backpack bar and **GUILDSTONE.DEV** on the welcome screen open guildstone.dev (`OPEN_EXTERNAL_LINK`; the client shows its own confirmation).
+- [x] All of the above is committed on `fantasy-ui` (2026-10-15). Remaining steps for this publish: pack, merge to `main`, tag `v0.2.0`, resubmit.
 
-Backend side of these is already deployed (`memberNames` helpers, craft-suit lockout fix, signed-fetch `hashPayload` fix).
+Backend side of these is already deployed (`memberNames` helpers, craft-suit lockout fix, signed-fetch `hashPayload` fix, lobby/chat/share routes, shop coins + craft-queue settle).
+
+Not in this publish, cheap next time (from the 2026-10-15 polish list): Escape closes the open window; HUD bag counts show sell value on hover; lobby system lines ("X joined [TAG]", level-ups) written server-side from the join/level paths; level-up flash with skill icon; Workshop queue ETA; Berry Shop shows when the active boost expires; "new week, boards reset" lobby line on Mondays; rate-limit `/share` by IP as well as wallet.
 
 ---
 
@@ -301,8 +307,9 @@ Status: planning. Goal: years of guild progression with several kinds of progres
 
 Smaller items noted along the way, not scheduled.
 
-- [ ] **Backend: shop endpoint returns stale materials mid-craft.** `POST .../shop` reads `profile.materials` without `advanceAfkCraftQueue`, writes it back, and returns it; the client then overwrites `player.materials`, so planks in progress appear to drop until the next craft sync. Fix: run `advanceAfkCraftQueue` in the shop transaction (and any other endpoint that writes `materials`: tool bench, craft-suit) and persist `craftQueue`/`craftUpdatedAt` alongside. Deploy with the next backend push.
+- [x] **Backend: shop endpoint returns stale materials mid-craft.** (Done 2026-10-15: the shop route calls `advanceAfkCraftQueue` before reading or writing materials and persists the queue; deployed.) `POST .../shop` reads `profile.materials` without `advanceAfkCraftQueue`, writes it back, and returns it; the client then overwrites `player.materials`, so planks in progress appear to drop until the next craft sync. Fix: run `advanceAfkCraftQueue` in the shop transaction (and any other endpoint that writes `materials`: tool bench, craft-suit) and persist `craftQueue`/`craftUpdatedAt` alongside. Deploy with the next backend push.
 - [ ] **Rotate the Rewards dispenser key** used for the 2026-10-13 Level top-50 airdrop (it was pasted into chat). Create a new dispenser in the Rewards dashboard, update `AIRDROP_REWARDS_KEY` where stored.
+- [ ] **Server-driven config, widen it.** (Discussed 2026-10-15.) `remoteConfig.ts` already pulls `/antrom-afk/config` (`campHint`, `ringStationsEnabled`). Each republish, move anything that turned out to be "just text or a number" behind config so the next tweak needs no resubmission: a `features` block of booleans as a remote kill switch for new things (drag per window, badge, share button), Berry Shop prices read from the server instead of mirrored in `SHOP_ITEMS`, guide/helper copy by key, board list and order. Never fetch and execute code (curation reviews the bundle for a reason); data only.
 - [ ] `airdrop.js --exclude <addresses>` flag (skip admin/test wallets without editing the ledger by hand).
 - [ ] **KoA `/player/:address` POST is unsigned and client-authoritative.** Gems, gold, level, everything can be set with curl. Not an AFK problem directly, but it bounds how much any KoA-derived data can be trusted (which is why AFK gems are shop-only). Fix lives in KoA: require signed-fetch on writes and move premium fields to increment-only endpoints.
 - [x] Guild roster: "last contributed" on hover (done 2026-10-14; the roster footer swaps from the legend to "Name • Last contributed Xh ago • N points" while a row is hovered).
