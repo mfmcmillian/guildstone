@@ -4,10 +4,10 @@ import { engine, InputAction, PrimaryPointerInfo, UiCanvasInformation, inputSyst
  * Drag-to-move for the big modal windows. Mouse-down on the title tab arms a drag; a system then follows
  * PrimaryPointerInfo.screenCoordinates until the pointer is released. Offsets are session-only and in canvas pixels.
  */
-export type DragId = 'guild' | 'bank' | 'workshop' | 'forge' | 'shop'
+export type DragId = 'guild' | 'bank' | 'workshop' | 'forge' | 'shop' | 'skills'
 
 type Offset = { dx: number; dy: number }
-export const dragOffset: Record<DragId, Offset> = { guild: { dx: 0, dy: 0 }, bank: { dx: 0, dy: 0 }, workshop: { dx: 0, dy: 0 }, forge: { dx: 0, dy: 0 }, shop: { dx: 0, dy: 0 } }
+export const dragOffset: Record<DragId, Offset> = { guild: { dx: 0, dy: 0 }, bank: { dx: 0, dy: 0 }, workshop: { dx: 0, dy: 0 }, forge: { dx: 0, dy: 0 }, shop: { dx: 0, dy: 0 }, skills: { dx: 0, dy: 0 } }
 
 let active: { id: DragId; startX: number; startY: number; baseDx: number; baseDy: number } | null = null
 let logged = false

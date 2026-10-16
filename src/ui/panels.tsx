@@ -343,7 +343,7 @@ export function SkillsPanel() {
   const fit = fitBig()
   const title = suits ? 'SUITS' : 'PROFESSIONS'
   return (
-    <Modal title={title} color={C.blue} {...bigFrame(fit, title)} onClose={closePanel}>
+    <Modal title={title} color={C.blue} {...bigFrame(fit, title, 'skills')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(16) } }}>
         <Button label="PROFESSIONS" color={skillsTab === 'professions' ? C.blue : C.navySoft} size={S(32)} uiTransform={{ width: S(380), height: S(78), margin: { right: S(8) } }} onClick={() => { skillsTab = 'professions' }} />
         <Button label="SUITS" color={skillsTab === 'suits' ? C.blue : C.navySoft} size={S(32)} uiTransform={{ width: S(380), height: S(78), margin: { left: S(8) } }} onClick={() => { skillsTab = 'suits' }} />
