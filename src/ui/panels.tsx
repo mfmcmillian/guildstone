@@ -795,16 +795,17 @@ export function WorkshopPanel() {
         </UiEntity>
         <Spacer />
         {/* Combo rares are never refined here, so this is the one place that says where they come from. */}
-        <Panel flat color={C.navySoft} uiTransform={{ width: S(CONTENT_W), height: S(260), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24) }, margin: { bottom: S(30) } }}>
+        <Panel flat color={C.navySoft} uiTransform={{ width: S(CONTENT_W), height: S(272), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24) }, margin: { bottom: S(30) } }}>
           <UiEntity uiTransform={{ flexDirection: 'column', width: S(320), flexShrink: 0, margin: { right: S(16) } }}>
             <OutlinedText value="SPECIAL FINDS" size={S(34)} color={C.yellow} align="middle-left" />
             <Text value="Not refined here: they drop in the zones when you wear the right suits, and go straight into suit recipes." size={S(23)} color={C.gray} align="middle-left" uiTransform={{ height: S(130) }} />
           </UiEntity>
+          {/* Two columns: the longest gate line ("Wear Lumberjack L3 + Assassin L3") doesn't fit three across at this size. */}
           <UiEntity uiTransform={{ flexDirection: 'row', flexWrap: 'wrap', width: S(1336) }}>
             {(Object.entries(COMBOS) as Array<[RareRaw, RareDropDef]>).map(([id, def]) => (
-              <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(440), height: S(80), margin: { right: S(4), bottom: S(4) } }}>
+              <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(664), height: S(76), margin: { right: S(4), bottom: S(2) } }}>
                 <Icon src={RESOURCE_INFO[id].icon} size={S(60)} uiTransform={{ flexShrink: 0 }} />
-                <UiEntity uiTransform={{ flexDirection: 'column', width: S(372), margin: { left: S(8) } }}>
+                <UiEntity uiTransform={{ flexDirection: 'column', width: S(590), margin: { left: S(8) } }}>
                   <Text value={def.name} size={S(32)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(38) }} />
                   <Text value={`Wear ${gateText(def.gate)}`} size={S(26)} color={C.gray} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
                 </UiEntity>
