@@ -1435,9 +1435,10 @@ export function GuildPanel() {
   if (guild && !guildForm.motd && guild.motd) guildForm.motd = guild.motd
   if (guildTab === 'manage' && !canEdit) guildTab = 'home'
 
+  const title = guild ? `[${guild.tag}] GUILD` : 'GUILD'
   return (
     // Movable window: grab the title tab (see drag.ts).
-    <Modal title="GUILD" color={C.purple} {...bigFrame(fit, 'GUILD', 'guild')} onClose={closePanel}>
+    <Modal title={title} color={C.purple} {...bigFrame(fit, title, 'guild')} onClose={closePanel}>
       {guild ? (
         <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
           <OutlinedText value={`[${guild.tag}]  ${guild.name}`} size={S(40)} />
