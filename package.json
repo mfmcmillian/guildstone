@@ -1,11 +1,11 @@
 {
   "name": "antrom-guildstone-ring",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Knights of Antrom: AFK Companion - the AntromAFK idle loop as a smart wearable you carry anywhere in Decentraland",
   "scripts": {
     "start": "sdk-commands start",
     "build": "sdk-commands build",
-    "pack": "sdk-commands pack-smart-wearable",
+    "pack": "node scripts/stamp-description.js && sdk-commands pack-smart-wearable",
     "upgrade-sdk": "npm install --save-dev @dcl/sdk@latest",
     "upgrade-sdk:next": "npm install --save-dev @dcl/sdk@next",
     "server-logs": "sdk-commands sdk-server-logs"
