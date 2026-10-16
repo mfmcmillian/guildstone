@@ -4,7 +4,7 @@ import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
-import { dragOffset, startDrag } from './drag'
+import { DragId, dragOffset, startDrag } from './drag'
 import { share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import {
   GuildInfo,
@@ -90,8 +90,11 @@ function fitBig(): Fit {
   return fitModal(MODAL_W, MODAL_H, true)
 }
 /** Modal props for the shared frame. */
-function bigFrame(fit: Fit, title: string) {
-  return { width: MODAL_W, height: MODAL_H, scale: fit.scale, offsetX: fit.offsetX, titleSize: TITLE_SIZE, titleWidth: Math.max(420, title.length * 40) }
+/** Frame props for a full-size modal. Pass a DragId to make the window movable by its title tab (session-only offset). */
+function bigFrame(fit: Fit, title: string, drag?: DragId) {
+  const base = { width: MODAL_W, height: MODAL_H, scale: fit.scale, offsetX: fit.offsetX, titleSize: TITLE_SIZE, titleWidth: Math.max(420, title.length * 40) }
+  if (!drag) return base
+  return { ...base, offsetX: fit.offsetX + dragOffset[drag].dx, offsetY: dragOffset[drag].dy, onTitleDown: () => startDrag(drag) }
 }
 
 // ---------------------------------------------------------------- PROFESSIONS
@@ -621,7 +624,7 @@ export function BankPanel() {
   const total = DEPOT_ITEMS.reduce((sum, item) => sum + storedAmount(item), 0) + rare.reduce((sum, r) => sum + r.amount, 0)
   const worth = Math.round(DEPOT_ITEMS.reduce((sum, item) => sum + storedAmount(item) * RESOURCE_INFO[item].value, 0) * guildSellMult())
   return (
-    <Modal title="BANK" color={C.green} {...bigFrame(fit, 'BANK')} onClose={closeDepot}>
+    <Modal title="BANK" color={C.green} {...bigFrame(fit, 'BANK', 'bank')} onClose={closeDepot}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
         <OutlinedText
           value={depositText() ? `DEPOSITED ${depositText()}` : `YOUR BANK  •  ${total} ITEMS`}
@@ -710,7 +713,7 @@ export function WorkshopPanel() {
   const recipes = RECIPES.filter((r) => r.skill === workshopSkill)
   const fit = fitBig()
   return (
-    <Modal title="WORKSHOP" color={C.orange} {...bigFrame(fit, 'WORKSHOP')} onClose={closePanel}>
+    <Modal title="WORKSHOP" color={C.orange} {...bigFrame(fit, 'WORKSHOP', 'workshop')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(14) } }}>
           {SKILLS.map((s) => (
@@ -833,7 +836,7 @@ function Need(props: { key?: string; item: ItemId; have: number; need: number })
 export function ForgePanel() {
   const fit = fitBig()
   return (
-    <Modal title="TOOL BENCH" color={C.blue} {...bigFrame(fit, 'TOOL BENCH')} onClose={closePanel}>
+    <Modal title="TOOL BENCH" color={C.blue} {...bigFrame(fit, 'TOOL BENCH', 'forge')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
         <Text value={costHint ?? 'Craft better tools from your materials. Each tier is permanent and adds +10% yield in that zone, on top of suits and guild bonuses.'} size={S(26)} color={costHint ? C.gold : C.textMuted} nowrap />
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(20) } }}>
@@ -914,7 +917,7 @@ export function ShopPanel() {
   const minutesLeft = active ? Math.max(1, Math.ceil((active.until - Date.now()) / 60000)) : 0
   const fit = fitBig()
   return (
-    <Modal title="BERRY SHOP" color={C.purple} {...bigFrame(fit, 'BERRY SHOP')} onClose={closePanel}>
+    <Modal title="BERRY SHOP" color={C.purple} {...bigFrame(fit, 'BERRY SHOP', 'shop')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(4) } }}>
           <Pill color={C.paper} uiTransform={{ height: S(96), padding: { left: S(12), right: S(36) } }}>
@@ -1433,8 +1436,8 @@ export function GuildPanel() {
   if (guildTab === 'manage' && !canEdit) guildTab = 'home'
 
   return (
-    // Drag test: GUILD is the only window you can move (grab the title tab). Session-only offset from drag.ts.
-    <Modal title="GUILD" color={C.purple} {...bigFrame(fit, 'GUILD')} offsetX={fit.offsetX + dragOffset.guild.dx} offsetY={dragOffset.guild.dy} onTitleDown={() => startDrag('guild')} onClose={closePanel}>
+    // Movable window: grab the title tab (see drag.ts).
+    <Modal title="GUILD" color={C.purple} {...bigFrame(fit, 'GUILD', 'guild')} onClose={closePanel}>
       {guild ? (
         <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
           <OutlinedText value={`[${guild.tag}]  ${guild.name}`} size={S(40)} />
