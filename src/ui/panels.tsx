@@ -1227,7 +1227,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
   return (
     <UiEntity uiTransform={{ width: S(1720), flexDirection: 'row', margin: { top: S(4) } }}>
       {/* Left: settings + danger zone */}
-      <UiEntity uiTransform={{ width: S(520), flexDirection: 'column', margin: { right: S(20) } }}>
+      <UiEntity uiTransform={{ width: S(460), flexDirection: 'column', margin: { right: S(20) } }}>
         <Panel flat color={C.paper2} uiTransform={{ width: '100%', height: S(500), padding: S(18) }}>
           <Text value="GUILD SETTINGS" size={S(24)} color={C.text} align="middle-left" uiTransform={{ flexShrink: 0 }} />
           <Text value={`You are ${myRole.toUpperCase()}  •  ${isLeader ? 'full control' : 'Royal Guard: settings + ranks below you'}`} size={S(20)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
@@ -1293,7 +1293,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
       </UiEntity>
 
       {/* Right: roster management */}
-      <Panel flat color={C.paper2} uiTransform={{ width: S(1180), height: S(880), padding: S(18) }}>
+      <Panel flat color={C.paper2} uiTransform={{ width: S(1240), height: S(880), padding: S(18) }}>
         <Text value={`MEMBERS  ${guild.memberCount} / ${guild.maxMembers}`} size={S(24)} color={C.text} align="middle-left" uiTransform={{ flexShrink: 0 }} />
         <Text
           value={`Royal Guard ${royalGuardCount}/5  •  ${isLeader ? 'Tap a rank to set it. Tap KICK or CROWN twice to confirm.' : 'You can set Knight / Squire / Initiate and remove members below your rank.'}`}
@@ -1313,11 +1313,11 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
             const kickArmed = manageArmed('kick', id)
             const crownArmed = manageArmed('transfer', id)
             return (
-              <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(80), flexDirection: 'row', alignItems: 'center', padding: { left: S(18), right: S(18) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
-                <Icon src={guildRoleIcon(role)} size={S(56)} uiTransform={{ margin: { right: S(8) } }} />
-                <UiEntity uiTransform={{ width: S(200), flexDirection: 'column' }}>
-                  <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(24)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(200), height: S(30) }} />
-                  <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(20)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(200), height: S(26) }} />
+              <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(100), flexDirection: 'row', alignItems: 'center', padding: { left: S(18), right: S(18) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
+                <Icon src={guildRoleIcon(role)} size={S(64)} uiTransform={{ margin: { right: S(8) } }} />
+                <UiEntity uiTransform={{ width: S(220), flexDirection: 'column' }}>
+                  <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(34) }} />
+                  <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(22)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(28) }} />
                 </UiEntity>
                 <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
                   {GUILD_RANK_LADDER.map((option) => {
@@ -1333,8 +1333,8 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
                         color={current ? guildRoleColor(option === 'royal_guard' ? 'royal guard' : option) : C.navySoft}
                         textColor={current || disabled ? C.white : undefined}
                         disabled={disabled}
-                        size={S(20)}
-                        uiTransform={{ width: S(134), height: S(50), margin: { right: S(6) } }}
+                        size={S(22)}
+                        uiTransform={{ width: S(144), height: S(60), margin: { right: S(6) } }}
                         onClick={() => requestGuild('manage', { op: 'rank', member: id, rank: option })}
                       />
                     )
@@ -1346,8 +1346,8 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
                     label={crownArmed ? 'CONFIRM?' : 'CROWN'}
                     icon={GICON.transfer}
                     color={crownArmed ? C.yellow : C.navySoft}
-                    size={S(20)}
-                    uiTransform={{ width: S(140), height: S(50), margin: { right: S(6) } }}
+                    size={S(22)}
+                    uiTransform={{ width: S(136), height: S(60), margin: { right: S(6) } }}
                     onClick={() => manageTap('transfer', id)}
                   />
                 ) : null}
@@ -1357,8 +1357,8 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
                   color={kickArmed ? C.red : C.gray}
                   textColor={kickArmed ? C.white : C.textMuted}
                   disabled={!canKick}
-                  size={S(20)}
-                  uiTransform={{ width: S(130), height: S(50) }}
+                  size={S(22)}
+                  uiTransform={{ width: S(134), height: S(60) }}
                   onClick={() => manageTap('kick', id)}
                 />
               </Panel>
