@@ -13,20 +13,33 @@ import { settings } from '../settings'
 import { setAlerts, setLanguagePref } from '../transactions'
 import { LANGUAGES, getLanguage, languageInfo } from '../i18n'
 import { showShop, showToolBench, showWorkshop, stepTarget } from './guide'
+import { dragOffsetPx, startDrag } from './drag'
 
 const skillColor = (s: (typeof SKILLS)[number]) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
 
-/** The only thing rendered while the UI is hidden: a small button in the top-right corner where the coin pill normally sits. Work keeps running. */
+/**
+ * The only thing rendered while the UI is hidden: a small button in the top-right corner where the coin pill normally
+ * sits, under a header tab that drags it like the windows (double-tap snaps back; saved as uiLayout.show). Work keeps running.
+ */
 export function ShowUiButton() {
   setScale(hudScale())
   const canvas = getCanvas()
   const working = activeSkill()
   const target = stepTarget()
+  const { dx, dy } = dragOffsetPx('show')
+  const color = working ? skillColor(working) : C.purple
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(18), right: canvas.right + S(18) } }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(18) + dy, right: canvas.right + S(18) - dx }, flexDirection: 'column', alignItems: 'center' }}>
+      <UiEntity
+        uiTransform={{ width: S(220), height: S(40), alignItems: 'center', justifyContent: 'center', margin: { bottom: -S(6) } }}
+        uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: C.navySoft }}
+        onMouseDown={() => startDrag('show')}
+      >
+        <OutlinedText value="ANTROM AFK" size={S(20)} color={C.yellow} uiTransform={{ height: S(30) }} />
+      </UiEntity>
       <Button
         label={working ? `ANTROM  •  ${SKILL_INFO[working].verb.toUpperCase()}` : 'SHOW ANTROM'}
-        color={working ? skillColor(working) : C.purple}
+        color={color}
         size={S(18)}
         uiTransform={{ width: S(300), height: S(60) }}
         onClick={() => {
