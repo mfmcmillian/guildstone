@@ -99,12 +99,14 @@ The horde is the attacker, so the camp's **Palisade** bonus applies: average Pal
 
 ### Battle model
 
-Deterministic given the war id (seeded RNG, ±5 % per class per round), up to 6 rounds, both sides strike simultaneously:
+Deterministic given the war id (seeded RNG, ±5 % per class per round), up to 6 rounds, both sides strike simultaneously. `LETHALITY = 0.3` scales every hit so an even six-round fight costs each side ~40–45 % (mostly wounded) instead of a wipe; horde beasts fight at `HORDE_POWER = 0.85` of a troop's stats.
+
+Simulated (`afkWar.js` `_test.fight`): 900 Shieldbearers vs 900 Outriders → shields win losing 241 to 458; mirror 300/300/300 → draw, ~400 lost each; 1,000 mixed vs 800 mixed → bigger side wins 314 to 450. Hunts behind a Palisade 5 camp: T1 falls to ~250 troops, T2 ~650, T3 ~1,600, T4 ~4,000, T5 ~10,000.
 
 ```
 for each round:
   for each side, each class X with n > 0:
-    dmg = n · ATK[X] · (1 ± 5%)
+    dmg = n · ATK[X] · LETHALITY · (1 ± 5%)
     split dmg across enemy classes by their share of remaining HP
     kills[Y] = min(count[Y], floor(dmg_Y · counter(X,Y) / (HP[Y] · hpMult[Y side])))
   apply kills to both sides at once
