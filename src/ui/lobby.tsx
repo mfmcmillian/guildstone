@@ -96,7 +96,7 @@ export function LobbyTab(props: { height: number }) {
       <UiEntity uiTransform={{ width: '100%', height: S(colH), flexDirection: 'row' }}>
         {board === 'chat' ? <ChatColumn channel="all" height={colH} /> : board === 'guildchat' ? <ChatColumn channel="guild" height={colH} /> : <BoardColumn id={board} height={colH} />}
         <UiEntity uiTransform={{ width: S(GAP) }} />
-        {selected ? <PlayerCard p={selected} height={colH} canInvite={canInvite} /> : <OnlineColumn height={colH} />}
+        {selected ? <PlayerCard p={selected} height={colH} canInvite={canInvite} /> : <OnlineColumn height={colH} guildOnly={board === 'guildchat'} />}
       </UiEntity>
     </UiEntity>
   )
@@ -302,15 +302,18 @@ function BugCard() {
 const BUG_OPEN_H = 190
 const BUG_CLOSED_H = 66
 
-function OnlineColumn(props: { height: number }) {
+function OnlineColumn(props: { height: number; guildOnly: boolean }) {
   const rowH = 84
-  const list = lobby.online
+  // On the guild board only guildmates are listed (I'm always first, so the list is never empty while I'm in one).
+  const myGuildId = player.guild?.id ?? ''
+  const list = props.guildOnly && myGuildId ? lobby.online.filter((p) => p.guild === myGuildId) : lobby.online
+  const title = props.guildOnly ? `[${player.guild?.tag ?? 'GUILD'}] ONLINE  •  ${list.length}` : `ONLINE  •  ${list.length}`
   const bugH = bug.open ? BUG_OPEN_H + 10 : BUG_CLOSED_H
   return (
     <Panel flat color={C.navySoft} uiTransform={{ width: S(SIDE_W), height: S(props.height), padding: S(10), flexDirection: 'column' }}>
-      <OutlinedText value={`ONLINE  •  ${lobby.online.length}`} size={S(28)} color={C.gold} uiTransform={{ width: '100%', height: S(40), margin: { bottom: S(10) } }} />
+      <OutlinedText value={title} size={S(28)} color={C.gold} uiTransform={{ width: '100%', height: S(40), margin: { bottom: S(10) } }} />
       {list.length === 0 ? (
-        <Text value={lobby.loadedOnce ? 'Nobody else is on right now.' : 'Looking around...'} size={S(24)} color={C.textMuted} uiTransform={{ width: '100%', height: S(36), flexGrow: 1 }} />
+        <Text value={lobby.loadedOnce ? (props.guildOnly ? 'No guildmates on right now.' : 'Nobody else is on right now.') : 'Looking around...'} size={S(24)} color={C.textMuted} uiTransform={{ width: '100%', height: S(36), flexGrow: 1 }} />
       ) : (
         // Scrolls: everyone online, big rows. The REPORT BUG card below takes the rest.
         <UiEntity uiTransform={{ width: '100%', height: S(props.height - 20 - 50 - bugH), flexDirection: 'column', overflow: 'scroll' }}>
