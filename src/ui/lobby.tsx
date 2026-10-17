@@ -8,6 +8,7 @@ import { S } from './responsive'
 const CROWN_ICON = 'images/icons/guild/crown_small.png'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { profileState } from '../playerProfile'
+import { withVip } from '../vip'
 import { playButtonSound } from '../uiSounds'
 import {
   lobby,
@@ -121,7 +122,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   for (let i = visible.length - 1; i >= 0; i--) {
     const m = visible[i]
     // Guild channel: everyone shares the tag, so skip it. System lines read as "— X joined the guild".
-    const line = m.system ? `—  ${m.text}` : `${m.tag && !guildChannel ? `[${m.tag}] ` : ''}${m.name}:  ${m.text}`
+    const line = m.system ? `—  ${m.text}` : `${m.tag && !guildChannel ? `[${m.tag}] ` : ''}${withVip(m.name, m.vip)}:  ${m.text}`
     const h = line.length > 92 ? 56 : 30
     if (used + h > feedH) break
     used += h
@@ -331,7 +332,7 @@ function OnlineColumn(props: { height: number; guildOnly: boolean }) {
             >
               <UiEntity uiTransform={{ width: '100%', height: S(36), flexDirection: 'row', alignItems: 'center' }}>
                 {isCrownHolder(p.address) ? <Icon src={CROWN_ICON} size={S(30)} uiTransform={{ margin: { right: S(6) } }} /> : null}
-                <Text value={`${p.name}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(36) }} />
+                <Text value={`${withVip(p.name, p.vip)}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(36) }} />
               </UiEntity>
               <Text value={statusLine(p)} size={S(23)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(30) }} />
             </UiEntity>

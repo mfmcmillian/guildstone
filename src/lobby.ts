@@ -7,6 +7,7 @@ import { playErrorSound, playSuccessSound } from './uiSounds'
 import { engine, RealmInfo, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { ui } from './ui/uiState'
 import { activeSkill } from './work'
+import { withVip } from './vip'
 import { settings } from './settings'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -18,7 +19,7 @@ export const CHAT_TEXT_MAX = 200
 const CHAT_KEEP = 500
 const GUILD_CHAT_KEEP = 200
 
-export interface ChatMessage { id: string; at: number; from: string; name: string; tag: string; text: string; /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean }
+export interface ChatMessage { id: string; at: number; from: string; name: string; tag: string; text: string; /** Poster's KoA VIP tier 0..5 (src/vip.ts). */ vip?: number; /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean }
 /** 'all' is the global lobby; 'guild' is my guild's private channel (members only, 200 lines, see the server). */
 export type Channel = 'all' | 'guild'
 export const CHANNELS: Channel[] = ['all', 'guild']
@@ -48,13 +49,15 @@ export interface OnlinePlayer {
   crafted: number
   /** Relics this wallet forged (profession ids). */
   relics?: string[]
+  /** KoA VIP tier 0..5. */
+  vip?: number
   /** Skill being worked right now ('' when idle). */
   working: string
   active: number
 }
 export interface GuildInvite { guildId: string; tag: string; name: string; byName: string; at: number }
 
-export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number; relics?: string[] }
+export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number; relics?: string[]; vip?: number }
 /** Who forged the Guildstone Crown (one ever). */
 export interface CrownHolder { address: string; name: string; at: number }
 export interface BoardGuild { id: string; tag: string; name: string; hqLevel: number; points: number; weeklyPoints: number; memberCount: number; maxMembers: number }
@@ -420,7 +423,7 @@ export function boardRows(id: Exclude<BoardId, 'chat' | 'guildchat'>, limit = 15
     .filter((p) => value(p) > 0)
     .sort((a, b) => value(b) - value(a))
     .slice(0, limit)
-    .map((p) => ({ key: p.address, name: p.name, tag: tagOf[p.guild] ?? '', value: show(p), mine: p.address === me }))
+    .map((p) => ({ key: p.address, name: withVip(p.name, p.vip), tag: tagOf[p.guild] ?? '', value: show(p), mine: p.address === me }))
 }
 
 /** Where I sit on a player board, 1-based (0 when unranked). */
@@ -428,6 +431,9 @@ export function myBoardRank(id: Exclude<BoardId, 'chat' | 'guildchat'>): number 
   const rows = boardRows(id, 10_000)
   return rows.findIndex((r) => r.mine) + 1
 }
+
+/** VIP tier of any player from the board (0 until the board has loaded; call refreshBoard() where it matters). */
+export const vipOf = (address: string): number => lobby.board.players.find((p) => p.address === address.toLowerCase())?.vip ?? 0
 
 /** Crown holder, if forged. Refreshed with the leaderboard. */
 export const crownHolder = () => lobby.board.crown

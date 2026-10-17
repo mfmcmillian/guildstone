@@ -80,7 +80,8 @@ import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
 import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
-import { crownHolder, isCrownHolder, refreshBoard } from '../lobby'
+import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
+import { withVip } from '../vip'
 import { stepTarget } from './guide'
 
 const skillColor = (s: Skill) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
@@ -1473,7 +1474,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
               <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(100), flexDirection: 'row', alignItems: 'center', padding: { left: S(18), right: S(18) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
                 <Icon src={isCrownHolder(id) ? 'images/icons/guild/crown_small.png' : guildRoleIcon(role)} size={S(64)} uiTransform={{ margin: { right: S(8) } }} />
                 <UiEntity uiTransform={{ width: S(220), flexDirection: 'column' }}>
-                  <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(34) }} />
+                  <Text value={withVip(guild.memberNames?.[id] || shortWallet(id), vipOf(id))} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(34) }} />
                   <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(22)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(28) }} />
                 </UiEntity>
                 <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1560,6 +1561,8 @@ function timeAgo(at: number): string {
 export function GuildPanel() {
   seedGuildForm()
   refreshGuild(45_000)
+  // Rosters show each member's VIP tier from the board (cached, cheap).
+  if (player.guild) refreshBoard()
   if (!player.guild) refreshGuildDirectory()
   const guild = player.guild
   const fit = fitBig()
@@ -1717,7 +1720,7 @@ export function GuildPanel() {
                             {/* Rank as an icon, not a word: a text label next to a nowrap name overlapped it. Your own row is the purple highlight. */}
                             <Icon src={guildRoleIcon(role)} size={S(26)} uiTransform={{ flexShrink: 0, margin: { right: S(6) } }} />
                             <Text
-                              value={guild.memberNames?.[id] || shortWallet(id)}
+                              value={withVip(guild.memberNames?.[id] || shortWallet(id), vipOf(id))}
                               size={S(22)}
                               color={isYou ? C.purple : role === 'member' ? C.text : guildRoleColor(role)}
                               align="middle-left"
@@ -1760,7 +1763,7 @@ export function GuildPanel() {
                           uiBackground={isYou ? { color: Color4.create(0.55, 0.35, 0.95, 0.18) } : undefined}
                         >
                           <OutlinedText value={`${index + 1}`} size={S(24)} color={index === 0 ? C.gold : index < 3 ? C.orange : C.textMuted} uiTransform={{ width: S(44) }} />
-                          <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(22)} color={isYou ? C.purple : C.text} align="middle-left" nowrap uiTransform={{ width: S(300), overflow: 'hidden' }} />
+                          <Text value={withVip(guild.memberNames?.[id] || shortWallet(id), vipOf(id))} size={S(22)} color={isYou ? C.purple : C.text} align="middle-left" nowrap uiTransform={{ width: S(300), overflow: 'hidden' }} />
                           <Text value={`${entry.points}`} size={S(24)} color={C.greenDark} align="middle-right" uiTransform={{ width: S(160) }} />
                         </UiEntity>
                       )
