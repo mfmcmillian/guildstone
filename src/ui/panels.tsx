@@ -863,6 +863,9 @@ export function WorkshopPanel() {
   const job = player.craftQueue[0]
   const recipes = RECIPES.filter((r) => r.skill === workshopSkill)
   const fit = fitBig()
+  // ETA for everything queued: one craftSecs per unit, minus what the current unit has already done.
+  const queueSecs = player.craftQueue.reduce((sum, j) => sum + j.remaining * craftSecs(), 0) - (job?.elapsed ?? 0)
+  const queueEta = player.craftQueue.length > 1 ? `${player.craftQueue.length} jobs done in ${durationText(queueSecs)}` : `done in ${durationText(queueSecs)}`
   return (
     <Modal title="WORKSHOP" color={C.orange} {...bigFrame(fit, 'WORKSHOP', 'workshop')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
@@ -939,7 +942,7 @@ export function WorkshopPanel() {
         </UiEntity>
         <UiEntity uiTransform={{ width: S(1000), height: S(56), alignItems: 'center', justifyContent: 'center', margin: { top: S(16) } }}>
           {job && !costHint ? (
-            <Bar value={job.elapsed / craftSecs()} color={C.orange} height={S(50)} label={`Making ${RESOURCE_INFO[job.material].name}...  ${job.remaining} left`} labelSize={S(26)} />
+            <Bar value={job.elapsed / craftSecs()} color={C.orange} height={S(50)} label={`Making ${RESOURCE_INFO[job.material].name}...  ${job.remaining} left  •  ${queueEta}`} labelSize={S(26)} />
           ) : (
             <Text value={costHint ?? "Queue is empty. The workshop keeps working while you're away."} size={S(24)} color={costHint ? C.gold : C.textMuted} nowrap />
           )}
