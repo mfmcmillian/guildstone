@@ -46,7 +46,8 @@ export const lobby = {
   draft: '',
   /** Bumped whenever `draft` is reset in code: the SDK Input only reads `value` on mount, so the box is remounted to clear it. */
   draftKey: 0,
-  /** While set (a timestamp), the composer is disabled so the renderer drops keyboard focus; the box is remounted blank when it passes. */
+  /** Key of the Input being retired after a send. It stays mounted (hidden, disabled) until `composerBlankAt` passes. */
+  retiringKey: null as number | null,
   composerBlankAt: 0,
   sending: false,
   /** Address whose mini card is open, if any. */
@@ -156,20 +157,23 @@ export function sendChat() {
 const BLANK_DRAFT = ' '
 
 /**
- * Set the composer text from code (blank after send, restore after a failure). The box is remounted so the new value
- * shows, but only after a short disabled window: a focused text field keeps its editing buffer, so a value written while
- * it still has keyboard focus is overwritten by the old text as soon as focus leaves. Disabling it first drops the focus.
+ * Set the composer text from code (blank after send, restore after a failure) by mounting a fresh Input. A focused Unity
+ * text field keeps its own editing buffer and restores it over anything the scene writes, and the renderer pools text
+ * fields, so a plain remount gets the same still-focused field back. The old Input is therefore kept mounted (hidden,
+ * disabled) for a moment so the new one is built on a different field; `settleComposer` drops it afterwards.
  */
 function setDraft(text: string) {
   lobby.draft = text
-  lobby.composerBlankAt = Date.now() + 120
+  lobby.retiringKey = lobby.draftKey
+  lobby.draftKey++
+  lobby.composerBlankAt = Date.now() + 150
 }
 
-/** Called from the chat render: once the disabled window has passed, remount the composer with the pending value. */
+/** Called from the chat render: once the hand-over window has passed, drop the retired Input. */
 export function settleComposer() {
   if (lobby.composerBlankAt > 0 && Date.now() >= lobby.composerBlankAt) {
     lobby.composerBlankAt = 0
-    lobby.draftKey++
+    lobby.retiringKey = null
   }
 }
 

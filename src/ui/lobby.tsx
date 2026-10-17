@@ -154,7 +154,6 @@ function ChatColumn(props: { height: number }) {
         <Input
           key={`chat-input-${lobby.draftKey}`}
           value={lobby.draft}
-          disabled={lobby.composerBlankAt > 0}
           placeholder={lobby.sending ? 'Sending...' : 'Say something to everyone wearing the ring...'}
           fontSize={S(24)}
           color={C.text}
@@ -165,6 +164,10 @@ function ChatColumn(props: { height: number }) {
           }}
           onSubmit={() => sendChat()}
         />
+        {lobby.retiringKey !== null ? (
+          // Retired box after a send, see setDraft in lobby.ts. Hidden and disabled; removed by settleComposer.
+          <Input key={`chat-input-${lobby.retiringKey}`} value="" disabled fontSize={S(24)} uiTransform={{ positionType: 'absolute', width: 0, height: 0 }} />
+        ) : null}
         <Button key="chat-send" label="SEND" color={C.green} disabled={lobby.sending || lobby.draft.trim().length === 0} size={S(22)} uiTransform={{ width: S(150), height: S(60), minWidth: 0 }} onClick={() => sendChat()} />
       </UiEntity>
     </Panel>
