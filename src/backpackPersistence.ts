@@ -1,5 +1,6 @@
 import { engine, executeTask } from '@dcl/sdk/ecs'
 import { isServer } from '@dcl/sdk/network'
+import { seedSettings } from './settings'
 import {
   BackpackData,
   BoostsData,
@@ -191,6 +192,7 @@ export function initializeBackpackPersistence() {
     player.craftedSuits = sanitizeCraftedSuits(profileState.profile.craftedSuits)
     player.craftedRelics = sanitizeCraftedRelics(profileState.profile.craftedRelics)
     player.guildDaily = sanitizeGuildDaily(profileState.profile.guildDaily)
+    seedSettings(profileState.profile.settings)
     initialized = true
     executeTask(async () => {
       await loadGuild(profileState.profile?.guildId)

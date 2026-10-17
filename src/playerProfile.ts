@@ -3,6 +3,7 @@ import { getPlayer } from '@dcl/sdk/players'
 import { signedFetch } from '~system/SignedFetch'
 import { getUserData } from '~system/UserIdentity'
 import { isServer } from '@dcl/sdk/network'
+import type { ProfileSettings } from './settings'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 const GAME_ID = 'antrom-afk'
@@ -104,6 +105,8 @@ export interface AfkPlayerProfile {
   /** Suits the server has minted for this player. */
   craftedSuits?: Array<{ skill: string; level: number; at: number }>
   craftedRelics?: Array<{ relic: string; at: number }>
+  /** HUD preferences (ALERTS toggle; chat language is set server-side). */
+  settings?: ProfileSettings
   legacyGuildMigrationVersion?: number
   legacyGuildImportedAt?: number
   legacyStorageMigrationVersion?: number

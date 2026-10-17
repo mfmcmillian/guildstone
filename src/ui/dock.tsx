@@ -9,6 +9,8 @@ import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
+import { settings } from '../settings'
+import { setAlerts } from '../transactions'
 import { showShop, showToolBench, showWorkshop, stepTarget } from './guide'
 
 const skillColor = (s: (typeof SKILLS)[number]) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
@@ -67,16 +69,25 @@ export function Dock() {
       }}
     >
       <Panel flat color={C.navySoft} uiTransform={{ width: S(420), padding: S(18), flexDirection: 'column' }}>
-        {/* Header: title, then two small controls where the cog used to be (hide the Antrom UI; toggle sounds) */}
+        {/* Header: title, then three small controls where the cog used to be (hide the Antrom UI; alerts; sounds) */}
         <UiEntity uiTransform={{ width: '100%', height: S(44), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(8) } }}>
-          <OutlinedText value="ANTROM AFK" size={S(FONT.body + 6)} color={C.yellow} align="middle-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
-          <Button label="HIDE" color={C.blue} size={S(16)} uiTransform={{ width: S(74), height: S(40), minWidth: 0, margin: { right: S(6) } }} onClick={() => { ui.hidden = true }} />
+          <OutlinedText value="ANTROM AFK" size={S(FONT.body + 2)} color={C.yellow} align="middle-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
+          <Button label="HIDE" color={C.blue} size={S(15)} uiTransform={{ width: S(60), height: S(40), minWidth: 0, margin: { right: S(6) } }} onClick={() => { ui.hidden = true }} />
+          {/* ALERTS: gather/find toasts, level-up and rare-find banners, lobby badge. QUIET hides them; saved on the profile. */}
+          <Button
+            label={settings.alerts ? 'ALERTS' : 'QUIET'}
+            color={settings.alerts ? C.green : C.gray}
+            textColor={settings.alerts ? C.white : C.textMuted}
+            size={S(15)}
+            uiTransform={{ width: S(80), height: S(40), minWidth: 0, margin: { right: S(6) } }}
+            onClick={() => setAlerts(!settings.alerts)}
+          />
           <Button
             label={isMuted() ? 'MUTED' : 'SOUND'}
             color={isMuted() ? C.gray : C.green}
             textColor={isMuted() ? C.textMuted : C.white}
-            size={S(16)}
-            uiTransform={{ width: S(84), height: S(40), minWidth: 0 }}
+            size={S(15)}
+            uiTransform={{ width: S(80), height: S(40), minWidth: 0 }}
             onClick={() => setMuted(!isMuted())}
           />
         </UiEntity>

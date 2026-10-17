@@ -3,10 +3,12 @@ import { signedFetch } from '~system/SignedFetch'
 import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
+import { settings } from './settings'
 import {
   BaseResource,
   Boost,
   flash,
+  notify,
   GuildInfo,
   GuildTechKey,
   ItemId,
@@ -56,7 +58,7 @@ function applyRareFields(result: RareFields) {
     player.coins = result.currency.coins
     player.berries = result.currency.berries
   }
-  if ((result.berries ?? 0) > 0) flash(`FOUND ${result.berries} ${result.berries === 1 ? 'BERRY' : 'BERRIES'}!`)
+  if ((result.berries ?? 0) > 0) notify(`FOUND ${result.berries} ${result.berries === 1 ? 'BERRY' : 'BERRIES'}!`)
   const drops = Object.entries(result.rareDrops ?? {}) as Array<[RareRaw, number]>
   if (drops.length > 0) {
     // The banner is the moment; no HUD flash on top of it.
@@ -67,7 +69,7 @@ function applyRareFields(result: RareFields) {
   }
   if ((result.antromPelts ?? 0) > 0) {
     player.antromPelts = result.antromPelts ?? 0
-    flash(`A GIFT FROM ANTROM: +${result.antromPelts} Beast Pelt in your Bank`)
+    notify(`A GIFT FROM ANTROM: +${result.antromPelts} Beast Pelt in your Bank`)
     playSuccessSound()
   }
 }
@@ -234,13 +236,13 @@ export function requestGather(
       const got = Math.max(0, Math.floor(result.got))
       if (got > 0) {
         const name = target === 'berry' ? RESOURCE_INFO.berry.name : RESOURCE_INFO[SKILL_INFO[target].resource].name
-        flash(result.doubled ? `DOUBLE! +${got} ${name}` : `+${got} ${name}`)
+        notify(result.doubled ? `DOUBLE! +${got} ${name}` : `+${got} ${name}`)
       } else if (target !== 'berry') {
         flash('BACKPACK FULL - tap the bag to BANK IT!')
       }
       applyRareFields(result)
       if (masteryUp && MASTERY_ENABLED) {
-        flash(masteryUp)
+        notify(masteryUp)
         playSuccessSound()
       }
       onResult?.(got)
@@ -302,7 +304,7 @@ export function requestWork(skill: Skill, stop = false) {
       if (got <= 0 && result.capped) flash(ringStationsEnabled() ? 'BACKPACK FULL - tap the bag to bank it!' : `BACKPACK FULL - bank it at ${campHint()}!`)
       applyRareFields(result)
       if (result.masteryUp && MASTERY_ENABLED) {
-        flash(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
+        notify(`${SKILL_INFO[skill].zoneName} MASTERY ${player.mastery[skill].level}!`)
         playSuccessSound()
       }
     } catch (error) {
@@ -377,7 +379,7 @@ function requestCraftAction(action: 'enqueue' | 'sync', material?: MaterialKey, 
         player.craftQueue = result.craftQueue
         if (finished.length > 0) {
           playCraftDoneSound()
-          flash(`${RESOURCE_INFO[finished[0].material].name.toUpperCase()} READY IN YOUR BANK`)
+          notify(`${RESOURCE_INFO[finished[0].material].name.toUpperCase()} READY IN YOUR BANK`)
         }
       }
       if (action === 'enqueue' && result.queued > 0) flash(`QUEUED ${result.queued} ${RESOURCE_INFO[material!].name.toUpperCase()}`)
@@ -675,7 +677,7 @@ function announceGuildChanges(previous: GuildInfo | null, next: GuildInfo | null
   if (next.hqLevel > previous.hqLevel) {
     const pct = Number((next.hqLevel * 0.25).toFixed(2))
     playSuccessSound()
-    flash(`GUILD HQ LEVEL ${next.hqLevel}!  +${pct}% BONUS FOR EVERYONE`)
+    notify(`GUILD HQ LEVEL ${next.hqLevel}!  +${pct}% BONUS FOR EVERYONE`)
   }
 }
 
@@ -921,6 +923,32 @@ export function requestGuildDonate(target: 'hq' | GuildTechKey, coins: number, w
       console.error('[transaction] Donate failed:', error instanceof Error ? error.message : String(error))
     } finally {
       guildRequestInFlight = false
+    }
+  })
+}
+
+// ---- Settings (ALERTS toggle) ---------------------------------------------------------------------------------------
+/**
+ * Flip ALERTS and save it on the profile (settings.alerts). Applies locally first so the HUD reacts on the same frame;
+ * a failed save keeps the local value for this session and logs, nothing more (it is a preference, not a transaction).
+ */
+export function setAlerts(on: boolean) {
+  settings.alerts = on
+  if (!on) {
+    // Anything already showing goes away with the switch.
+    player.lastGain = null
+    lastRareFind.at = 0
+  }
+  if (profileState.status !== 'ready' || !profileState.walletAddress || !settings.seeded) return
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/settings`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alerts: on }) }
+      })
+      if (!response.ok) throw new Error(`Settings save failed (${response.status})`)
+    } catch (error) {
+      console.error('[transaction] Settings failed:', error instanceof Error ? error.message : String(error))
     }
   })
 }

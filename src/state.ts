@@ -1,4 +1,5 @@
 // Demo game state. Backpack changes are persisted once the wallet profile is ready.
+import { settings } from './settings'
 
 export type BaseResource = 'wood' | 'rock' | 'meat' | 'bone'
 export type Material = 'plank' | 'brick' | 'jerky' | 'bonedust'
@@ -571,7 +572,7 @@ export function gather(skill: Skill, amount: number): number {
   if (got > 0) {
     backpackChanged()
     addXp(skill, 10 * got)
-    flash(`+${got} ${RESOURCE_INFO[res].name}`)
+    notify(`+${got} ${RESOURCE_INFO[res].name}`)
   } else {
     flash('BACKPACK FULL - go DEPOT!')
   }
@@ -642,6 +643,12 @@ export function sellCrafted(material: MaterialKey): { items: number; coins: numb
 
 export function flash(text: string) {
   player.lastGain = { text, at: Date.now() }
+}
+
+/** A toast for something that happened on its own (a gather, a find, mastery, bank ready). Hidden when ALERTS is OFF. */
+export function notify(text: string) {
+  if (!settings.alerts) return
+  flash(text)
 }
 
 // --- Recipes ---------------------------------------------------------------

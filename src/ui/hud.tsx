@@ -10,6 +10,7 @@ import { S, setScale, hudScale, getCanvas } from './responsive'
 import { bankBagNow, openRelicsTab, resetGuildTab } from './panels'
 import { openSite } from '../links'
 import { playButtonSound } from '../uiSounds'
+import { settings } from '../settings'
 import { nextStep, showGuild, stepTarget } from './guide'
 
 let bagHover = false
@@ -66,7 +67,8 @@ export function Hud() {
   // HUD sizes are relative to the real canvas; positions sit inside the explorer's own HUD insets.
   setScale(hudScale())
   // Keep the lobby badge fresh while the GUILD button is on screen and the Lobby tab itself isn't.
-  if (showGuild() && ui.open !== 'guild') tickLobbyBackground()
+  // ALERTS OFF: no badge, so no background poll either.
+  if (showGuild() && ui.open !== 'guild' && settings.alerts) tickLobbyBackground()
   const canvas = getCanvas()
   const edgeX = S(18)
   const edgeY = S(18)
@@ -207,7 +209,7 @@ export function Hud() {
                 size={S(FONT.button + 10)}
               />
               {/* Unread lobby chat since the Lobby tab was last open (slow background poll; see tickLobbyBackground). */}
-              {unreadBadge(lobby.unread)}
+              {unreadBadge(settings.alerts ? lobby.unread : 0)}
             </UiEntity>
           ) : null}
           <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' || stepTarget() === 'relics' ? glow(C.blue) : C.blue} onClick={() => { if (stepTarget() === 'relics') openRelicsTab(); togglePanel('skills') }} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />

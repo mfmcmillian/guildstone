@@ -6,6 +6,7 @@ import { levelUp, MAX_LEVEL, onLevelUp, SKILL_ICON, SKILL_INFO, Skill, skillLadd
 import { playLevelUpSound } from '../uiSounds'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { ringStationsEnabled, campHint } from '../remoteConfig'
+import { settings } from '../settings'
 
 const SHOW_SECS = 5
 const POP_SECS = 0.45
@@ -45,7 +46,7 @@ function unlockLine(skill: Skill, level: number): { text: string; color: Color4 
  * then fades. Rendered above every panel so it reads even with a menu open.
  */
 export function LevelUpBanner() {
-  if (!levelUp.skill) return null
+  if (!levelUp.skill || !settings.alerts) return null
   const elapsed = (Date.now() - levelUp.at) / 1000
   if (elapsed > SHOW_SECS) return null
 
