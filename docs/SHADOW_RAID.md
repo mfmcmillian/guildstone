@@ -121,7 +121,7 @@ When no guild answers, the server builds a side of the same size as the caller's
 At the last tick (80 by default):
 
 - Higher score wins. Tie → draw.
-- **Valor** per fighter = `valorPerTick × ticks present` (capped at the raid length), `× valorWinMult` for the winning side, `+ valorPerKo` per knockout dealt (live config; defaults 1 / ×1.5 / 5). Draw → base only.
+- **Valor** per fighter = `valorPerTick × ticks present` (capped at the raid length), `× valorWinMult` for the winning side, `+ valorPerKo` per knockout dealt (live config; defaults 1 / ×1.5 / 5). Draw → base only. The lifetime tally (`raid.valor / raids / wins / kos` on the profile) feeds the **RAID** leaderboard under RANKINGS, ranked by valor with the active hero and its level on the row.
 - Guild `raid` record: `wins / losses / draws / score (Valor total) / history (last 5)`; a system line in both guild chats with the final score.
 - Profile `raid`: `{ valor, raids, wins, kos }`.
 - The field freezes on a result card (score, per-fighter dealt/taken/KOs, Valor earned) until the officer starts the next raid or 2 minutes pass.

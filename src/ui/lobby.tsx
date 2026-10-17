@@ -276,7 +276,7 @@ function BoardColumn(props: { id: BoardId; height: number }) {
               <OutlinedText value={`#${i + 1}`} size={S(30)} color={i < 3 ? C.gold : C.textMuted} align="middle-left" uiTransform={{ width: S(90), height: S(40) }} />
               {isCrownHolder(r.key) ? <Icon src={CROWN_ICON} size={S(34)} uiTransform={{ margin: { right: S(8) } }} /> : null}
               <Text value={`${r.name}${r.tag ? `  [${r.tag}]` : ''}`} size={S(30)} color={C.white} align="middle-left" nowrap uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
-              <Text value={r.value} size={S(30)} color={r.mine ? C.white : C.yellow} align="middle-right" nowrap uiTransform={{ width: S(420), height: S(40) }} />
+              <Text value={r.value} size={S(30)} color={r.mine ? C.white : C.yellow} align="middle-right" nowrap uiTransform={{ width: S(id === 'raid' ? 700 : 420), height: S(40) }} />
             </UiEntity>
           ))}
         </UiEntity>

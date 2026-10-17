@@ -8,6 +8,8 @@ import { engine, RealmInfo, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { ui } from './ui/uiState'
 import { activeSkill } from './work'
 import { withVip } from './vip'
+import { HEROES, sanitizeHeroId } from './hero'
+import { t } from './i18n'
 import { settings } from './settings'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -57,7 +59,9 @@ export interface OnlinePlayer {
 }
 export interface GuildInvite { guildId: string; tag: string; name: string; byName: string; at: number }
 
-export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number; relics?: string[]; vip?: number }
+export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number; relics?: string[]; vip?: number; hero?: string; heroLevel?: number; raid?: RaidTally }
+/** Lifetime raid tally kept on the profile by the server (see docs/SHADOW_RAID.md). */
+export interface RaidTally { valor: number; raids: number; wins: number; kos: number }
 /** Who forged the Guildstone Crown (one ever). */
 export interface CrownHolder { address: string; name: string; at: number }
 export interface BoardGuild { id: string; tag: string; name: string; hqLevel: number; points: number; weeklyPoints: number; memberCount: number; maxMembers: number }
@@ -376,12 +380,13 @@ export function settleBugCard() {
 }
 
 // ---- Leaderboards ------------------------------------------------------------------------------------------------
-export type BoardId = 'levels' | Skill | 'suits' | 'hq' | 'points' | 'weekly'
+export type BoardId = 'levels' | Skill | 'suits' | 'raid' | 'hq' | 'points' | 'weekly'
 /** The RANKINGS tab, in order. Chat lives on the LOBBY tab (ui/lobby.tsx), not here. */
 export const BOARDS: Array<{ id: BoardId; label: string }> = [
   { id: 'levels', label: 'LEVELS' },
   ...SKILLS.map((s) => ({ id: s as BoardId, label: SKILL_INFO[s].name.toUpperCase() })),
   { id: 'suits', label: 'SUITS' },
+  { id: 'raid', label: 'RAID' },
   { id: 'hq', label: 'GUILD HQ' },
   { id: 'points', label: 'GUILD PTS' },
   { id: 'weekly', label: 'THIS WEEK' }
@@ -393,6 +398,7 @@ export const BOARD_TITLE: Record<BoardId, string> = {
   butcher: 'BUTCHER  •  by XP',
   assassin: 'ASSASSIN  •  by XP',
   suits: 'SUITS CRAFTED',
+  raid: 'RAID VALOR  •  ticks fought, wins and knockouts',
   hq: 'GUILD HQ LEVEL',
   points: 'GUILD POINTS  •  all time',
   weekly: 'GUILD POINTS  •  this week (resets Monday 00:00 UTC)'
@@ -414,14 +420,22 @@ export function boardRows(id: BoardId, limit = 15): BoardRow[] {
   }
   const skillIndex = SKILLS.indexOf(id as Skill)
   const value = (p: BoardPlayer) =>
-    id === 'levels' ? p.level.reduce((a, b) => a + b, 0) : id === 'suits' ? p.crafted : p.xp[skillIndex] ?? 0
+    id === 'levels' ? p.level.reduce((a, b) => a + b, 0) : id === 'suits' ? p.crafted : id === 'raid' ? raidValor(p) : p.xp[skillIndex] ?? 0
   const show = (p: BoardPlayer) =>
-    id === 'levels' ? `Lv ${value(p)}` : id === 'suits' ? `${value(p)} suit${value(p) === 1 ? '' : 's'}` : `Lv ${p.level[skillIndex] ?? 0}  •  ${value(p).toLocaleString()} XP`
+    id === 'levels' ? `Lv ${value(p)}` : id === 'suits' ? `${value(p)} suit${value(p) === 1 ? '' : 's'}` : id === 'raid' ? raidLine(p) : `Lv ${p.level[skillIndex] ?? 0}  •  ${value(p).toLocaleString()} XP`
   return [...lobby.board.players]
     .filter((p) => value(p) > 0)
     .sort((a, b) => value(b) - value(a))
     .slice(0, limit)
     .map((p) => ({ key: p.address, name: withVip(p.name, p.vip), tag: tagOf[p.guild] ?? '', value: show(p), mine: p.address === me }))
+}
+
+const raidValor = (p: BoardPlayer) => Math.max(0, Math.floor(Number(p.raid?.valor) || 0))
+const n0 = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0))
+/** `Knight 12  •  8W 11R 40KO  •  1,240 valor` — the hero rides along so the board doubles as a hero ranking. */
+function raidLine(p: BoardPlayer): string {
+  const r = p.raid
+  return `${t(HEROES[sanitizeHeroId(p.hero)].name)} ${Math.max(1, n0(p.heroLevel))}  •  ${n0(r?.wins)}W ${n0(r?.raids)}R ${n0(r?.kos)}KO  •  ${raidValor(p).toLocaleString()} valor`
 }
 
 /** Where I sit on a player board, 1-based (0 when unranked). */
