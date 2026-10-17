@@ -87,50 +87,23 @@ export function LobbyTab(props: { height: number }) {
 }
 
 // ---- Chat ------------------------------------------------------------------------------------------------------
-// The feed is a real scroll container. The SDK cannot position a scroll view (protocol PR #412 is unmerged), so one
-// always opens at its top. To open on the newest line while still reading top-to-bottom, the content is laid out as
-// pages: the newest screenful first in normal order (newest line at the bottom of that page), then an EARLIER divider
-// and the previous screenful, and so on down into the past. NEWEST remounts the box, which puts the view back at the
-// top; reopening the tab does the same. Only the newest CHAT_RENDER_MAX lines are rendered.
-const CHAT_RENDER_MAX = 300
-const DIVIDER_H = 30
-let feedKey = 0
-let chatLastRenderAt = 0
-
-type FeedRow =
-  | { kind: 'line'; id: string; from: string; guild: string; line: string; h: number }
-  | { kind: 'divider'; id: string; h: number }
-
 function ChatColumn(props: { height: number }) {
-  settleComposer()
   const invites = lobby.invites.filter((i) => !dismissedInvites.has(i.guildId))
   const inviteH = invites.length > 0 ? 66 : 0
   const feedH = props.height - 20 - inviteH - 64 - 10
+  // Newest at the bottom; walk back until the feed is full. Two lines for long messages, one otherwise.
+  settleComposer()
   const visible = lobby.messages.filter((m) => !lobby.muted.has(m.from))
-  // Reopening the tab lands on the newest page.
-  const now = Date.now()
-  if (now - chatLastRenderAt > 2000) feedKey++
-  chatLastRenderAt = now
+  const rows: Array<{ id: string; from: string; guild: string; line: string; h: number }> = []
+  let used = 0
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.tag, g.id]))
-  const pool = visible.slice(-CHAT_RENDER_MAX)
-  const rows: FeedRow[] = []
-  let end = pool.length
-  while (end > 0) {
-    // One page: walk back from `end` until a screenful is used. Two lines for long messages.
-    const page: FeedRow[] = []
-    let used = 0
-    let i = end - 1
-    for (; i >= 0; i--) {
-      const m = pool[i]
-      const line = `${m.tag ? `[${m.tag}] ` : ''}${m.name}:  ${m.text}`
-      const h = line.length > 92 ? 56 : 30
-      if (page.length > 0 && used + h > feedH) break
-      used += h
-      page.unshift({ kind: 'line', id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', line, h })
-    }
-    if (rows.length > 0) rows.push({ kind: 'divider', id: `div-${pool[end - 1].id}`, h: DIVIDER_H })
-    rows.push(...page)
-    end = i + 1
+  for (let i = visible.length - 1; i >= 0; i--) {
+    const m = visible[i]
+    const line = `${m.tag ? `[${m.tag}] ` : ''}${m.name}:  ${m.text}`
+    const h = line.length > 92 ? 56 : 30
+    if (used + h > feedH) break
+    used += h
+    rows.unshift({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', line, h })
   }
 
   return (
@@ -143,47 +116,39 @@ function ChatColumn(props: { height: number }) {
         </UiEntity>
       ))}
 
-      {rows.length === 0 ? (
-        <UiEntity uiTransform={{ width: '100%', height: S(feedH), flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <UiEntity uiTransform={{ width: '100%', height: S(feedH), flexDirection: 'column', justifyContent: 'flex-end' }}>
+        {rows.length === 0 ? (
           <Text
             value={!lobby.loadedOnce ? (lobby.failed ? 'Could not reach the lobby. Retrying...' : 'Joining the lobby...') : 'Nobody has said anything yet. Say hi!'}
             size={S(24)}
             color={C.textMuted}
             uiTransform={{ width: '100%', height: S(40) }}
           />
-        </UiEntity>
-      ) : (
-        <UiEntity key={`chat-feed-${feedKey}`} uiTransform={{ width: '100%', height: S(feedH), flexDirection: 'column', overflow: 'scroll' }}>
-          {rows.map((r) =>
-            r.kind === 'divider' ? (
-              <UiEntity key={r.id} uiTransform={{ width: '100%', height: S(r.h), flexShrink: 0, alignItems: 'center', justifyContent: 'center' }}>
-                <Text value="—  EARLIER  —" size={S(18)} color={C.textMuted} nowrap uiTransform={{ height: S(26) }} />
-              </UiEntity>
-            ) : (
-              <UiEntity
-                key={r.id}
-                uiTransform={{ width: '100%', height: S(r.h), flexShrink: 0, flexDirection: 'row', alignItems: 'flex-start' }}
-                onMouseDown={() => {
-                  if (r.from === me()) return
-                  playButtonSound()
-                  lobby.selected = r.from
-                }}
-              >
-                <Text value={r.line} size={S(22)} color={nameColor(r.from, r.guild)} align="top-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
-                {lobby.admin ? (
-                  <UiEntity
-                    uiTransform={{ width: S(30), height: S(26), alignItems: 'center', justifyContent: 'center', margin: { left: S(6) } }}
-                    uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: C.red }}
-                    onMouseDown={() => adminChat('delete', r.id)}
-                  >
-                    <Text value="x" size={S(18)} color={C.white} />
-                  </UiEntity>
-                ) : null}
-              </UiEntity>
-            )
-          )}
-        </UiEntity>
-      )}
+        ) : (
+          rows.map((r) => (
+            <UiEntity
+              key={r.id}
+              uiTransform={{ width: '100%', height: S(r.h), flexDirection: 'row', alignItems: 'flex-start' }}
+              onMouseDown={() => {
+                if (r.from === me()) return
+                playButtonSound()
+                lobby.selected = r.from
+              }}
+            >
+              <Text value={r.line} size={S(22)} color={nameColor(r.from, r.guild)} align="top-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
+              {lobby.admin ? (
+                <UiEntity
+                  uiTransform={{ width: S(30), height: S(26), alignItems: 'center', justifyContent: 'center', margin: { left: S(6) } }}
+                  uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: C.red }}
+                  onMouseDown={() => adminChat('delete', r.id)}
+                >
+                  <Text value="x" size={S(18)} color={C.white} />
+                </UiEntity>
+              ) : null}
+            </UiEntity>
+          ))
+        )}
+      </UiEntity>
 
       <UiEntity uiTransform={{ width: '100%', height: S(64), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
         <Input
@@ -200,7 +165,6 @@ function ChatColumn(props: { height: number }) {
           }}
           onSubmit={() => sendChat()}
         />
-        <Button key="chat-newest" label="NEWEST" color={C.navySoft} size={S(20)} uiTransform={{ width: S(150), height: S(60), minWidth: 0, margin: { right: S(10) } }} onClick={() => { feedKey++ }} />
         <Button key="chat-send" label="SEND" color={C.green} disabled={lobby.sending || lobby.draft.trim().length === 0} size={S(22)} uiTransform={{ width: S(150), height: S(60), minWidth: 0 }} onClick={() => sendChat()} />
       </UiEntity>
     </Panel>
