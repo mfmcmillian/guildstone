@@ -320,6 +320,14 @@ Status: **built 2026-10-16, waiting on the collection.** Backend deployed; clien
 
 Status: planning. Goal: years of guild progression with several kinds of progress, not just longer coin bars.
 
+## Shadow Raid (guild combat) — MVP1 built 2026-10-17 on branch `bases-combat`
+
+Design and numbers: [SHADOW_RAID.md](SHADOW_RAID.md). Five-minute 2v2–4v4 raids on one battlefield (the WAR tab), five buildings to hold, HP/ATK from the Assassin profession (level, Dagger tier, set pieces, KoA VIP). Server `api/afkRaid.js` (lazy 15 s ticks, Wraith bots when no guild answers, Valor, guild record), client `src/raid.ts` + `src/ui/raid.tsx`, art in `images/raid/`. Replaced the earlier Hold & Warband prototype (troops and bases), which was removed from both repos.
+
+- [ ] Valor spend (banner frames, titles) and a Valor leaderboard on guildstone.dev.
+- [ ] Focus-fire / target choice if spread damage feels flat.
+- [ ] Scheduled raids and best-of-three once two guilds are raiding regularly.
+
 ## Where guilds are today (prod, 2026-10-14)
 
 - 6 guilds. HQ: ELF 100, KOA 100, SOT 55, BACON 52, ERS 3, COG 1 (HQ max 200). ELF/KOA have all six base techs at 5 (legacy import). Advanced tiers (6–10, open at HQ 100) and the five endgame nodes (Prospector HQ 50, Merchant 110, Architect 125, Quartermaster 150, Forager 175) are at 0 everywhere.
