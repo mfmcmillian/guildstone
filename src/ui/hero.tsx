@@ -11,7 +11,7 @@ import { S, fitModal } from './responsive'
 import { Need } from './panels'
 import { closePanel } from './uiState'
 import { dragOffsetPx, startDrag } from './drag'
-import { HERO_SHEET, Sprite, loopFrame } from './sprite'
+import { ART, HERO_SHEET, Sprite, loopFrame } from './sprite'
 import { player, BASE_RESOURCES, type BaseResource } from '../state'
 import { COUNTER_MULT, HEROES, HERO_IDS, HERO_STATS, HERO_STAT_LABEL, beatenBy, heroBonus, heroCost, heroStatText, type HeroId, type HeroStat } from '../hero'
 import { heroLevelUpAt, requestHeroSelect, requestHeroUpgrade } from '../transactions'
@@ -37,7 +37,9 @@ const STATS_W = W - 72 - STAGE_W - GAP
 const PAD = 28
 const CARD_W = (STATS_W - PAD * 2 - GAP) / 2
 const CARD_H = 150
-const STAGE_BG = Color4.create(0.06, 0.05, 0.12, 0.9)
+/** Training-yard backdrop (guildstone.dev, 560x700 like the stage); the hero's feet land on its dirt floor. */
+const STAGE_BG = `${ART}/hero_stage_v1.jpg`
+const STAGE_FOOT = Color4.create(0.04, 0.02, 0.09, 0.55)
 const CARD_BG = Color4.create(1, 1, 1, 0.55)
 const CHIP_GREEN = Color4.create(0.12, 0.64, 0.36, 0.22)
 const CHIP_RED = Color4.create(1, 0.3, 0.3, 0.22)
@@ -54,10 +56,12 @@ function HeroStage(props: { id: HeroId; level: number }) {
   const maxed = props.level >= def.maxLevel
   const fighting = player.hero === props.id
   return (
-    <UiEntity uiTransform={{ width: S(STAGE_W), height: S(BODY_H), flexDirection: 'column', alignItems: 'center', padding: S(PAD) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: STAGE_BG }}>
+    <UiEntity uiTransform={{ width: S(STAGE_W), height: S(BODY_H), flexDirection: 'column', alignItems: 'center', padding: { left: S(PAD), right: S(PAD), bottom: S(PAD) } }} uiBackground={{ textureMode: 'stretch', texture: { src: STAGE_BG } }}>
       <Spacer />
       <Sprite src={HERO_SHEET[props.id].own} anim={celebrating ? 'attack' : 'idle'} frame={loopFrame(celebrating ? 'attack' : 'idle', now)} size={S(380)} />
       <Spacer />
+      {/* Dark band behind the level and the fighter button so they read over the dirt. */}
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: 0, left: 0 }, width: '100%', height: S(190), pointerFilter: 'none' }} uiBackground={{ color: STAGE_FOOT }} />
       <OutlinedText value={maxed ? 'MAXED' : `LEVEL ${props.level} / ${def.maxLevel}`} size={S(28)} color={C.gold} uiTransform={{ height: S(36), margin: { bottom: S(14) } }} />
       <UiEntity uiTransform={{ width: '100%', height: S(14) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_128, color: Color4.create(1, 1, 1, 0.18) }}>
         <UiEntity uiTransform={{ width: `${Math.round((props.level / def.maxLevel) * 100)}%`, height: '100%' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_128, color: C.red }} />
