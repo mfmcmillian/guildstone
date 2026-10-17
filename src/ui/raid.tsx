@@ -41,7 +41,10 @@ const WAR_FRAME_W = 1850
 const FRAME_EDGE = 14
 const W = WAR_FRAME_W - FRAME_EDGE * 2
 const H = 975
-const WAR_FRAME_H = H + FRAME_EDGE * 2
+// Status strip under the field: you / feed / buttons. Its bottom padding clears the window's CLOSE tab.
+const BAR_H = 150
+const BAR_PAD_BOTTOM = 40
+const WAR_FRAME_H = H + BAR_H + FRAME_EDGE * 2
 const px = (x: number) => S((x / 100) * W)
 const py = (y: number) => S((y / 100) * H)
 
@@ -62,8 +65,6 @@ const ROSTER_TOP = 122
 // Cell size on screen. The character stands about 74% of its 144 px cell, so this matches the old 80 px tokens.
 const TOKEN = 108
 const TOKEN_GAP = 72
-// Tall enough that the window's CLOSE tab (which straddles the frame's bottom edge) never covers the feed lines.
-const BAR_H = 112
 
 const PURPLE_LIGHT = Color4.fromHexString('#c9a3ffff')
 const DARK = Color4.create(0.106, 0.141, 0.212, 0.88)
@@ -416,15 +417,14 @@ function BottomBar(props: { v: RaidView }) {
     else if (me.state === 'in') statusColor = PURPLE_LIGHT
   } else if (v.mine) status = v.status === 'live' ? 'Your guild is raiding' : ''
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: 0, left: 0 }, width: '100%', height: S(BAR_H), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24), bottom: S(22) } }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 0.94) }}>
-      <UiEntity uiTransform={{ width: S(400), flexDirection: 'column' }}>
-        <Text value={me ? `${me.name} (you)` : status} size={S(22)} color={C.white} nowrap align="middle-left" uiTransform={{ height: S(28) }} />
-        {me ? <Text value={status} size={S(22)} color={statusColor} nowrap align="middle-left" uiTransform={{ height: S(28) }} /> : null}
-        {me && v.status === 'live' && me.state !== 'ko' ? <Text value="click any building to walk there · 15 s" size={S(20)} color={C.gray} nowrap align="middle-left" uiTransform={{ height: S(24) }} /> : null}
+    <UiEntity uiTransform={{ width: '100%', height: S(BAR_H), flexDirection: 'row', alignItems: 'center', padding: { left: S(28), right: S(28), top: S(10), bottom: S(BAR_PAD_BOTTOM) } }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 1) }}>
+      <UiEntity uiTransform={{ width: S(380), flexDirection: 'column', justifyContent: 'center' }}>
+        <Text value={me ? `${me.name} (you)` : status} size={S(26)} color={C.white} nowrap align="middle-left" uiTransform={{ height: S(34) }} />
+        {me ? <Text value={status} size={S(24)} color={statusColor} nowrap align="middle-left" uiTransform={{ height: S(32) }} /> : null}
       </UiEntity>
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', justifyContent: 'center' }}>
         {feed.map((e, i) => (
-          <Text key={`feed-${e.at}-${i}`} value={e.text} size={S(20)} color={i === 0 ? C.white : C.gray} nowrap uiTransform={{ height: S(26) }} />
+          <Text key={`feed-${e.at}-${i}`} value={e.text} size={S(22)} color={i === 0 ? C.white : C.gray} nowrap uiTransform={{ height: S(30) }} />
         ))}
       </UiEntity>
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -451,7 +451,6 @@ function Field(props: { v: RaidView }) {
       <Roster v={v} side="a" />
       <Roster v={v} side="b" />
       <Header v={v} />
-      <BottomBar v={v} />
     </UiEntity>
   )
 }
@@ -602,11 +601,14 @@ export function WarTab(props: { height: number }) {
   const showResult = v !== null && (v.status === 'done' || v.status === 'cancelled') && dismissedResult !== v.id
   const idle = v === null || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
   return (
-    <UiEntity uiTransform={{ width: S(W), height: S(props.height), positionType: 'relative', overflow: 'hidden' }} uiBackground={{ textureMode: 'stretch', texture: { src: BG } }}>
-      {!idle && v ? <Field v={v} /> : null}
-      {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
-      {!idle && v && showResult ? <ResultCard v={v} /> : null}
-      {idle ? <IdleScreen /> : null}
+    <UiEntity uiTransform={{ width: S(W), flexDirection: 'column' }}>
+      <UiEntity uiTransform={{ width: S(W), height: S(props.height), positionType: 'relative', overflow: 'hidden' }} uiBackground={{ textureMode: 'stretch', texture: { src: BG } }}>
+        {!idle && v ? <Field v={v} /> : null}
+        {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
+        {!idle && v && showResult ? <ResultCard v={v} /> : null}
+        {idle ? <IdleScreen /> : null}
+      </UiEntity>
+      {!idle && v ? <BottomBar v={v} /> : <UiEntity uiTransform={{ width: '100%', height: S(BAR_H) }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 1) }} />}
     </UiEntity>
   )
 }
@@ -624,7 +626,7 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
   return (
     <Modal title={props.title} color={C.purple} width={WAR_FRAME_W} height={WAR_FRAME_H} scale={s} offsetX={fit.offsetX + o.dx} offsetY={o.dy} titleSize={52} titleWidth={Math.max(420, props.title.length * 40)} onTitleDown={() => startDrag('war')} onClose={props.onClose}>
       {/* Modal lays content out 36 (padding) + 26 (title room) inside the frame; pull the field back out to the border. */}
-      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: -(36 + 26 - FRAME_EDGE) * s, left: -(36 - FRAME_EDGE) * s }, width: S(W), height: S(H) }}>
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: -(36 + 26 - FRAME_EDGE) * s, left: -(36 - FRAME_EDGE) * s }, width: S(W), height: S(H + BAR_H) }}>
         <WarTab height={H} />
       </UiEntity>
       <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s - 36 * s, left: -(36 - FRAME_EDGE - 10) * s }, width: 220 * s, height: 68 * s }}>

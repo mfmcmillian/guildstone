@@ -181,7 +181,7 @@ Clicks dip and play the button sound like every other control.
 
 ## 13. Numbers to tune (live, from the control dashboard)
 
-Defaults: `tickMs 15000`, `ticks 20`, `gatherMs 90000`, `walkMs 15000`, `homeMs 10000`, `koWalkMs 30000`, `sideMax 4`, `sideMin 2`, `raidsPerDay 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `2/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+Defaults: `tickMs 5000`, `ticks 60` (was 15 s × 20; shortened 2026-10-17 so damage lands seconds after fighters meet), `gatherMs 90000`, `walkMs 15000`, `homeMs 10000`, `koWalkMs 30000`, `sideMax 4`, `sideMin 2`, `raidsPerDay 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
 
 They live in `api/afkAdminConfig.js` (defaults + clamps) and are overridden by the Firestore doc `players/afk_v1_admin_config`, edited from **guildstone-admin** (`https://guildstone-admin.vercel.app`, admin key = `AFK_ADMIN_KEY` in the backend's Vercel env). The server caches the doc for 20 s. A raid copies the numbers into `raid.rules` when it is called, so edits never change a raid in progress; the client reads `view.rules` / `view.points` and the idle screen reads the current `rules` from the poll response (no client constants).
 
