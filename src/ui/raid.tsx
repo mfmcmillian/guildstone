@@ -11,7 +11,7 @@ import { player } from '../state'
 import {
   BoardEntry, Fighter, PointId, POINT_IDS, POINT_LABEL, RaidView, Side, SideId,
   myFighter, pollRaid, raid, refreshRaid, requestAnswerRaid, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestSkip, requestStartRaid,
-  serverNow, sideTag, spectateRaid, standingAt, stopSpectating, sumAtk
+  serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
 
 // Raid art is served from guildstone.dev (data only) so the wearable stays under its 2 MB cap; bump the _vN suffix when
@@ -76,7 +76,6 @@ const GLOW_PAD = 40
 const sideColor = (side: SideId | null) => (side === 'a' ? PURPLE_LIGHT : side === 'b' ? C.yellow : C.gray)
 const hpColor = (f: Fighter) => (f.hp <= 0 ? C.red : f.hp / f.hpMax < 0.3 ? C.red : f.hp / f.hpMax < 0.6 ? C.orange : C.green)
 const left = (until: number) => timerText(until - raid.clockOffset)
-const vipText = (vip: number) => (vip > 0 ? `VIP +${vip * 4}%` : '')
 
 let hoverPoint: PointId | null = null
 let dismissedResult = ''
@@ -114,13 +113,14 @@ function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: 
     const [x, y] = spot('camp', index)
     return { x, y, anim: 'idle', frame: Math.floor(now / ANIM.idle.ms) % ANIM.idle.frames, flip: side === 'b' }
   }
-  // Walking (by choice or knocked out).
-  const from = lastSeen[key] ?? 'camp'
+  // Walking (by choice or knocked out). The server says where the leg started and when; its length depends on distance.
   const to: PointId | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
-  const [fx, fy] = spot(from, index)
   const [tx, ty] = spot(to, index)
-  const total = f.state === 'ko' ? v.rules.koWalkMs : to === 'camp' ? v.rules.homeMs : v.rules.walkMs
-  const t = Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total))
+  const [sx, sy] = spot(lastSeen[key] ?? 'camp', index)
+  const fx = f.fromX !== null ? f.fromX + (tx - (to === 'camp' ? CAMP[side][0] : FIELD[to].stand[0])) : sx
+  const fy = f.fromY !== null ? f.fromY : sy
+  const total = f.departAt > 0 ? f.arriveAt - f.departAt : f.state === 'ko' ? v.rules.koWalkMs : to === 'camp' ? v.rules.homeMs : v.rules.walkMs
+  const t = total > 0 ? Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total)) : 1
   const anim: Anim = f.state === 'ko' ? 'ko' : 'walk'
   // KO plays the fall once from the moment of the knock-out, then holds the last frame on the way back to camp.
   const koStart = f.arriveAt - total
@@ -224,16 +224,14 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
   const a = standingAt(v.sides.a, point)
   const b = standingAt(v.sides.b, point)
   const holder = v.held[point]
-  const me = myFighter()
-  const live = v.status === 'live'
   const width = S(480)
   let line2: ReactEcs.JSX.Element
   if (a.length > 0 && b.length > 0) {
     line2 = (
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text value={`${sideTag(v.sides.a)} ${sumAtk(a)} ATK`} size={S(22)} color={PURPLE_LIGHT} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+        <Text value={`⚔ ${sideTag(v.sides.a)}`} size={S(22)} color={PURPLE_LIGHT} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
         <Text value="  vs  " size={S(22)} color={C.gray} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
-        <Text value={`${sideTag(v.sides.b)} ${sumAtk(b)} ATK`} size={S(22)} color={C.yellow} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+        <Text value={sideTag(v.sides.b)} size={S(22)} color={C.yellow} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
       </UiEntity>
     )
   } else if (a.length > 0 || b.length > 0) {
@@ -244,11 +242,6 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
   } else {
     line2 = <Text value="empty" size={S(22)} color={C.gray} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   }
-  let line3 = ''
-  if (live && a.length > 0 && b.length > 0) line3 = `${holder ? `${sideTag(v.sides[holder])} hold · −${Math.round(def.armour * 100)}% dmg inside · ` : ''}clash in ${left(v.nextTickAt)}`
-  else if (live && me && me.state === 'walk' && me.target === point) line3 = `you arrive in ${left(me.arriveAt)}`
-  else if (live && holder && (a.length > 0 || b.length > 0)) line3 = `+${def.pips} to ${sideTag(v.sides[holder])} every tick`
-  else if (live) line3 = `unheld · ${Math.round(v.rules.walkMs / 1000)} s walk`
   const pillColor = holder === 'a' ? Color4.create(0.5, 0.3, 0.85, 0.95) : holder === 'b' ? Color4.create(0.72, 0.5, 0.05, 0.95) : DARK_SOFT
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(lx) - width / 2, top: py(ly) - S(22) }, width, flexDirection: 'column', alignItems: 'center' }}>
@@ -264,7 +257,6 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
       >
         {line2}
       </UiEntity>
-      {line3 ? <Text value={line3} size={S(20)} color={C.gray} nowrap uiTransform={{ height: S(26), margin: { top: S(2) } }} /> : null}
     </UiEntity>
   )
 }
@@ -299,11 +291,6 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
           <OutlinedText value={heading ? 'ON YOUR WAY' : 'GO'} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
         </UiEntity>
       ) : null}
-      {here ? (
-        <UiEntity uiTransform={{ height: S(32), padding: { left: S(14), right: S(14) }, margin: { bottom: -S(16) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: C.purple }}>
-          <Text value="YOU ARE HERE" size={S(20)} color={C.white} nowrap uiTransform={{ width: 'auto', height: S(32) }} />
-        </UiEntity>
-      ) : null}
     </UiEntity>
   )
 }
@@ -331,7 +318,6 @@ function FighterCard(props: { key?: string; v: RaidView; side: SideId; f: Fighte
           <Text value={`HP ${f.hp}/${f.hpMax}`} size={S(21)} color={C.yellow} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(26) }} />
           <Text value={`ATK ${f.atk}`} size={S(21)} color={C.yellow} nowrap align="middle-right" uiTransform={{ width: S(90), height: S(26) }} />
         </UiEntity>
-        <Text value={f.vip > 0 ? `Lv ${f.level} · D${f.dagger} · ${vipText(f.vip)}` : `Lv ${f.level} · Dagger ${f.dagger}`} size={S(20)} color={C.gray} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
         <Text value={whereText(v, f)} size={S(20)} color={ko ? C.red : sideColor(side)} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
       </UiEntity>
     </UiEntity>
@@ -357,19 +343,14 @@ function Roster(props: { v: RaidView; side: SideId }) {
   const s = v.sides[side]
   const slots: ReactEcs.JSX.Element[] = []
   const fighters = s ? s.fighters : []
+  const joinable = v.mine === side && !v.you && (v.status === 'gathering' || v.status === 'live') && !raid.spectating
   for (let i = 0; s && i < v.rules.sideMax; i++) {
     const f = fighters[i]
-    slots.push(f ? <FighterCard key={`${side}-${f.id}`} v={v} side={side} f={f} /> : <OpenSlot key={`${side}-slot-${i}`} v={v} side={side} />)
+    if (f) slots.push(<FighterCard key={`${side}-${f.id}`} v={v} side={side} f={f} />)
+    else if (v.status === 'gathering' || joinable) slots.push(<OpenSlot key={`${side}-slot-${i}`} v={v} side={side} />)
   }
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: side === 'a' ? { left: S(38), top: S(ROSTER_TOP) } : { right: S(38), top: S(ROSTER_TOP) }, width: S(ROSTER_W), flexDirection: 'column' }}>
-      {!s ? (
-        <UiEntity uiTransform={{ width: S(ROSTER_W), height: S(CARD_H), margin: { bottom: S(CARD_GAP) }, alignItems: 'center', justifyContent: 'center', padding: S(12) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: DARK }}>
-          <Text value="NO ANSWER YET" size={S(22)} color={C.yellow} nowrap uiTransform={{ height: S(28) }} />
-          <Text value="The Wraiths fill in" size={S(20)} color={C.gray} nowrap uiTransform={{ height: S(26) }} />
-          <Text value="if no guild answers" size={S(20)} color={C.gray} nowrap uiTransform={{ height: S(26) }} />
-        </UiEntity>
-      ) : null}
       {slots}
     </UiEntity>
   )
@@ -379,21 +360,9 @@ function Header(props: { v: RaidView }) {
   const v = props.v
   const a = v.sides.a
   const b = v.sides.b
-  let big = ''
-  let sub = ''
-  if (v.status === 'gathering') {
-    big = `${v.rules.test ? 'TEST  •  ' : ''}GATHERING  •  ${left(v.gatherUntil)}`
-    sub = 'Members JOIN, another guild may ANSWER. Starts when the timer runs out.'
-  } else if (v.status === 'live') {
-    big = `${left(v.endAt)} LEFT`
-    sub = `Tick ${v.tick + 1}/${v.ticks} in ${left(v.nextTickAt)}  •  stand alone in a building when it lands to score it`
-  } else if (v.status === 'done') {
-    big = 'FINAL'
-    sub = v.result ? (v.result.winner === 'draw' ? 'A draw' : `${sideTag(v.sides[v.result.winner])} win`) : ''
-  } else {
-    big = 'CALLED OFF'
-    sub = `Fewer than ${v.rules.sideMin} fighters joined in time`
-  }
+  const big = v.status === 'gathering' ? `${v.rules.test ? 'TEST  •  ' : ''}GATHERING  •  ${left(v.gatherUntil)}`
+    : v.status === 'live' ? `${left(v.endAt)} LEFT`
+    : v.status === 'done' ? 'FINAL' : 'CALLED OFF'
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(46), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
@@ -401,7 +370,6 @@ function Header(props: { v: RaidView }) {
       </UiEntity>
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
         <OutlinedText value={big} size={S(38)} uiTransform={{ height: S(50) }} />
-        <Text value={sub} size={S(20)} color={C.gray} nowrap uiTransform={{ height: S(26) }} />
       </UiEntity>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { right: S(24) } }}>
         <OutlinedText value={`${v.score.b}  ${sideTag(b)}`} size={S(44)} color={C.yellow} align="middle-right" uiTransform={{ height: S(60) }} />

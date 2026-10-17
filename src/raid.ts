@@ -30,6 +30,10 @@ export interface Fighter {
   at: PointId | null
   target: PointId | 'camp' | null
   arriveAt: number
+  /** Where the current walk started (field %), and when; null/0 when not walking. Walk times scale with distance. */
+  fromX: number | null
+  fromY: number | null
+  departAt: number
   ticks: number
   dealt: number
   taken: number

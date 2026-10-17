@@ -71,8 +71,8 @@ Max 6 points a tick, 120 for a perfect raid. Real scores land in the 30–60 ban
 
 Players move by clicking a building (the building is the button; a gold ring and `GO` chip on hover). There is no idle state in the field:
 
-- Camp → building: 15 s walk. Building → building: 15 s. Building → camp by choice: 10 s.
-- Walking fighters cannot be hit and cannot score. Re-clicking retargets (new 15 s walk from now).
+- Walk time scales with distance (2026-10-17). `walkMs` (7.5 s) is the time for your camp → Citadel; the near corner on your side is ~3 s (floor 3 s), the far corners ~12–14.5 s. `homeMs` (5 s) is the same reference for walking home. Each side's reference is its own camp → Citadel distance, so both sides reach the Citadel in `walkMs`. Server geometry: `STAND` / `CAMP` in `afkRaid.js` mirror the client's `FIELD[*].stand` / `CAMP`.
+- Walking fighters cannot be hit and cannot score. Re-clicking retargets from wherever you are on the path (the server stores `fromX/fromY/departAt` per leg; the client interpolates from them).
 - Arrive → you are **in** the building until you click elsewhere or your HP hits 0.
 - HP 0 → **knocked out**: dragged back to camp over **30 s**, revive at full HP on arrival, free to click again. Cost of a knockout ≈ 3 ticks; cost of a voluntary reposition ≈ 1 tick. Retreating to heal (10 s home + 15 s out) is a legitimate play and one tick cheaper than dying.
 - No HP regen anywhere except camp.
