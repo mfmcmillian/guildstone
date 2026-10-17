@@ -74,7 +74,7 @@ Five points at fixed positions over a painted background (`battlefield_v1.jpg`),
 | Quarry | +1 | 15 % | 30, 74 |
 | Bone Shrine | +1 | 15 % | 70, 71 |
 
-Max 6 points a tick, 120 for a perfect raid. Real scores land in the 30–60 band.
+Max 6 points a tick, 480 for a perfect 80-tick raid. Offline sims of a mixed team vs Wraiths land around 150–220 a side; contesting a building denies its pips to both sides, so a fighter who keeps walking back into a held Citadel is still worth points.
 
 **Armour** reduces damage taken by the side that *held* the point at the previous tick (the defenders). Attackers inside take full damage. Who held what is recomputed every tick (§5 step 3).
 
@@ -118,10 +118,10 @@ When no guild answers, the server builds a side of the same size as the caller's
 
 ## 8. End, rewards, record
 
-At tick 20:
+At the last tick (80 by default):
 
 - Higher score wins. Tie → draw.
-- **Valor** per fighter = `2 × ticks present` (max 40), `× 1.5` for the winning side, `+5` per knockout dealt. Draw → base only.
+- **Valor** per fighter = `valorPerTick × ticks present` (capped at the raid length), `× valorWinMult` for the winning side, `+ valorPerKo` per knockout dealt (live config; defaults 1 / ×1.5 / 5). Draw → base only.
 - Guild `raid` record: `wins / losses / draws / score (Valor total) / history (last 5)`; a system line in both guild chats with the final score.
 - Profile `raid`: `{ valor, raids, wins, kos }`.
 - The field freezes on a result card (score, per-fighter dealt/taken/KOs, Valor earned) until the officer starts the next raid or 2 minutes pass.
