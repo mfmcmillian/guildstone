@@ -2,7 +2,7 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, FONT, TEX, SLICE_128, SLICE_PILL, glow } from './theme'
 import { lobby, tickLobbyBackground } from '../lobby'
-import { OutlinedText, Pill, Icon, Bar, Button, Panel } from './components'
+import { OutlinedText, Pill, Icon, Bar, Button, Panel, timerText } from './components'
 import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, fmtRate, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung } from '../state'
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
@@ -21,13 +21,6 @@ function CurrencyPill(props: { icon: string; value: number; color: Color4 }) {
       <OutlinedText value={`${props.value}`} size={S(FONT.body + 12)} color={props.color} uiTransform={{ width: 'auto', minWidth: S(100), margin: { left: S(10), bottom: S(5) } }} align="middle-left" />
     </Pill>
   )
-}
-
-function timerText(until: number): string {
-  const seconds = Math.max(0, Math.ceil((until - Date.now()) / 1000))
-  const minutes = Math.floor(seconds / 60)
-  const remainder = seconds % 60
-  return `${minutes}:${remainder < 10 ? '0' : ''}${remainder}`
 }
 
 function BoostPill(props: { icon: string; label: string; until: number; color: Color4 }) {

@@ -6,6 +6,25 @@ import { S, currentScale } from './responsive'
 
 export { getCanvas, fitPanel, fitModal, S } from './responsive'
 
+/** Live countdown to a timestamp as m:ss (HUD boost pills, Berry Shop, Workshop queue). */
+export function timerText(until: number): string {
+  const seconds = Math.max(0, Math.ceil((until - Date.now()) / 1000))
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  return `${minutes}:${remainder < 10 ? '0' : ''}${remainder}`
+}
+
+/** A duration in seconds as "2h 05m", "12m 30s" or "45s"; for queue ETAs. */
+export function durationText(totalSeconds: number): string {
+  const s = Math.max(0, Math.ceil(totalSeconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}h ${m < 10 ? '0' : ''}${m}m`
+  if (m > 0) return `${m}m ${sec < 10 ? '0' : ''}${sec}s`
+  return `${sec}s`
+}
+
 type Kids = ReactEcs.JSX.Element | ReactEcs.JSX.Element[] | null | (ReactEcs.JSX.Element | null)[]
 type Keyed = { key?: string | number }
 

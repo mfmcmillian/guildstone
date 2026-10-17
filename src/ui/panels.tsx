@@ -1,7 +1,7 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, glow } from './theme'
-import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer } from './components'
+import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
 import { DragId, dragOffset, startDrag } from './drag'
@@ -1066,7 +1066,8 @@ function activeBoost(): { item: (typeof SHOP_ITEMS)[number]; until: number } | n
 
 export function ShopPanel() {
   const active = activeBoost()
-  const minutesLeft = active ? Math.max(1, Math.ceil((active.until - Date.now()) / 60000)) : 0
+  // Live m:ss, same as the HUD pill, so the shop never says "1 min left" for 59 seconds.
+  const timeLeft = active ? timerText(active.until) : ''
   const fit = fitBig()
   return (
     <Modal title="BERRY SHOP" color={C.purple} {...bigFrame(fit, 'BERRY SHOP', 'shop')} onClose={closePanel}>
@@ -1091,7 +1092,7 @@ export function ShopPanel() {
           />
         </UiEntity>
         <Text
-          value={active ? `${active.item.name} is active for ${minutesLeft} more min  •  one boost at a time` : 'One boost at a time: pick the one you need right now.'}
+          value={active ? `${active.item.name} is active  •  ${timeLeft} left  •  the next one unlocks when it ends` : 'One boost at a time: pick the one you need right now.'}
           size={S(26)}
           color={active ? C.greenDark : C.textMuted}
           nowrap
@@ -1108,7 +1109,7 @@ export function ShopPanel() {
               <Panel key={it.name} flat color={isActive ? C.yellow : C.paper} uiTransform={{ width: S(540), height: S(820), alignItems: 'center', padding: S(26), margin: { left: S(15), right: S(15) } }}>
                 <Icon src={it.icon} size={S(170)} />
                 <OutlinedText value={it.name} size={S(38)} uiTransform={{ margin: { top: S(10) } }} />
-                <Text value={isActive ? `ACTIVE  •  ${minutesLeft} min left` : `${it.desc} for ${boostMinutes()} min`} size={S(28)} color={isActive ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(38), margin: { top: S(4) } }} />
+                <Text value={isActive ? `ACTIVE  •  ${timeLeft} left` : `${it.desc} for ${boostMinutes()} min`} size={S(28)} color={isActive ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(38), margin: { top: S(4) } }} />
                 <Text value={!isActive && boostMinutes() > 10 ? 'Extended by guild Quartermaster' : ' '} size={S(22)} color={C.greenDark} nowrap uiTransform={{ height: S(30) }} />
                 <Spacer />
                 <Text value="BUY WITH BERRIES + COINS" size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { bottom: S(6) } }} />
@@ -1143,7 +1144,7 @@ export function ShopPanel() {
                   uiTransform={{ width: S(300), height: S(78), margin: { top: S(6) } }}
                   onClick={() => requestBoost(it.boost, 'materials')}
                 />
-                <Text value={blocked && !isActive ? `wait for ${active!.item.name} to end` : ' '} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(8) } }} />
+                <Text value={blocked && !isActive ? `unlocks in ${timeLeft} when ${active!.item.name} ends` : ' '} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(8) } }} />
               </Panel>
             )
           })}
