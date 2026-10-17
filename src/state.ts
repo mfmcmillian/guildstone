@@ -1,5 +1,6 @@
 // Demo game state. Backpack changes are persisted once the wallet profile is ready.
 import { settings } from './settings'
+import type { GuildRaidSummary } from './raid'
 
 export type BaseResource = 'wood' | 'rock' | 'meat' | 'bone'
 export type Material = 'plank' | 'brick' | 'jerky' | 'bonedust'
@@ -250,8 +251,8 @@ export interface GuildInfo {
   }
   contributions?: Record<string, GuildContribution>
   events?: GuildEvent[]
-  /** Warband record (docs/HOLD_AND_WARBAND.md). */
-  war?: { activeId: string | null; lastId: string | null; wins: number; losses: number; hordeWins: number; score: number }
+  /** Shadow Raid record (docs/SHADOW_RAID.md). */
+  raid?: GuildRaidSummary
 }
 
 export interface GuildContribution {

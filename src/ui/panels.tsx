@@ -4,7 +4,7 @@ import { C, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
-import { WarTab } from './war'
+import { WarTab, resetWarTab } from './raid'
 import { DragId, dragOffsetPx, startDrag } from './drag'
 import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import {
@@ -1528,7 +1528,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
   )
 }
 
-const GUILD_TAB_ICON: Record<GuildTabId, string> = { lobby: 'images/icons/guild/invite.png', home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, war: GICON.kick, manage: GICON.settings, find: 'images/icons/guild/application.png' }
+const GUILD_TAB_ICON: Record<GuildTabId, string> = { lobby: 'images/icons/guild/invite.png', home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, war: 'images/icons/guild/raid.png', manage: GICON.settings, find: 'images/icons/guild/application.png' }
 
 function GuildTab(props: { id: GuildTabId; label: string; width?: number }) {
   return (
@@ -1540,6 +1540,8 @@ function GuildTab(props: { id: GuildTabId; label: string; width?: number }) {
       uiTransform={{ width: S(props.width ?? 270), height: S(78), margin: { left: S(8), right: S(8) } }}
       onClick={() => {
         guildTab = props.id
+        // The WAR tab polls on its own clock; opening it should show the field now, not up to 20 s later.
+        if (props.id === 'war') resetWarTab()
       }}
     />
   )
