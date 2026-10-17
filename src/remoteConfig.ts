@@ -8,6 +8,8 @@ export const remoteConfig = {
   loaded: false,
   camp: { open: false, name: 'Antrom Camp', coords: '144,-7' },
   ringDepot: true,
+  /** Live switches from the control dashboard. war=false hides the WAR tab (the server refuses raid actions too). */
+  features: { war: true },
   /** Antrom Relics collection, once minted: item URNs by kind and whether each can be crafted right now. */
   relics: { collection: null as string | null, items: {} as Partial<Record<string, string>>, craftable: {} as Partial<Record<string, boolean>> },
   /** Live USD per 1 MANA (0 until the first quote). Assassin mint prices are USD-pegged and paid in MANA. */
@@ -36,6 +38,7 @@ export function refreshRemoteConfig() {
         }
       }
       if (typeof data.ringDepot === 'boolean') remoteConfig.ringDepot = data.ringDepot
+      applyFeatures(data.features)
       if (data.relics && typeof data.relics === 'object') {
         const r = data.relics as { collection?: unknown; items?: unknown; craftable?: unknown }
         remoteConfig.relics = {
@@ -50,6 +53,13 @@ export function refreshRemoteConfig() {
       console.error('[config] Remote config failed:', error instanceof Error ? error.message : String(error))
     }
   })
+}
+
+/** Feature switches arrive with /config every 5 min and with every raid poll, so a kill switch lands within seconds on the WAR tab. */
+export function applyFeatures(raw: unknown) {
+  if (!raw || typeof raw !== 'object') return
+  const f = raw as { war?: unknown }
+  if (typeof f.war === 'boolean') remoteConfig.features.war = f.war
 }
 
 /** Same sources as guildstone.dev: CoinGecko, then Binance. */

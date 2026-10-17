@@ -75,7 +75,7 @@ import {
   boostMinutes, MAX_LEVEL
 } from '../state'
 import { closePanel, openPanel, ui } from './uiState'
-import { campHint, ringStationsEnabled } from '../remoteConfig'
+import { campHint, remoteConfig, ringStationsEnabled } from '../remoteConfig'
 import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
@@ -1595,6 +1595,8 @@ export function GuildPanel() {
   const todayDone = dailyWoodGive + dailyRockGive + dailyCoinGive <= 0
   if (guild && !guildForm.motd && guild.motd) guildForm.motd = guild.motd
   if (guildTab === 'manage' && !canEdit) guildTab = 'home'
+  // Dashboard kill switch: WAR disappears and anyone on it lands back on HOME.
+  if (guildTab === 'war' && !remoteConfig.features.war) guildTab = 'home'
 
   const title = guild ? `[${guild.tag}] GUILD` : 'GUILD'
   // WAR takes the whole screen: the battlefield wants every pixel it can get, and the frame added nothing there.
@@ -1625,7 +1627,7 @@ export function GuildPanel() {
             <GuildTab id="donate" label="DONATE" />
             <GuildTab id="hq" label="HQ" />
             <GuildTab id="tech" label="TECH" />
-            <GuildTab id="war" label="WAR" />
+            {remoteConfig.features.war ? <GuildTab id="war" label="WAR" /> : null}
             {canEdit ? <GuildTab id="manage" label="MANAGE" /> : null}
           </UiEntity>
 

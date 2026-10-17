@@ -293,7 +293,7 @@ function Header(props: { v: RaidView }) {
   let big = ''
   let sub = ''
   if (v.status === 'gathering') {
-    big = `GATHERING  •  ${left(v.gatherUntil)}`
+    big = `${v.rules.test ? 'TEST  •  ' : ''}GATHERING  •  ${left(v.gatherUntil)}`
     sub = 'Members JOIN, another guild may ANSWER. Starts when the timer runs out.'
   } else if (v.status === 'live') {
     big = `${left(v.endAt)} LEFT`
@@ -303,7 +303,7 @@ function Header(props: { v: RaidView }) {
     sub = v.result ? (v.result.winner === 'draw' ? 'A draw' : `${sideTag(v.sides[v.result.winner])} win`) : ''
   } else {
     big = 'CALLED OFF'
-    sub = 'Fewer than two fighters joined in time'
+    sub = `Fewer than ${v.rules.sideMin} fighters joined in time`
   }
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(10), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
@@ -453,7 +453,7 @@ function BoardRow(props: { key?: string; e: BoardEntry }) {
   const myFree = !raid.summary?.activeId
   const canAnswer = e.status === 'gathering' && !e.b && raid.officer && myFree && e.a?.tag !== player.guild?.tag
   const text = e.status === 'gathering'
-    ? `[${e.a?.tag ?? '?'}] is calling a raid  •  ${e.a?.count ?? 0}/4${e.b ? `  •  answered by [${e.b.tag}]` : ''}  •  starts in ${left(e.gatherUntil)}`
+    ? `[${e.a?.tag ?? '?'}] is calling a ${e.test ? 'test ' : ''}raid  •  ${e.a?.count ?? 0}/${raid.rules.sideMax}${e.b ? `  •  answered by [${e.b.tag}]` : ''}  •  starts in ${left(e.gatherUntil)}`
     : `[${e.a?.tag ?? '?'}] ${e.score.a}  vs  ${e.score.b} ${e.b ? (e.b.wraith ? 'WRAITHS' : `[${e.b.tag}]`) : '?'}  •  ${left(e.endAt)} left`
   return (
     <UiEntity uiTransform={{ width: '100%', height: S(60), flexDirection: 'row', alignItems: 'center', margin: { top: S(6) } }}>
@@ -471,13 +471,13 @@ function IdleScreen() {
   const stats = me?.stats ?? null
   const today = new Date(serverNow()).toISOString().slice(0, 10)
   const used = sum && sum.day === today ? sum.count : 0
-  const perDay = 3
-  const leftToday = Math.max(0, perDay - used)
+  const perDay = raid.rules.raidsPerDay
+  const leftToday = raid.tester ? 1 : Math.max(0, perDay - used)
   const loading = raid.loadedAt === 0 || (raid.summary === null && raid.busy)
   return (
     <CenterCard width={1180}>
       <OutlinedText value="SHADOW RAID" size={S(48)} color={C.purple} />
-      <Text value="Five minutes, 2–4 a side. Hold buildings when the tick lands. Most points wins." size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
+      <Text value={`${Math.round((raid.rules.ticks * raid.rules.tickMs) / 60000)} minutes, ${raid.rules.sideMin}–${raid.rules.sideMax} a side. Hold buildings when the tick lands. Most points wins.`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
       {stats ? (
         <Text value={`Your Assassin:  HP ${stats.hp}   ATK ${stats.atk}   (Lv ${stats.level} · Dagger ${stats.dagger}${stats.set > 0 ? ` · Set ${stats.set}` : ''}${stats.vip > 0 ? ` · ${vipText(stats.vip)}` : ''})`} size={S(26)} color={C.text} nowrap uiTransform={{ height: S(36), margin: { top: S(10) } }} />
       ) : (
@@ -488,7 +488,7 @@ function IdleScreen() {
         {raid.officer ? (
           <Button label="RAID" color={leftToday > 0 ? C.purple : C.gray} textColor={leftToday > 0 ? C.white : C.textMuted} disabled={raid.busy || leftToday === 0} size={S(32)} uiTransform={{ width: S(300), height: S(84), margin: { right: S(20) } }} onClick={() => requestStartRaid()} />
         ) : null}
-        <Text value={raid.officer ? `${leftToday} of ${perDay} left today  •  90 s to gather  •  Wraiths fill in if nobody answers` : 'Only the leader and royal guard can call or answer a raid. You can JOIN once one is called.'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ width: 'auto', height: S(30) }} />
+        <Text value={raid.tester ? 'Tester: your raids start with one fighter and are not recorded' : raid.officer ? `${leftToday} of ${perDay} left today  •  ${Math.round(raid.rules.gatherMs / 1000)} s to gather  •  Wraiths fill in if nobody answers` : 'Only the leader and royal guard can call or answer a raid. You can JOIN once one is called.'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ width: 'auto', height: S(30) }} />
       </UiEntity>
       {raid.board.length > 0 ? (
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', margin: { top: S(18) } }}>

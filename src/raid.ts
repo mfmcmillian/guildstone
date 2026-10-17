@@ -4,6 +4,7 @@ import { executeTask } from '@dcl/sdk/ecs'
 import { signedFetch } from '~system/SignedFetch'
 import { isServer } from '@dcl/sdk/network'
 import { profileState } from './playerProfile'
+import { applyFeatures } from './remoteConfig'
 import { flash, player } from './state'
 import { playErrorSound, playSuccessSound } from './uiSounds'
 
@@ -55,12 +56,13 @@ export interface RaidView {
   mine: SideId | null
   you: string | null
   points: Record<PointId, PointDef>
-  rules: { tickMs: number; walkMs: number; homeMs: number; koWalkMs: number; sideMax: number; sideMin: number; gatherMs: number; raidsPerDay: number }
+  rules: RaidRules
   serverNow: number
 }
 export interface BoardEntry {
   id: string
   status: 'gathering' | 'live'
+  test?: boolean
   a: { tag: string; name: string; count: number; wraith: boolean } | null
   b: { tag: string; name: string; count: number; wraith: boolean } | null
   gatherUntil: number
@@ -81,12 +83,19 @@ export interface GuildRaidSummary {
 }
 export interface MyRaid { valor: number; raids: number; wins: number; kos: number; stats: { hp: number; atk: number; level: number; dagger: number; set: number; vip: number } | null }
 
+/** Balance numbers from the server. A raid view carries the snapshot it was called with; `raid.rules` is the current set. */
+export interface RaidRules { tickMs: number; ticks: number; walkMs: number; homeMs: number; koWalkMs: number; sideMax: number; sideMin: number; gatherMs: number; raidsPerDay: number; test?: boolean }
+const DEFAULT_RULES: RaidRules = { tickMs: 15000, ticks: 20, walkMs: 15000, homeMs: 10000, koWalkMs: 30000, sideMax: 4, sideMin: 2, gatherMs: 90000, raidsPerDay: 3 }
+
 export const raid = {
   view: null as RaidView | null,
   board: [] as BoardEntry[],
   summary: null as GuildRaidSummary | null,
   me: null as MyRaid | null,
   officer: false,
+  /** Dashboard tester: raids start with one fighter and are not recorded. */
+  tester: false,
+  rules: DEFAULT_RULES,
   loadedAt: 0,
   /** An action (start/join/go/...) is in flight. Polls run alongside; a second action waits. */
   busy: false,
@@ -105,7 +114,7 @@ export const raid = {
 export const serverNow = () => Date.now() + raid.clockOffset
 
 type RaidAction = 'view' | 'start' | 'answer' | 'join' | 'leave' | 'go' | 'home'
-interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; me: MyRaid; serverNow: number; updatedAt: number }
+interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; tester?: boolean; features?: unknown; rules?: Partial<RaidRules>; me: MyRaid; serverNow: number; updatedAt: number }
 
 function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: (result: RaidResponse) => void) {
   if (isServer() || profileState.status !== 'ready' || !profileState.walletAddress || !player.guild) return
@@ -144,6 +153,9 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
       raid.summary = result.guildRaid
       raid.me = result.me
       raid.officer = result.officer
+      raid.tester = result.tester === true
+      if (result.rules && typeof result.rules === 'object') raid.rules = { ...DEFAULT_RULES, ...result.rules }
+      applyFeatures(result.features)
       // Half the round trip is a fair guess at the one-way delay.
       raid.clockOffset = result.serverNow - (sentAt + (Date.now() - sentAt) / 2)
       raid.loadedAt = Date.now()
