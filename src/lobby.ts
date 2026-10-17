@@ -376,11 +376,9 @@ export function settleBugCard() {
 }
 
 // ---- Leaderboards ------------------------------------------------------------------------------------------------
-export type BoardId = 'chat' | 'guildchat' | 'levels' | Skill | 'suits' | 'hq' | 'points' | 'weekly'
-/** 'guildchat' is only offered while hasGuildChat(); its label is built from the guild tag at render time. */
+export type BoardId = 'levels' | Skill | 'suits' | 'hq' | 'points' | 'weekly'
+/** The RANKINGS tab, in order. Chat lives on the LOBBY tab (ui/lobby.tsx), not here. */
 export const BOARDS: Array<{ id: BoardId; label: string }> = [
-  { id: 'chat', label: 'CHAT' },
-  { id: 'guildchat', label: 'GUILD' },
   { id: 'levels', label: 'LEVELS' },
   ...SKILLS.map((s) => ({ id: s as BoardId, label: SKILL_INFO[s].name.toUpperCase() })),
   { id: 'suits', label: 'SUITS' },
@@ -388,7 +386,7 @@ export const BOARDS: Array<{ id: BoardId; label: string }> = [
   { id: 'points', label: 'GUILD PTS' },
   { id: 'weekly', label: 'THIS WEEK' }
 ]
-export const BOARD_TITLE: Record<Exclude<BoardId, 'chat' | 'guildchat'>, string> = {
+export const BOARD_TITLE: Record<BoardId, string> = {
   levels: 'TOTAL LEVEL  •  all four professions added up',
   lumberjack: 'LUMBERJACK  •  by XP',
   miner: 'MINER  •  by XP',
@@ -402,7 +400,7 @@ export const BOARD_TITLE: Record<Exclude<BoardId, 'chat' | 'guildchat'>, string>
 
 export interface BoardRow { key: string; name: string; tag: string; value: string; mine: boolean }
 
-export function boardRows(id: Exclude<BoardId, 'chat' | 'guildchat'>, limit = 15): BoardRow[] {
+export function boardRows(id: BoardId, limit = 15): BoardRow[] {
   const me = profileState.walletAddress ?? ''
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.id, g.tag]))
   const myGuild = player.guild?.id ?? ''
@@ -427,7 +425,7 @@ export function boardRows(id: Exclude<BoardId, 'chat' | 'guildchat'>, limit = 15
 }
 
 /** Where I sit on a player board, 1-based (0 when unranked). */
-export function myBoardRank(id: Exclude<BoardId, 'chat' | 'guildchat'>): number {
+export function myBoardRank(id: BoardId): number {
   const rows = boardRows(id, 10_000)
   return rows.findIndex((r) => r.mine) + 1
 }

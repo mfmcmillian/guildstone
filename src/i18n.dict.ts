@@ -410,6 +410,7 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['HQ {0}   {1}/{2} members   {3}', 'QG {0}   {1}/{2} membres   {3}', 'SEDE {0}   {1}/{2} miembros   {3}', '总部 {0}   {1}/{2} 名成员   {3}'],
   ['YOUR GUILD BONUS   +{0}% Wood   +{1}% Rock   +{2}% Meat   +{3}% Bone   +{4}% XP', 'BONUS DE GUILDE   +{0} % Bois   +{1} % Pierre   +{2} % Viande   +{3} % Os   +{4} % XP', 'BONUS DE GREMIO   +{0} % Madera   +{1} % Roca   +{2} % Carne   +{3} % Hueso   +{4} % XP', '公会加成   木材 +{0}%   石头 +{1}%   肉 +{2}%   骨头 +{3}%   经验 +{4}%'],
   ['LOBBY', 'SALON', 'SALA', '大厅'],
+  ['RANKINGS', 'CLASSEMENTS', 'CLASIFICACIONES', '排行榜'],
   ['HOME', 'ACCUEIL', 'INICIO', '主页'],
   ['DONATE', 'DONNER', 'DONAR', '捐赠'],
   ['HQ', 'QG', 'SEDE', '总部'],
@@ -585,7 +586,6 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Berries are ready to spend in the Shop.', 'Les baies sont prêtes à dépenser à la Boutique.', 'Las bayas están listas para gastar en la Tienda.', '浆果可在商店中使用。'],
 
   // --- Lobby ---
-  ['CHAT', 'CHAT', 'CHAT', '聊天'],
   ['LEVELS', 'NIVEAUX', 'NIVELES', '等级'],
   ['GUILD HQ', 'QG DE GUILDE', 'SEDE DEL GREMIO', '公会总部'],
   ['GUILD PTS', 'PTS GUILDE', 'PTS GREMIO', '公会积分'],

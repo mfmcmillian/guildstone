@@ -4,7 +4,7 @@ import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal, CONTENT_W } from './responsive'
-import { LobbyTab, resetLobbyView } from './lobby'
+import { LobbyTab, RankingsTab, resetLobbyView } from './lobby'
 import { WarScreen, resetWarTab } from './raid'
 import { DragId, dragOffsetPx, startDrag } from './drag'
 import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
@@ -1173,12 +1173,20 @@ const guildForm = {
   settingsSeededFor: '',
   seeded: false
 }
-type GuildTabId = 'lobby' | 'home' | 'donate' | 'hq' | 'tech' | 'war' | 'manage' | 'find'
+/** Top row: LOBBY (chat) · RANKINGS · GUILD · WAR · MANAGE (officers), or LOBBY · RANKINGS · FIND A GUILD without one. */
+type GuildTabId = 'lobby' | 'rankings' | 'guild' | 'war' | 'manage' | 'find'
+/** Second row under GUILD; remembered so coming back lands where you were. */
+type GuildSubId = 'home' | 'donate' | 'hq' | 'tech'
 let guildTab: GuildTabId = 'lobby'
+let guildSub: GuildSubId = 'home'
 /** The GUILD button always lands on the Lobby. */
 export function resetGuildTab() {
   guildTab = 'lobby'
   resetLobbyView()
+}
+function openGuildSub(sub: GuildSubId) {
+  guildTab = 'guild'
+  guildSub = sub
 }
 /** Two-tap confirmation for destructive officer actions: first tap arms, second tap within 5s fires. */
 let armedManage: { op: string; member: string; at: number } | null = null
@@ -1529,7 +1537,9 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
   )
 }
 
-const GUILD_TAB_ICON: Record<GuildTabId, string> = { lobby: 'images/icons/guild/invite.png', home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, war: 'images/icons/guild/raid.png', manage: GICON.settings, find: 'images/icons/guild/application.png' }
+const GUILD_TAB_ICON: Record<GuildTabId, string> = { lobby: 'images/icons/guild/invite.png', rankings: 'images/icons/guild/rank_leader.png', guild: GICON.hq, war: 'images/icons/guild/raid.png', manage: GICON.settings, find: 'images/icons/guild/application.png' }
+const GUILD_SUB_ICON: Record<GuildSubId, string> = { home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech }
+const GUILD_SUBS: [GuildSubId, string][] = [['home', 'HOME'], ['donate', 'DONATE'], ['hq', 'HQ'], ['tech', 'TECH']]
 
 function GuildTab(props: { key?: string; id: GuildTabId; label: string; width?: number }) {
   return (
@@ -1538,11 +1548,26 @@ function GuildTab(props: { key?: string; id: GuildTabId; label: string; width?: 
       icon={GUILD_TAB_ICON[props.id]}
       color={guildTab === props.id ? C.purple : C.navySoft}
       size={S(30)}
-      uiTransform={{ width: S(props.width ?? 270), height: S(78), margin: { left: S(8), right: S(8) } }}
+      uiTransform={{ width: S(props.width ?? 270), height: S(70), margin: { left: S(8), right: S(8) } }}
       onClick={() => {
         guildTab = props.id
         // The WAR tab polls on its own clock; opening it should show the field now, not up to 20 s later.
         if (props.id === 'war') resetWarTab()
+      }}
+    />
+  )
+}
+
+function GuildSubTab(props: { key?: string; id: GuildSubId; label: string }) {
+  return (
+    <Button
+      label={props.label}
+      icon={GUILD_SUB_ICON[props.id]}
+      color={guildSub === props.id ? C.purple : C.navySoft}
+      size={S(24)}
+      uiTransform={{ width: S(250), height: S(54), margin: { left: S(6), right: S(6) } }}
+      onClick={() => {
+        guildSub = props.id
       }}
     />
   )
@@ -1596,14 +1621,18 @@ export function GuildPanel() {
   const hqFundingGoal = guild?.hqCost ? guild.hqCost.wood + guild.hqCost.rock + guild.hqCost.coins : 0
   const todayDone = dailyWoodGive + dailyRockGive + dailyCoinGive <= 0
   if (guild && !guildForm.motd && guild.motd) guildForm.motd = guild.motd
-  if (guildTab === 'manage' && !canEdit) guildTab = 'home'
-  // Dashboard kill switch: WAR disappears and anyone on it lands back on HOME.
-  if (guildTab === 'war' && !remoteConfig.features.war) guildTab = 'home'
+  if (guildTab === 'manage' && !canEdit) guildTab = 'guild'
+  // Dashboard kill switch: WAR disappears and anyone on it lands back on GUILD.
+  if (guildTab === 'war' && !remoteConfig.features.war) guildTab = 'guild'
+  // Joining or leaving a guild while the window is open: FIND only exists without one, GUILD/WAR/MANAGE only with one.
+  if (guild && guildTab === 'find') guildTab = 'guild'
+  if (!guild && guildTab !== 'lobby' && guildTab !== 'rankings') guildTab = 'find'
+  const sub: GuildSubId | null = guildTab === 'guild' ? guildSub : null
 
   const title = guild ? `[${guild.tag}] GUILD` : 'GUILD'
   // WAR takes the whole screen: the battlefield wants every pixel it can get, and the frame added nothing there.
   if (guild && guildTab === 'war') {
-    return <WarScreen title={`[${guild.tag}]  ANTROM STORM`} onBack={() => { guildTab = 'home' }} onClose={closePanel} />
+    return <WarScreen title={`[${guild.tag}]  ANTROM STORM`} onBack={() => { guildTab = 'guild' }} onClose={closePanel} />
   }
   return (
     // Movable window: grab the title tab (see drag.ts).
@@ -1624,19 +1653,25 @@ export function GuildPanel() {
             uiTransform={{ height: S(30), margin: { top: S(4) } }}
           />
           {(() => {
-            // Tabs share the content width: 270 wide with six, narrower when WAR and MANAGE both show.
-            const tabs: [GuildTabId, string][] = [['lobby', 'LOBBY'], ['home', 'HOME'], ['donate', 'DONATE'], ['hq', 'HQ'], ['tech', 'TECH']]
+            // Tabs share the content width: 400 wide with four, a touch narrower when WAR and MANAGE both show.
+            const tabs: [GuildTabId, string][] = [['lobby', 'LOBBY'], ['rankings', 'RANKINGS'], ['guild', 'GUILD']]
             if (remoteConfig.features.war) tabs.push(['war', 'WAR'])
             if (canEdit) tabs.push(['manage', 'MANAGE'])
-            const width = Math.min(270, Math.floor(CONTENT_W / tabs.length) - 16)
+            const width = Math.min(400, Math.floor(CONTENT_W / tabs.length) - 16)
             return (
-              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8), bottom: S(10) } }}>
+              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8), bottom: S(8) } }}>
                 {tabs.map(([id, label]) => <GuildTab key={`gtab-${id}`} id={id} label={label} width={width} />)}
               </UiEntity>
             )
           })()}
+          {/* GUILD keeps its own row: HOME · DONATE · HQ · TECH. */}
+          {sub ? (
+            <UiEntity uiTransform={{ flexDirection: 'row', margin: { bottom: S(8) } }}>
+              {GUILD_SUBS.map(([id, label]) => <GuildSubTab key={`gsub-${id}`} id={id} label={label} />)}
+            </UiEntity>
+          ) : null}
 
-          {guildTab === 'home' ? (
+          {sub === 'home' ? (
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
               <Text value={guild.motto || 'No motto yet'} size={S(30)} color={C.purple} />
               <Panel flat color={C.paper2} uiTransform={{ width: S(1720), height: S(110), padding: S(16), margin: { top: S(10) }, justifyContent: 'center' }}>
@@ -1684,17 +1719,17 @@ export function GuildPanel() {
                     color={todayDone ? C.green : C.purple}
                     size={S(30)}
                     uiTransform={{ width: S(250), height: S(72) }}
-                    onClick={() => (guildTab = 'donate')}
+                    onClick={() => openGuildSub('donate')}
                   />
                 </Panel>
               ) : null}
 
-              <UiEntity uiTransform={{ width: S(1720), height: S(canEdit ? 420 : 500), flexDirection: 'row', margin: { top: S(12) } }}>
+              <UiEntity uiTransform={{ width: S(1720), height: S(canEdit ? 370 : 450), flexDirection: 'row', margin: { top: S(12) } }}>
                 {/* Roster */}
                 <Panel flat color={C.paper2} uiTransform={{ width: S(560), height: '100%', padding: S(16), margin: { right: S(20) } }}>
                   <Text value={`ROSTER  ${guild.memberCount} / ${guild.maxMembers}`} size={S(24)} color={C.text} align="middle-left" uiTransform={{ flexShrink: 0 }} />
                   <Text value={`${guild.maxMembers - guild.memberCount} open slots  •  more at HQ ${upcomingHqMilestones.find((m) => m.memberCap > guild.maxMembers)?.level ?? GUILD_HQ_MAX}`} size={S(20)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
-                  <UiEntity uiTransform={{ width: '100%', height: S(canEdit ? 270 : 350), flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start', overflow: 'scroll', margin: { top: S(6) } }}>
+                  <UiEntity uiTransform={{ width: '100%', height: S(canEdit ? 220 : 300), flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start', overflow: 'scroll', margin: { top: S(6) } }}>
                     {[...guild.memberIds]
                       .sort((a, b) => {
                         const rankDiff = (GUILD_ROLE_RANK[guildRole(guild, a)] ?? 9) - (GUILD_ROLE_RANK[guildRole(guild, b)] ?? 9)
@@ -1835,7 +1870,7 @@ export function GuildPanel() {
             </UiEntity>
           ) : null}
 
-          {guildTab === 'donate' ? (
+          {sub === 'donate' ? (
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
               {guild.hqLevel >= GUILD_HQ_MAX && techComplete ? (
                 <Panel flat color={C.paper2} uiTransform={{ width: S(1600), height: S(460), alignItems: 'center', justifyContent: 'center', padding: S(34), margin: { top: S(32) } }}>
@@ -1853,7 +1888,7 @@ export function GuildPanel() {
                 <Panel flat color={C.paper2} uiTransform={{ width: S(1600), height: S(410), alignItems: 'center', justifyContent: 'center', padding: S(34), margin: { top: S(32) } }}>
                   <OutlinedText value="HQ COMPLETE" size={S(52)} color={C.gold} />
                   <Text value="Your remaining goals are in the TECH tab." size={S(32)} />
-                  <Button label="VIEW TECH GOALS" color={C.purple} size={S(30)} uiTransform={{ width: S(400), height: S(76), margin: { top: S(24) } }} onClick={() => (guildTab = 'tech')} />
+                  <Button label="VIEW TECH GOALS" color={C.purple} size={S(30)} uiTransform={{ width: S(400), height: S(76), margin: { top: S(24) } }} onClick={() => openGuildSub('tech')} />
                 </Panel>
               ) : (
                 <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
@@ -1915,7 +1950,7 @@ export function GuildPanel() {
             </UiEntity>
           ) : null}
 
-          {guildTab === 'hq' ? (
+          {sub === 'hq' ? (
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
               <OutlinedText value="GUILD HEADQUARTERS" size={S(40)} color={C.gold} />
               <Text value="Permanent progress and bonuses shared by every guild member" size={S(26)} color={C.textMuted} />
@@ -1939,7 +1974,7 @@ export function GuildPanel() {
                         labelSize={S(28)}
                       />
                     </UiEntity>
-                    <Button label="CONTRIBUTE" color={C.purple} size={S(34)} uiTransform={{ width: S(420), height: S(86) }} onClick={() => (guildTab = 'donate')} />
+                    <Button label="CONTRIBUTE" color={C.purple} size={S(34)} uiTransform={{ width: S(420), height: S(86) }} onClick={() => openGuildSub('donate')} />
                   </UiEntity>
                 </Panel>
               ) : (
@@ -1948,7 +1983,7 @@ export function GuildPanel() {
                   <Text value="Maximum headquarters level reached" size={S(28)} color={C.white} />
                 </Panel>
               )}
-              <Text value="UPCOMING MILESTONES" size={S(26)} color={C.textMuted} uiTransform={{ margin: { top: S(22) } }} />
+              <Text value="UPCOMING MILESTONES" size={S(26)} color={C.textMuted} uiTransform={{ margin: { top: S(12) } }} />
               <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8) } }}>
                 {(upcomingHqMilestones.length > 0 ? upcomingHqMilestones : GUILD_HQ_MILESTONES.slice(-4)).map((milestone, index, list) => {
                   const complete = guild.hqLevel >= milestone.level
@@ -1957,7 +1992,7 @@ export function GuildPanel() {
                       key={milestone.level}
                       flat
                       color={complete ? C.green : C.paper2}
-                      uiTransform={{ width: S(415), height: S(215), alignItems: 'center', justifyContent: 'center', margin: { right: index === list.length - 1 ? 0 : S(20) }, padding: S(14) }}
+                      uiTransform={{ width: S(415), height: S(190), alignItems: 'center', justifyContent: 'center', margin: { right: index === list.length - 1 ? 0 : S(20) }, padding: S(14) }}
                     >
                       <OutlinedText value={`HQ ${milestone.level}`} size={S(40)} color={complete ? C.white : C.purple} />
                       <Text value={`${milestone.level - guild.hqLevel > 0 ? `${milestone.level - guild.hqLevel} levels away` : 'Reached'}`} size={S(22)} color={complete ? C.white : C.textMuted} />
@@ -1973,7 +2008,7 @@ export function GuildPanel() {
             </UiEntity>
           ) : null}
 
-          {guildTab === 'tech' ? (
+          {sub === 'tech' ? (
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
               <OutlinedText value={techComplete ? 'ALL TECH MAXED' : 'GUILD TECH'} size={S(40)} color={techComplete ? C.green : C.gold} />
               <Text
@@ -2001,7 +2036,7 @@ export function GuildPanel() {
                         key={key}
                         flat
                         color={locked ? C.navySoft : C.paper2}
-                        uiTransform={{ width: S(330), height: S(412), padding: S(16), margin: { right: column === 4 ? 0 : S(17) }, alignItems: 'center', opacity: locked ? 0.7 : 1 }}
+                        uiTransform={{ width: S(330), height: S(380), padding: S(16), margin: { right: column === 4 ? 0 : S(17) }, alignItems: 'center', opacity: locked ? 0.7 : 1 }}
                       >
                         <Icon src={GUILD_TECH_ICON[key]} size={S(64)} />
                         <OutlinedText value={GUILD_TECH[key].name.toUpperCase()} size={S(26)} color={locked ? C.textMuted : C.white} uiTransform={{ margin: { top: S(4) } }} />
@@ -2084,16 +2119,19 @@ export function GuildPanel() {
 
           {guildTab === 'manage' && canEdit ? <GuildManageTab guild={guild} wallet={wallet} /> : null}
           {guildTab === 'lobby' ? <LobbyTab height={920} /> : null}
+          {guildTab === 'rankings' ? <RankingsTab height={920} /> : null}
         </UiEntity>
       ) : (
         <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
           <UiEntity uiTransform={{ flexDirection: 'row', margin: { bottom: S(12) } }}>
             <GuildTab id="lobby" label="LOBBY" width={360} />
+            <GuildTab id="rankings" label="RANKINGS" width={360} />
             <GuildTab id="find" label="FIND A GUILD" width={360} />
           </UiEntity>
           {guildTab === 'lobby' ? <LobbyTab height={1000} /> : null}
-          {guildTab !== 'lobby' ? <Text value="Guilds share one HQ: every level every member funds gives everyone more resources and XP." size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { bottom: S(14) } }} /> : null}
-          {guildTab !== 'lobby' ? <UiEntity uiTransform={{ width: S(CONTENT_W), height: S(960), flexDirection: 'row', justifyContent: 'center' }}>
+          {guildTab === 'rankings' ? <RankingsTab height={1000} /> : null}
+          {guildTab === 'find' ? <Text value="Guilds share one HQ: every level every member funds gives everyone more resources and XP." size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { bottom: S(14) } }} /> : null}
+          {guildTab === 'find' ? <UiEntity uiTransform={{ width: S(CONTENT_W), height: S(960), flexDirection: 'row', justifyContent: 'center' }}>
             <Panel flat color={C.paper2} uiTransform={{ width: S(520), height: '100%', alignItems: 'center', padding: S(26), margin: { right: S(14) } }}>
               <OutlinedText value="CREATE A GUILD" size={S(40)} />
               <Text value="Start your own and invite friends by tag." size={S(22)} color={C.textMuted} uiTransform={{ margin: { top: S(6) } }} />

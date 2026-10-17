@@ -38,7 +38,9 @@ import {
   type OnlinePlayer
 } from '../lobby'
 
-let board: BoardId = 'chat'
+/** Remembered across opens: the chat channel on LOBBY and the board on RANKINGS. */
+let chatChannel: Channel = 'all'
+let board: BoardId = 'levels'
 let dismissedInvites = new Set<string>()
 const CHAT_W = 1190
 const SIDE_W = 516
@@ -59,46 +61,87 @@ function statusLine(p: OnlinePlayer): string {
   return `Idle  •  Lv ${p.level.reduce((a, b) => a + b, 0)} total`
 }
 
-export function LobbyTab(props: { height: number }) {
-  // The guild board only exists while I'm in a guild; fall back to the lobby if it disappears under me.
-  if (board === 'guildchat' && !hasGuildChat()) board = 'chat'
-  tickLobby(board === 'chat' ? 'all' : board === 'guildchat' ? 'guild' : '')
-  refreshBoard()
-  const H = props.height
-  const colH = H - 56 - 12
+/** Who's online / the tapped player's card; shared by both tabs. */
+function SideColumn(props: { height: number; guildOnly: boolean }) {
   const me = profileState.walletAddress ?? ''
   const myGuild = player.guild
   const canInvite = !!myGuild && (myGuild.leaderId === me || myGuild.royalGuardIds?.includes(me))
   const selected = lobby.selected ? lobby.online.find((p) => p.address === lobby.selected) ?? null : null
-  const boards = hasGuildChat() ? BOARDS : BOARDS.filter((b) => b.id !== 'guildchat')
+  return selected ? <PlayerCard p={selected} height={props.height} canInvite={canInvite} /> : <OnlineColumn height={props.height} guildOnly={props.guildOnly} />
+}
+
+/** LOBBY tab: chat. ALL / [TAG] toggle above the feed while in a guild; without one the feed takes the full height. */
+export function LobbyTab(props: { height: number }) {
+  // The guild channel only exists while I'm in a guild; fall back to everyone if it disappears under me.
+  const guildOk = hasGuildChat()
+  if (chatChannel === 'guild' && !guildOk) chatChannel = 'all'
+  tickLobby(chatChannel)
+  refreshBoard()
+  const H = props.height
+  const colH = guildOk ? H - 56 - 12 : H
+  const channels: Array<{ id: Channel; label: string; unread: number }> = [
+    { id: 'all', label: 'ALL', unread: lobby.ch.all.unread },
+    { id: 'guild', label: `[${player.guild?.tag ?? 'GUILD'}]`, unread: lobby.ch.guild.unread }
+  ]
 
   return (
     <UiEntity uiTransform={{ width: S(CHAT_W + GAP + SIDE_W), height: S(H), flexDirection: 'column' }}>
-      {/* Board switcher: CHAT, [TAG] guild chat when in a guild, then the leaderboards. Unread counts ride on the chat tabs. */}
-      <UiEntity uiTransform={{ width: '100%', height: S(56), flexDirection: 'row', margin: { bottom: S(12) } }}>
-        {boards.map((b, i) => {
-          const unread = b.id === 'chat' ? lobby.ch.all.unread : b.id === 'guildchat' ? lobby.ch.guild.unread : 0
-          const base = b.id === 'guildchat' ? `[${myGuild?.tag ?? 'GUILD'}]` : b.label
-          return (
+      {guildOk ? (
+        <UiEntity uiTransform={{ width: '100%', height: S(56), flexDirection: 'row', margin: { bottom: S(12) } }}>
+          {channels.map((c, i) => (
             <Button
-              key={`board-${b.id}`}
-              label={unread > 0 && board !== b.id ? `${base} (${unread})` : base}
-              color={board === b.id ? C.purple : unread > 0 ? C.green : C.navySoft}
-              size={S(19)}
+              key={`chan-${c.id}`}
+              label={c.unread > 0 && chatChannel !== c.id ? `${c.label} (${c.unread})` : c.label}
+              color={chatChannel === c.id ? C.purple : c.unread > 0 ? C.green : C.navySoft}
+              size={S(22)}
               pad={8}
-              uiTransform={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, height: S(56), margin: { left: i === 0 ? 0 : S(4), right: i === boards.length - 1 ? 0 : S(4) } }}
+              uiTransform={{ width: S(260), height: S(56), minWidth: 0, margin: { right: i === 0 ? S(8) : 0 } }}
               onClick={() => {
-                board = b.id
+                chatChannel = c.id
               }}
             />
-          )
-        })}
+          ))}
+        </UiEntity>
+      ) : null}
+
+      <UiEntity uiTransform={{ width: '100%', height: S(colH), flexDirection: 'row' }}>
+        <ChatColumn channel={chatChannel} height={colH} />
+        <UiEntity uiTransform={{ width: S(GAP) }} />
+        <SideColumn height={colH} guildOnly={chatChannel === 'guild'} />
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
+/** RANKINGS tab: one row of leaderboards, the online list beside the table. */
+export function RankingsTab(props: { height: number }) {
+  tickLobby('')
+  refreshBoard()
+  const H = props.height
+  const colH = H - 56 - 12
+
+  return (
+    <UiEntity uiTransform={{ width: S(CHAT_W + GAP + SIDE_W), height: S(H), flexDirection: 'column' }}>
+      <UiEntity uiTransform={{ width: '100%', height: S(56), flexDirection: 'row', margin: { bottom: S(12) } }}>
+        {BOARDS.map((b, i) => (
+          <Button
+            key={`board-${b.id}`}
+            label={b.label}
+            color={board === b.id ? C.purple : C.navySoft}
+            size={S(20)}
+            pad={8}
+            uiTransform={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, height: S(56), margin: { left: i === 0 ? 0 : S(4), right: i === BOARDS.length - 1 ? 0 : S(4) } }}
+            onClick={() => {
+              board = b.id
+            }}
+          />
+        ))}
       </UiEntity>
 
       <UiEntity uiTransform={{ width: '100%', height: S(colH), flexDirection: 'row' }}>
-        {board === 'chat' ? <ChatColumn channel="all" height={colH} /> : board === 'guildchat' ? <ChatColumn channel="guild" height={colH} /> : <BoardColumn id={board} height={colH} />}
+        <BoardColumn id={board} height={colH} />
         <UiEntity uiTransform={{ width: S(GAP) }} />
-        {selected ? <PlayerCard p={selected} height={colH} canInvite={canInvite} /> : <OnlineColumn height={colH} guildOnly={board === 'guildchat'} />}
+        <SideColumn height={colH} guildOnly={false} />
       </UiEntity>
     </UiEntity>
   )
@@ -205,7 +248,7 @@ const me = () => profileState.walletAddress ?? ''
 
 // ---- Leaderboards ----------------------------------------------------------------------------------------------
 function BoardColumn(props: { id: BoardId; height: number }) {
-  const id = props.id as Exclude<BoardId, 'chat' | 'guildchat'>
+  const id = props.id
   const rows = boardRows(id, 50)
   const playerBoard = !(id === 'hq' || id === 'points' || id === 'weekly')
   const rank = playerBoard ? myBoardRank(id) : 0
@@ -408,6 +451,6 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
 }
 
 export function resetLobbyView() {
-  board = 'chat'
+  chatChannel = 'all'
   lobby.selected = null
 }
