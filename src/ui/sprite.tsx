@@ -8,11 +8,10 @@ import type { HeroId } from '../hero'
 
 export const ART = 'https://guildstone.dev/img/raid'
 /** Per hero: the player's sheet and the enemy (Wraith) palette of the same sheet. */
-// TODO Knight and Warlock sheets are pending art (see docs/SHADOW_RAID.md sprite spec); they wear the Assassin sheet until then.
 export const HERO_SHEET: Record<HeroId, { own: string; enemy: string }> = {
   assassin: { own: `${ART}/assassin_v2.png`, enemy: `${ART}/assassin_enemy_v2.png` },
-  knight: { own: `${ART}/assassin_v2.png`, enemy: `${ART}/assassin_enemy_v2.png` },
-  warlock: { own: `${ART}/assassin_v2.png`, enemy: `${ART}/assassin_enemy_v2.png` }
+  knight: { own: `${ART}/knight_v1.png`, enemy: `${ART}/knight_enemy_v1.png` },
+  warlock: { own: `${ART}/warlock_v1.png`, enemy: `${ART}/warlock_enemy_v1.png` }
 }
 /**
  * Sheet layout: 6 columns x 5 rows of 144 px cells, one row per animation, frames left to right, facing right, feet on
