@@ -135,8 +135,11 @@ export function Button(props: Keyed & {
   sound?: 'click' | 'cancel'
   onClick?: Callback
   uiTransform?: UiTransformProps
+  /** Side padding in design px (default 22). Small header controls use less so short labels fit narrow buttons. */
+  pad?: number
 }) {
   const disabled = props.disabled ?? false
+  const pad = S(props.pad ?? 22)
   const color = disabled ? C.gray : props.color ?? C.green
   // Keyed buttons dip by key (their colour may animate, e.g. glow()); unkeyed ones fall back to label + colour.
   const pressId = props.key ? `${props.key}:${props.label}` : `${props.label}:${color.r}:${color.g}:${color.b}`
@@ -154,7 +157,7 @@ export function Button(props: Keyed & {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: { left: S(22), right: S(22) }
+          padding: { left: pad, right: pad }
         }}
         uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color }}
         onMouseDown={

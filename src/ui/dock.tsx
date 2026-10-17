@@ -69,26 +69,28 @@ export function Dock() {
       }}
     >
       <Panel flat color={C.navySoft} uiTransform={{ width: S(420), padding: S(18), flexDirection: 'column' }}>
-        {/* Header: title, then a row of three small controls where the cog used to be (hide the Antrom UI; alerts; sounds).
-            Their own row: Button pads 22 px a side, so three labels and the title can't share 384 px without clipping. */}
-        <OutlinedText value="ANTROM AFK" size={S(FONT.body + 6)} color={C.yellow} align="middle-left" uiTransform={{ width: '100%', height: S(40), margin: { bottom: S(4) } }} />
-        <UiEntity uiTransform={{ width: '100%', height: S(40), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(8) } }}>
-          <Button label="HIDE" color={C.blue} size={S(16)} uiTransform={{ flexGrow: 1, flexBasis: 0, height: S(40), minWidth: 0, margin: { right: S(6) } }} onClick={() => { ui.hidden = true }} />
+        {/* Header: title, then three small controls where the cog used to be (hide the Antrom UI; alerts; sounds).
+            pad 8: the default 22 px button padding would leave no room for the labels at these widths. */}
+        <UiEntity uiTransform={{ width: '100%', height: S(44), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(8) } }}>
+          <OutlinedText value="ANTROM AFK" size={S(FONT.body + 2)} color={C.yellow} align="middle-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
+          <Button label="HIDE" color={C.blue} size={S(15)} pad={8} uiTransform={{ width: S(62), height: S(40), minWidth: 0, margin: { right: S(6) } }} onClick={() => { ui.hidden = true }} />
           {/* ALERTS: gather/find toasts, level-up and rare-find banners, lobby badge. QUIET hides them; saved on the profile. */}
           <Button
             label={settings.alerts ? 'ALERTS' : 'QUIET'}
             color={settings.alerts ? C.green : C.gray}
             textColor={settings.alerts ? C.white : C.textMuted}
-            size={S(16)}
-            uiTransform={{ flexGrow: 1, flexBasis: 0, height: S(40), minWidth: 0, margin: { right: S(6) } }}
+            size={S(15)}
+            pad={8}
+            uiTransform={{ width: S(86), height: S(40), minWidth: 0, margin: { right: S(6) } }}
             onClick={() => setAlerts(!settings.alerts)}
           />
           <Button
             label={isMuted() ? 'MUTED' : 'SOUND'}
             color={isMuted() ? C.gray : C.green}
             textColor={isMuted() ? C.textMuted : C.white}
-            size={S(16)}
-            uiTransform={{ flexGrow: 1, flexBasis: 0, height: S(40), minWidth: 0 }}
+            size={S(15)}
+            pad={8}
+            uiTransform={{ width: S(80), height: S(40), minWidth: 0 }}
             onClick={() => setMuted(!isMuted())}
           />
         </UiEntity>
