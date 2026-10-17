@@ -645,9 +645,6 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
 
   // --- Hero ---
   ['HERO', 'HÉROS', 'HÉROE', '英雄'],
-  ["Your hero fights your guild's raids. Level him with wood, rock, meat and bone from your Depot and backpack.", 'Ton héros combat dans les raids de ta guilde. Fais-le monter avec du bois, de la pierre, de la viande et des os de ton Dépôt et de ton sac.', 'Tu héroe lucha en las incursiones de tu gremio. Súbelo de nivel con madera, piedra, carne y hueso de tu Depósito y mochila.', '你的英雄为公会出战突袭。用仓库和背包里的木材、石头、肉和骨头提升他的等级。'],
-  ['LEVEL {0} → {1}', 'NIVEAU {0} → {1}', 'NIVEL {0} → {1}', '等级 {0} → {1}'],
-  ['LEVEL {0}  MAX', 'NIVEAU {0}  MAX', 'NIVEL {0}  MÁX', '等级 {0}  满级'],
   ['HP', 'PV', 'PS', '生命'],
   ['ATTACK', 'ATTAQUE', 'ATAQUE', '攻击'],
   ['SPEED', 'VITESSE', 'VELOCIDAD', '速度'],
@@ -657,10 +654,9 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Reach buildings sooner', 'Atteins les bâtiments plus vite', 'Llega antes a los edificios', '更快抵达建筑'],
   ['Back from a knock-out sooner', 'Reviens plus vite après un KO', 'Vuelve antes tras un KO', '被击倒后更快归队'],
   ['UPGRADE', 'AMÉLIORER', 'MEJORAR', '升级'],
+  ['NEXT  {0}', 'SUIVANT  {0}', 'SIGUIENTE  {0}', '下一级  {0}'],
   ['{0} LEVEL {1}', '{0} NIVEAU {1}', '{0} NIVEL {1}', '{0} 等级 {1}'],
   ['Hero upgrade failed ({0})', 'Échec de l’amélioration du héros ({0})', 'Falló la mejora del héroe ({0})', '英雄升级失败（{0}）'],
-  ['→  +{0}', '→  +{0}', '→  +{0}', '→  +{0}'],
-  ['→  +{0}%', '→  +{0}%', '→  +{0}%', '→  +{0}%'],
 
   // --- Shadow Raid ---
   ['ANTROM STORM', 'ANTROM STORM', 'ANTROM STORM', 'ANTROM STORM'],
