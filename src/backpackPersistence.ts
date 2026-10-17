@@ -36,7 +36,7 @@ import {
   StorageKey,
   TOOL_MAX
 } from './state'
-import { claimAwayProgress, loadGuild, saveLayout } from './transactions'
+import { adoptKoaLanguage, claimAwayProgress, loadGuild, saveLayout } from './transactions'
 import { sanitizeAssassinPieces } from './suits'
 import { showAwaySummary } from './ui/uiState'
 import { playSuccessSound } from './uiSounds'
@@ -193,7 +193,7 @@ export function initializeBackpackPersistence() {
     player.craftedSuits = sanitizeCraftedSuits(profileState.profile.craftedSuits)
     player.craftedRelics = sanitizeCraftedRelics(profileState.profile.craftedRelics)
     player.guildDaily = sanitizeGuildDaily(profileState.profile.guildDaily)
-    seedSettings(profileState.profile.settings)
+    if (!seedSettings(profileState.profile.settings) && profileState.walletAddress) adoptKoaLanguage(profileState.walletAddress)
     seedLayout(profileState.profile.uiLayout)
     onLayoutChanged(saveLayout)
     initialized = true

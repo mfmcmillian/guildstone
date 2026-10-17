@@ -3,6 +3,7 @@ import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, SLICE_PILL, FONT } from './theme'
 import { playButtonSound, playCancelSound } from '../uiSounds'
 import { S, currentScale } from './responsive'
+import { t } from '../i18n'
 
 export { getCanvas, fitPanel, fitModal, S } from './responsive'
 
@@ -41,22 +42,23 @@ export function OutlinedText(props: Keyed & {
   thickness?: number
 }) {
   const size = props.size ?? S(FONT.body)
-  const t = props.thickness ?? Math.max(1.5, size / 14)
+  const th = props.thickness ?? Math.max(1.5, size / 14)
   const outline = props.outline ?? C.navy
   const align = props.align ?? 'middle-center'
-  const offsets: [number, number][] = [[-t, 0], [t, 0], [0, -t], [0, t], [-t, -t], [t, -t], [-t, t], [t, t]]
+  const value = t(props.value)
+  const offsets: [number, number][] = [[-th, 0], [th, 0], [0, -th], [0, th], [-th, -th], [th, -th], [-th, th], [th, th]]
   return (
     <UiEntity uiTransform={{ width: '100%', height: size * 1.3, ...props.uiTransform }}>
       {offsets.map(([dx, dy], i) => (
         <UiEntity
           key={i}
           uiTransform={{ positionType: 'absolute', position: { top: dy, left: dx }, width: '100%', height: '100%' }}
-          uiText={{ value: props.value, fontSize: size, color: outline, textAlign: align, textWrap: 'nowrap' }}
+          uiText={{ value, fontSize: size, color: outline, textAlign: align, textWrap: 'nowrap' }}
         />
       ))}
       <UiEntity
         uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%' }}
-        uiText={{ value: props.value, fontSize: size, color: props.color ?? C.white, textAlign: align, textWrap: 'nowrap' }}
+        uiText={{ value, fontSize: size, color: props.color ?? C.white, textAlign: align, textWrap: 'nowrap' }}
       />
     </UiEntity>
   )
@@ -68,7 +70,7 @@ export function Text(props: Keyed & { value: string; size?: number; color?: Colo
     <UiEntity
       uiTransform={{ width: '100%', height: size * 1.3, ...props.uiTransform }}
       uiText={{
-        value: props.value,
+        value: t(props.value),
         fontSize: size,
         color: props.color ?? C.text,
         textAlign: props.align ?? 'middle-center',
@@ -183,6 +185,39 @@ export function Button(props: Keyed & {
   )
 }
 
+/** Frameless icon-only button (dock header controls): the glyph itself dips on press and plays the click. */
+export function IconButton(props: Keyed & {
+  icon: string
+  /** Design px, already scaled by the caller (height; width follows `aspect`). */
+  size: number
+  /** width / height of the icon image. 1 for square glyphs, 1.375 for the flags. */
+  aspect?: number
+  sound?: 'click' | 'cancel'
+  onClick?: Callback
+  uiTransform?: UiTransformProps
+}) {
+  const pressId = `icon:${props.icon}`
+  const pressed = (pressedUntil[pressId] ?? 0) > Date.now()
+  const h = props.size
+  const w = Math.round(h * (props.aspect ?? 1))
+  return (
+    <UiEntity
+      uiTransform={{ width: w, height: h, alignItems: 'center', justifyContent: 'center', ...props.uiTransform }}
+      onMouseDown={() => {
+        pressedUntil[pressId] = Date.now() + 140
+        if (props.sound === 'cancel') playCancelSound()
+        else playButtonSound()
+        props.onClick?.()
+      }}
+    >
+      <UiEntity
+        uiTransform={{ width: pressed ? w * 0.86 : w, height: pressed ? h * 0.86 : h, margin: { top: pressed ? h * 0.08 : 0 } }}
+        uiBackground={{ textureMode: 'stretch', texture: { src: props.icon } }}
+      />
+    </UiEntity>
+  )
+}
+
 export function CloseButton(props: { onClick: Callback; scale?: number }) {
   const s = props.scale ?? 1
   return (
@@ -240,7 +275,7 @@ export function Modal(props: {
   const s = props.scale ?? currentScale()
   const width = props.width * s
   const height = props.height * s
-  const titleWidth = (props.titleWidth ?? Math.max(260, props.title.length * 26)) * s
+  const titleWidth = (props.titleWidth ?? Math.max(260, t(props.title).length * 26)) * s
   const pad = 36 * s
   const contentTop = 26 * s
   return (

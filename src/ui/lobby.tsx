@@ -1,4 +1,5 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
+import { t } from '../i18n'
 import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Button, Icon } from './components'
 import { S } from './responsive'
@@ -179,7 +180,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
         <Input
           key={`chat-input-${channel}-${st.draftKey}`}
           value={st.draft}
-          placeholder={st.sending ? 'Sending...' : guildChannel ? `Say something to [${player.guild?.tag ?? 'your guild'}] only...` : 'Say something to everyone wearing the ring...'}
+          placeholder={t(st.sending ? 'Sending...' : guildChannel ? `Say something to [${player.guild?.tag ?? t('your guild')}] only...` : 'Say something to everyone wearing the ring...')}
           fontSize={S(24)}
           color={C.text}
           placeholderColor={C.textMuted}
@@ -275,7 +276,7 @@ function BugCard() {
       <Input
         key="bug-input"
         value={bug.draft}
-        placeholder="e.g. SELL ALL did nothing after banking"
+        placeholder={t('e.g. SELL ALL did nothing after banking')}
         fontSize={S(22)}
         color={C.text}
         placeholderColor={C.textMuted}

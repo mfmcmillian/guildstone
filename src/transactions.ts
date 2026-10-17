@@ -4,6 +4,7 @@ import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
 import { settings } from './settings'
+import { setLanguage, t, type Language } from './i18n'
 import type { UiLayout } from './ui/drag'
 import { isServer } from '@dcl/sdk/network'
 import {
@@ -456,7 +457,7 @@ function requestMint(body: { skill: Skill; level: number } | { relic: RelicId })
       applyCraftSuitResponse(result)
       if (!response.ok) {
         const short = Object.entries(result.short ?? {}) as Array<[ItemId | 'coins', number]>
-        if (short.length > 0) flash(`NEED ${short.map(([id, n]) => `${n} more ${id === 'coins' ? 'Coins' : RESOURCE_INFO[id].name}`).join(', ')}`)
+        if (short.length > 0) flash(`NEED ${short.map(([id, n]) => `${n} ${t(id === 'coins' ? 'Coins' : RESOURCE_INFO[id].name)}`).join(', ')}`)
         else flash((result.error ?? `Craft failed (${response.status})`).toUpperCase())
         playErrorSound()
         return
@@ -951,6 +952,47 @@ export function setAlerts(on: boolean) {
       if (!response.ok) throw new Error(`Settings save failed (${response.status})`)
     } catch (error) {
       console.error('[transaction] Settings failed:', error instanceof Error ? error.message : String(error))
+    }
+  })
+}
+
+/**
+ * UI language picked from the dock flag. Applies this frame (i18n.ts) and is saved on the profile; the server also
+ * points lobby translation at the same language so chat reads in it too.
+ */
+export function setLanguagePref(code: Language) {
+  setLanguage(code)
+  settings.languageSeeded = true
+  if (profileState.status !== 'ready' || !profileState.walletAddress || !settings.seeded) return
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/settings`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: code }) }
+      })
+      if (!response.ok) throw new Error(`Settings save failed (${response.status})`)
+    } catch (error) {
+      console.error('[transaction] Language failed:', error instanceof Error ? error.message : String(error))
+    }
+  })
+}
+
+const KOA_LANGUAGE: Record<string, Language> = { English: 'en', French: 'fr', Spanish: 'es', Chinese: 'zh' }
+
+/**
+ * No AFK choice yet: adopt the language the player picked in KoA (`players/{wallet}.selectedLanguage`, a public
+ * read like pelts and gem credit). Not saved; the first flag tap does that.
+ */
+export function adoptKoaLanguage(walletAddress: string) {
+  executeTask(async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/player/${walletAddress}`)
+      if (!response.ok) return
+      const koa = (await response.json()) as { selectedLanguage?: unknown }
+      const code = typeof koa.selectedLanguage === 'string' ? KOA_LANGUAGE[koa.selectedLanguage] : undefined
+      if (code && !settings.languageSeeded) setLanguage(code)
+    } catch (error) {
+      console.error('[transaction] KoA language lookup failed:', error instanceof Error ? error.message : String(error))
     }
   })
 }
