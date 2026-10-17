@@ -16,7 +16,7 @@ Sections:
 
 # 1. Next publish — built and committed on fantasy-ui
 
-Client work on branch `fantasy-ui`, ready to pack and resubmit as v0.2.0.
+Client work on branch `fantasy-ui`, packed and tagged as v0.3.0 (2026-10-17): alerts toggle, saved window positions, bug reports, shop countdown, workshop ETA, guild chat.
 
 - [x] Guild roster: name instead of wallet (server records/heals `memberNames`; client reads `guild.memberNames[id]`), rank icon replaces the overlapping text label, "(YOU)" removed in favor of the purple row.
 - [x] Readability: `C.gold` (`#b87a00`) replaces `C.yellow` everywhere text sits on paper/white (profession page, HUD coin pill, guide subtitle, workshop/tool bench tiers, guild headers, milestones, tech).
