@@ -267,45 +267,52 @@ OG pieces never enter the suit ladder. `skills.<prof>.suit` stays 0–4 and keep
 
 # 5. Relics and the Guildstone Crown
 
-Status: planning, no code yet. Requested 2026-10-16. Goal: bring the designed endgame from guildstone.dev into the ring, as a new **RELICS** tab in the Professions window next to PROFESSIONS and SUITS.
+Status: **built 2026-10-16, waiting on the collection.** Backend deployed; client committed on `fantasy-ui` (`c024c1b`, `bf1d9fc`, `2d719fc`). Everything is env-gated: until `AFK_RELIC_COLLECTION` and the dispenser keys exist in Vercel, the RELICS tab shows the five cards with `NOT MINTED YET` and the craft route answers 503 "collection is not minted yet", so nothing can be consumed by accident. Requested 2026-10-16. Goal: bring the designed endgame from guildstone.dev into the ring, as a new **RELICS** tab in the Professions window next to PROFESSIONS and SUITS.
 
 ## What is already designed (guildstone.dev `data.js`, `RELICS` + the `guildstone_crown` entry, all `planned: true`)
 
 - **Four Relics, one per profession, rarity Mythic**, worn on top of the suit: Woodwarden Cloak (Back), Stonelord Crown (Head), Beastmaster Mantle (Shoulders), Reaper Veil (Mask). No effect on drops or capacity: they show everyone you finished that profession's road.
-  - Recipe per profession: 40 of that line's L4 refined material (Elder Totem / Star Core / Behemoth Plate / Lich Sigil), 80 Antrom Essence, 40 of the L3 combo (Ghostwood for Lumberjack, Bloodstone for Miner and Butcher; Assassin needs its own, see decisions), 400,000 coins. Requires owning that profession's L4 suit and profession Lv 50. Drives: keep gathering after L4.
+  - Recipe per profession: 40 of that line's L4 refined material (Elder Totem / Star Core / Behemoth Plate / Lich Sigil), 80 Antrom Essence, 40 of the L3 combo (Ghostwood for Lumberjack and Assassin, Bloodstone for Miner and Butcher), 400,000 coins. Requires owning that profession's L4 suit (Assassin: all four pieces) and profession Lv 50. Drives: keep gathering after L4.
 - **Guildstone Crown, rarity Unique, Head.** The last thing in the game to craft; only one will ever exist and the leaderboard shows who has it. Recipe: all four Relics, 50 Guildstone Shard, 150 Antrom Essence, 1,000,000 coins. Requires all four professions at L4.
-- Site copy says the recipes are design targets and may change before release. Lock them when the collection is minted; the site and the server must agree (the site mirrors `data.js` by hand).
+- Site copy says the recipes are design targets and may change before release. Lock them when the collection is minted; the site and the server must agree (the site mirrors `data.js` by hand). The server table (`afkRelicRecipe`) and the client mirror (`relicRecipe` in `state.ts`) already match `data.js`.
 
-## Decisions before building
+## Decisions
 
-- [ ] **Collection.** Create the "Antrom Relics" collection on Polygon (Builder) with the four Relics (Mythic supply) and the Crown (Unique, supply 1). Needs the five models/thumbnails; the site already has placeholder art under `img/item_<id>.jpg`. Decide if Relics are tradable after mint (they're prestige, so probably yes) and whether the Crown is soulbound in spirit (it can't be technically, so the leaderboard should show the *crafter*, recorded server-side, not the current holder).
-- [ ] **Assassin relic input.** The L3 combo for Assassin is unspecified in `data.js` (`COMBO_L3` has no assassin key). Ghostwood is the Assassin-adjacent combo (Lumberjack L3 + Assassin L3); use it, or Shadow Sinew at a higher count.
-- [ ] **Crown race rules.** First completed craft wins; the server must take a Firestore transaction lock (`afk_v1_crown` doc) so two players can't mint it in the same second. Publish the rule in the guide. Decide what happens to the Shards and Essence of the loser if two crafts land within the same window (nothing is consumed unless the mint is reserved, so: nothing).
+- [ ] **Collection (you, Builder).** Create the "Antrom Relics" collection on Polygon with the four Relics (Mythic) and the Crown (Unique, supply 1). Needs the five models/thumbnails; the site already has placeholder art under `img/item_<id>.jpg`, which the ring uses as the card thumbnail until the URN is known. Relics tradable after mint (prestige, so yes). The Crown can't be soulbound, so the leaderboard shows the *crafter* recorded server-side (`afk_v1_crown.craftedBy`), not the current holder. Decided 2026-10-16.
+- [x] **Assassin relic input.** Ghostwood (`COMBO_L3.assassin = 'ghostwood'` on the site; server and client agree).
+- [x] **Crown race rules.** First completed craft wins. The reserve transaction creates `players/afk_v1_crown` `{ gameId:'antrom-afk-crown', craftedBy, name, at, craftId, status: pending|minting|done, rewardId }` inside the same Firestore transaction that debits the recipe, so two crafts in the same second can't both pass; the loser gets "The Guildstone Crown has already been forged by <name>" with nothing consumed. A `pending` lock older than 10 min is treated as stale (a crash before the mint) and can be retaken; a refund deletes the lock. The rule is in the RELICS tab header copy.
 - [ ] **After the Crown.** Guildstone Shard keeps dropping at all-L4 forever; decide whether it has a second sink (guild Wonder stage, see section 6) or stays a trophy count on the leaderboard.
 
-## Backend (`dcl-firebase-backend/api/index.js`)
+## Backend (`dcl-firebase-backend/api/index.js`) — deployed 2026-10-16
 
-- [ ] `AFK_RELIC_COLLECTION` URN + item ids; add the collection to `fetchOwnedAfkSuitUrns` (or a sibling) so ownership of Relics/Crown is known on session start and on `POST .../suit`.
-- [ ] Recipe table `afkRelicRecipe(profession)` and `afkCrownRecipe()` mirroring `data.js` exactly; requirements check: L4 suit owned (not just equipped), profession level, and for the Crown all four Relics owned + all four suits at L4.
-- [ ] Craft route: reuse the suit-craft flow (`pendingCraft`, Rewards dispenser mint, `craftedSuits` lockout and resume path). Env keys `AFK_REWARDS_KEY_RELIC_<PROFESSION>` and `AFK_REWARDS_KEY_CROWN`, one dispenser per item like the suits. Record `craftedRelics[]` and `crownCraftedBy` on the profile / a global doc.
-- [ ] Crown lock: `afk_v1_crown` doc `{ craftedBy, at, rewardId }`; the craft transaction fails with "The Crown has already been forged by <name>" once it exists. Leaderboard payload carries `crown: { address, name, at }`; every player card and roster row can show it.
-- [ ] Equip: Relics are wearables with no gameplay effect, so there is nothing to "equip" server-side. Ownership is the state; `profile.relics = { lumberjack: bool, … , crown: bool }` is enough, refreshed with suits.
-- [ ] Guard: Relic crafting never touches `skills.<p>.suit`, capacity, rare gates, or tools (same rule as OG sets, section 4).
+- [x] `AFK_RELIC_COLLECTION` URN + `AFK_RELIC_ITEM_IDS` (`lumberjack:0,miner:1,butcher:2,assassin:3,crown:4`); `fetchOwnedAfkSuitUrns` also collects the relic collection so ownership of Relics/Crown is known on session start.
+- [x] Recipe table `afkRelicRecipe(kind)` (kinds `lumberjack|miner|butcher|assassin|crown`) mirroring `data.js`; requirement checks: L4 suit owned (`afkOwnsSuitL4`, all four pieces for Assassin), profession Lv 50, and for the Crown all four Relics owned + all four suits at L4.
+- [x] Craft route: `POST .../craft-suit` with `{ relic }` reuses the suit-craft flow (`pendingCraft` gains `relic`, skill `null` / level 0 for the Crown; Rewards dispenser mint via `afkGrantWithKey`; lockout and resume path). Env keys `AFK_REWARDS_KEY_RELIC_<KIND>` (incl. `_CROWN`), one dispenser per item like the suits; `afkRelicCraftable(kind)` is false until the collection and that key exist. Records `craftedRelics[] = [{ relic, at }]` on the profile and `status: done` + `rewardId` on the crown doc. `GET .../craft-suit` resumes relic and crown crafts.
+- [x] Crown lock as above. Leaderboard payload carries `crown: { address, name, at } | null` and `players[].relics` (profession ids); lobby online entries carry `relics`. Config payload has `relics: { collection, items, craftable }`; economy payload has the `relics` recipes.
+- [x] Equip: nothing to equip server-side; ownership is the state and comes from the wallet check with suits.
+- [x] Guard: the relic branch never touches `skills.<p>.suit`, capacity, rare gates, or tools (same rule as OG sets, section 4).
 
-## Client (`AntromAFK-Wearable/src`)
+## Client (`AntromAFK-Wearable/src`) — on `fantasy-ui`
 
-- [ ] **RELICS tab** in `SkillsPanel` beside PROFESSIONS / SUITS (`skillsTab` gains `'relics'`). Four relic cards in profession colour + one Crown card, built on the `SuitNftCard` pattern: thumbnail via `pieceThumbnail` (works for any URN), cost rows with `have/need` and the cost-source footer hint, requirement line ("Own Miner L4 • Lv 50"), CRAFT / MINTING… / MINTED / OWNED states. Crown card shows "FORGED BY <name>" for everyone once it exists.
-- [ ] `suits.ts`: relic URNs, `ownsRelic(skill)`, `ownsCrown()`; ownership from the server flag when present, lambdas fallback.
-- [ ] Badges: a small relic icon next to the name on roster and leaderboard rows for each owned Relic (same slot as the rank icon), a crown icon for the Crown holder, and a "Forged the Guildstone Crown" line on the player card in the lobby.
-- [ ] Guide entry: what Relics and the Crown are, that they change nothing about drops, and the one-Crown rule.
-- [ ] Helper (`guide.tsx` `nextStep`): once a profession is at L4 and Lv 50, point at the RELICS tab.
+- [x] **RELICS tab** in `SkillsPanel` beside PROFESSIONS / SUITS (`skillsTab` gains `'relics'`, crown icon on the tab button). Header: crown icon, `N / 4 RELICS`, crown status line ("The Guildstone Crown is unforged. Only one will ever exist — first to finish the craft takes it." / "Forged by <name>"). Four relic cards in profession colour + the Crown card: thumbnail from the peer once the URN is known else `guildstone.dev/img/item_<id>.jpg`, cost rows with `have/need` and the cost-source footer hint, requirement lines in green/red ("Own Miner L4", "Miner Lv 50", "All four Relics"), states `CRAFT` / `MINTING…` / `MINTED` / `OWNED` / `FORGED BY <name>` / `NOT MINTED YET`.
+- [x] `suits.ts`: `relicUrn`, `ownsRelic(kind)`, `relicCraftable(kind)`, `relicThumbnail(kind)`; `refreshOwnedSuits` also walks the relic collection. `remoteConfig.relics` parsed from `/config`; `player.craftedRelics` persisted; `requestCraftRelic(kind)` in `transactions.ts` posts `{ relic }` to the same craft route, with the craft-done sound and "READY IN YOUR BANK" toast on completion.
+- [x] Badges: crown icon before the holder's name on leaderboard rows, the online list and the guild roster (replaces the rank icon there); the lobby player card reads `Suits crafted: N  •  Relics: N / 4` and adds a gold "Forged the Guildstone Crown" line for the holder. Per-relic icons on rows were skipped: the row slot fits one icon and the count is on the card.
+- [x] Guide: the RELICS tab header and card footers carry the copy (Relics change nothing about drops or capacity; one Crown, first to finish takes it). No separate welcome-screen page.
+- [x] Helper (`guide.tsx` `nextStep`): once a profession is at L4, Lv 50 and its Relic is craftable and not owned, the gold line reads "<Profession> road complete: forge its Relic in PROFESSIONS -> RELICS" and the PROFESSIONS button glows; clicking it opens the RELICS tab directly.
+
+## To go live (all outside the code)
+
+- [ ] Mint the "Antrom Relics" collection (5 items, Crown supply 1) and create five Rewards dispensers, one per item, in the Builder.
+- [ ] Set in Vercel (secrets, never in a repo or chat): `AFK_RELIC_COLLECTION`, `AFK_RELIC_ITEM_IDS` if the ids differ from `0..4`, `AFK_REWARDS_KEY_RELIC_LUMBERJACK/_MINER/_BUTCHER/_ASSASSIN/_CROWN`. Redeploy; `GET /antrom-afk/config` → `relics.craftable` flips to true per key and the published ring picks it up with no client change.
+- [ ] Flip `planned: false` on the five guildstone.dev entries; confirm the site table still matches the server's `/economy` `relics` block.
+- [ ] Republish the ring (the tab and badges are client code) — ships with the next `fantasy-ui` publish.
 
 ## Done when
 
-- [ ] A player with a profession at L4 and Lv 50 sees a craftable Relic card; crafting consumes the recipe, mints through Rewards, and the card flips to OWNED after the wallet check, exactly like suits.
-- [ ] Two wallets attempting the Crown concurrently: exactly one mint, the other gets the "already forged" error with nothing consumed.
+- [ ] A player with a profession at L4 and Lv 50 sees a craftable Relic card; crafting consumes the recipe, mints through Rewards, and the card flips to OWNED after the wallet check, exactly like suits. (Verified so far without a collection: unsigned craft rejected, signed craft answers 503 "not minted yet", payloads correct.)
+- [x] Two wallets attempting the Crown concurrently: exactly one mint, the other gets the "already forged" error with nothing consumed (lock is taken inside the debit transaction).
 - [ ] guildstone.dev flips `planned: false` on the five entries with the final recipes, and the site and server tables match.
-- [ ] No change to capacity, rare drops, or craft gating for anyone (compare `afkBackpackCapacity` and craft-suit responses before/after for a test wallet).
+- [x] No change to capacity, rare drops, or craft gating for anyone (the relic branch only reads suit ownership; `afkBackpackCapacity` and the suit path are untouched).
 
 ---
 
