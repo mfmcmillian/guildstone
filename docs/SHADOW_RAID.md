@@ -1,6 +1,6 @@
 # Shadow Raid — guild combat for AntromAFK
 
-Status: MVP1 built on branch `bases-combat` (2026-10-17). Server: `dcl-firebase-backend/api/afkRaid.js`. Client: `src/raid.ts`, `src/ui/raid.tsx` (the WAR tab in the Guild panel), art in `images/raid/`.
+Status: MVP1 built on branch `bases-combat` (2026-10-17). Server: `dcl-firebase-backend/api/afkRaid.js`. Client: `src/raid.ts`, `src/ui/raid.tsx` (the WAR window), art served from `https://guildstone.dev/img/raid/` (guildstone-web `img/raid/`, versioned file names because img/ is cached a week; sources and the grid cutter in `C:/Users/matth/mock/opt`).
 
 Supersedes the Hold & Warband design (troops, bases, 24h marches). There are no troops: every player **is** their Assassin, and a raid is five minutes long.
 
@@ -51,7 +51,7 @@ Stats are frozen when the fighter joins the raid (one profile read, one KoA read
 
 ## 4. The field
 
-Five points at fixed positions over a painted background (`images/raid/battlefield.jpg`), the left camp purple (the caller), the right camp gold (the answerer / Wraiths).
+Five points at fixed positions over a painted background (`battlefield_v1.jpg`), the left camp purple (the caller), the right camp gold (the answerer / Wraiths).
 
 | Point | Pips | Armour | Position (% of field) |
 | --- | --- | --- | --- |
@@ -164,7 +164,7 @@ Design area 1720 × 920 inside the Guild panel. Background image fills it; every
 - Score pills top-left / top-right, timer centre, one-line rule hint under it.
 - Roster cards down each side: name, HP bar, `HP n/max · ATK n`, `Lv · Dagger · VIP · where`. Red card when knocked out. OPEN SLOT cards with JOIN when a slot is free.
 - Five point markers: name pill with pips, garrison line (`KOA 124 ATK vs ELF 230 ATK` when contested, `KOA · Kairos` when held, `empty`), status line (`−30% dmg inside · clash 0:07`, `you arrive in 0:09`).
-- Fighter tokens: 4-frame walk flipbook (`images/raid/assassin.png`, `uvs` cycling; enemy sheet `assassin_enemy.png`), name tag above, tiny HP bar below, grey when knocked out. Tokens and labels are non-interactive so clicks fall through to the building.
+- Fighter tokens: sprite sheets `assassin_v2.png` / `assassin_enemy_v2.png`, 6×5 grid of 144 px cells, rows idle 4 / walk 4 / attack 6 / hit 2 / ko 4, drawn right-facing and flipped by `uvs`. Idle in camp or an uncontested building; attack loop (with a lunge) whenever both sides stand in the same building; hit pose + red flash and a floating `-N` when a poll lowers HP, `KO!` on a knock-out; the KO fall plays once and holds while the fighter is carried back. Name tag above, tiny HP bar below, grey when knocked out. Tokens and labels are non-interactive so clicks fall through to the building.
 - Each building: invisible hit area, gold ring + `GO` chip on hover, purple ring when you are inside.
 - Feed strip above the bottom bar (last 3 lines). Bottom bar: your status left, LEAVE RAID right. Spectators get neither.
 - Lobby view while gathering: countdown, both rosters, JOIN / ANSWER / START info. Board list of other guilds' raids under the RAID button when idle.

@@ -14,22 +14,24 @@ import {
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating, sumAtk
 } from '../raid'
 
-const BG = 'images/raid/battlefield.jpg'
-const SHEET: Record<SideId, string> = { a: 'images/raid/assassin.png', b: 'images/raid/assassin_enemy.png' }
+// Raid art is served from guildstone.dev (data only) so the wearable stays under its 2 MB cap; bump the _vN suffix when
+// a file changes, img/ is cached for a week. Sources: C:/Users/matth/mock/opt (cut_sheets.js builds the grids).
+const ART = 'https://guildstone.dev/img/raid'
+const BG = `${ART}/battlefield_v1.jpg`
+const SHEET: Record<SideId, string> = { a: `${ART}/assassin_v2.png`, b: `${ART}/assassin_enemy_v2.png` }
 /**
- * Sprite sheet layout: one row per animation, frames left to right, every frame the same square, facing right.
- * The current sheets are a single 4-frame row, so every animation plays that row; when the full sheets land, set
- * ROWS to 5 and the per-animation row/frames below (idle 0, walk 1, attack 2, hit 3, ko 4).
+ * Sprite sheet layout: 6 columns x 5 rows of 144 px cells, one row per animation, frames left to right, facing right,
+ * feet on a shared baseline. Rows: idle, walk, attack, hit, ko.
  */
 type Anim = 'idle' | 'walk' | 'attack' | 'hit' | 'ko'
-const SHEET_COLS = 4
-const SHEET_ROWS = 1
+const SHEET_COLS = 6
+const SHEET_ROWS = 5
 const ANIM: Record<Anim, { row: number; frames: number; ms: number }> = {
-  idle: { row: 0, frames: 1, ms: 400 },
-  walk: { row: 0, frames: 4, ms: 130 },
-  attack: { row: 0, frames: 4, ms: 90 },
-  hit: { row: 0, frames: 1, ms: 120 },
-  ko: { row: 0, frames: 4, ms: 220 }
+  idle: { row: 0, frames: 4, ms: 260 },
+  walk: { row: 1, frames: 4, ms: 130 },
+  attack: { row: 2, frames: 6, ms: 95 },
+  hit: { row: 3, frames: 2, ms: 160 },
+  ko: { row: 4, frames: 4, ms: 200 }
 }
 const HIT_FLASH_MS = 320
 const FLOAT_MS = 1300
@@ -38,7 +40,7 @@ const H = 920
 const px = (x: number) => S((x / 100) * W)
 const py = (y: number) => S((y / 100) * H)
 
-// Where things sit on images/raid/battlefield.jpg, in % of the field. `label` is the name pill, `stand` the fighters'
+// Where things sit on battlefield_v1.jpg, in % of the field. `label` is the name pill, `stand` the fighters'
 // feet, `hit` the clickable blob over the building art.
 const FIELD: Record<PointId, { label: [number, number]; stand: [number, number]; hit: [number, number, number, number] }> = {
   watchtower: { label: [26, 12], stand: [26, 39], hit: [26, 21, 190, 300] },
@@ -52,7 +54,8 @@ const ROSTER_W = 270
 const CARD_H = 160
 const CARD_GAP = 10
 const ROSTER_TOP = 100
-const TOKEN = 80
+// Cell size on screen. The character stands about 74% of its 144 px cell, so this matches the old 80 px tokens.
+const TOKEN = 108
 const TOKEN_GAP = 72
 const BAR_H = 90
 
@@ -112,7 +115,9 @@ function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: 
   const total = f.state === 'ko' ? v.rules.koWalkMs : to === 'camp' ? v.rules.homeMs : v.rules.walkMs
   const t = Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total))
   const anim: Anim = f.state === 'ko' ? 'ko' : 'walk'
-  const frame = Math.floor(now / ANIM[anim].ms) % ANIM[anim].frames
+  // KO plays the fall once from the moment of the knock-out, then holds the last frame on the way back to camp.
+  const koStart = f.arriveAt - total
+  const frame = anim === 'ko' ? Math.min(ANIM.ko.frames - 1, Math.floor(Math.max(0, now - raid.clockOffset - koStart) / ANIM.ko.ms)) : Math.floor(now / ANIM[anim].ms) % ANIM[anim].frames
   return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, anim, frame, flip: tx < fx }
 }
 
@@ -154,9 +159,11 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
   const p = fighterPos(v, side, f, props.index)
   noteDamage(v, f, p.x, p.y)
   const flashing = Date.now() - (hitAt[`${v.id}:${f.id}`] ?? 0) < HIT_FLASH_MS
-  const row = flashing && ANIM.hit.row !== ANIM.idle.row ? ANIM.hit.row : ANIM[p.anim].row
-  const u0 = p.frame / SHEET_COLS
-  const u1 = (p.frame + 1) / SHEET_COLS
+  const hitPose = flashing && p.anim !== 'ko'
+  const row = hitPose ? ANIM.hit.row : ANIM[p.anim].row
+  const frame = hitPose ? Math.min(ANIM.hit.frames - 1, Math.floor((Date.now() - (hitAt[`${v.id}:${f.id}`] ?? 0)) / ANIM.hit.ms)) : p.frame
+  const u0 = frame / SHEET_COLS
+  const u1 = (frame + 1) / SHEET_COLS
   // uvs run bottom-left, top-left, top-right, bottom-right; v=1 is the top of the texture.
   const v1 = 1 - row / SHEET_ROWS
   const v0 = 1 - (row + 1) / SHEET_ROWS
