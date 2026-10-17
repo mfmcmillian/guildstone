@@ -19,7 +19,7 @@ Combat is nothing but **HP vs ATK**, both derived from the Assassin profession t
 | Fighter | A player in a raid: their Assassin with HP / ATK. |
 | Point | One of the five buildings. Watchtower, Sawmill, Quarry, Bone Shrine (+1), Citadel (+2). |
 | Camp | Each side's tent at the edge of the field. Full HP there, scores nothing. |
-| Tick | Every 15 s: arrivals, damage, scoring. 20 ticks per raid. |
+| Tick | Every 3 s: arrivals, damage, scoring. 100 ticks per raid. |
 | Knocked out | HP reached 0. Dragged back to camp at the slow speed. |
 | Valor | The combat currency fighters earn per tick. No spend yet (banners / titles later). |
 | Wraiths | Server-controlled mirror team that fills the other side when no guild answers. |
@@ -75,7 +75,7 @@ Players move by clicking a building (the building is the button; a gold ring and
 - HP 0 → **knocked out**: dragged back to camp over **30 s**, revive at full HP on arrival, free to click again. Cost of a knockout ≈ 3 ticks; cost of a voluntary reposition ≈ 1 tick. Retreating to heal (10 s home + 15 s out) is a legitimate play and one tick cheaper than dying.
 - No HP regen anywhere except camp.
 
-Every 15 s the server runs a tick, in this order:
+Every 3 s (`tickMs`) the server runs a tick, in this order:
 
 1. **Arrivals** land (walkers whose arrival time ≤ tick time become `in`; knocked-out walkers who reach camp revive).
 2. **Damage** at every point where both sides stand: each side's total ATK is dealt to the enemy fighters at that point, split evenly. Defenders (the side that held the point last tick) take `× (1 − armour)`. Fighters at 0 HP are knocked out and start the slow walk home.
@@ -181,7 +181,9 @@ Clicks dip and play the button sound like every other control.
 
 ## 13. Numbers to tune (live, from the control dashboard)
 
-Defaults: `tickMs 5000`, `ticks 60` (was 15 s × 20; shortened 2026-10-17 so damage lands seconds after fighters meet), `gatherMs 90000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 30000`, `sideMax 4`, `sideMin 2`, `raidsPerDay 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+Defaults: `tickMs 3000`, `ticks 100` (was 15 s × 20; shortened 2026-10-17 so a clash lands every three seconds), `gatherMs 90000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 30000`, `sideMax 4`, `sideMin 2`, `raidsPerDay 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+
+Note: the dashboard stores the **full** config, so changing a default in code does not change a deployment that has already saved its config; patch the live value from the dashboard (or `POST /antrom-afk/admin/config`) as well.
 
 They live in `api/afkAdminConfig.js` (defaults + clamps) and are overridden by the Firestore doc `players/afk_v1_admin_config`, edited from **guildstone-admin** (`https://guildstone-admin.vercel.app`, admin key = `AFK_ADMIN_KEY` in the backend's Vercel env). The server caches the doc for 20 s. A raid copies the numbers into `raid.rules` when it is called, so edits never change a raid in progress; the client reads `view.rules` / `view.points` and the idle screen reads the current `rules` from the poll response (no client constants).
 
