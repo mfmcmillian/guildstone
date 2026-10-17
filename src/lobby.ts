@@ -10,6 +10,8 @@ const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 const LOBBY_POLL_MS = 4000
 const BOARD_TTL_MS = 60_000
 export const CHAT_TEXT_MAX = 200
+/** Lines kept for scrollback; matches the server's AFK_CHAT_KEEP (the first poll returns the whole buffer). */
+const CHAT_KEEP = 500
 
 export interface ChatMessage { id: string; at: number; from: string; name: string; tag: string; text: string }
 export interface OnlinePlayer {
@@ -89,7 +91,7 @@ export function pollLobby() {
           const me = (profileState.walletAddress || '').toLowerCase()
           lobby.unread = Math.min(99, lobby.unread + fresh.filter((m) => m.from.toLowerCase() !== me && !lobby.muted.has(m.from)).length)
         }
-        lobby.messages = [...lobby.messages, ...fresh].slice(-100)
+        lobby.messages = [...lobby.messages, ...fresh].slice(-CHAT_KEEP)
         lobby.lastAt = Math.max(lobby.lastAt, ...body.messages.map((m) => m.at))
       }
       lobby.online = Array.isArray(body.online) ? body.online : []
@@ -127,7 +129,7 @@ export function sendChat() {
       }
       const body = JSON.parse(response.body) as { message?: ChatMessage }
       if (body.message) {
-        lobby.messages = [...lobby.messages, body.message].slice(-100)
+        lobby.messages = [...lobby.messages, body.message].slice(-CHAT_KEEP)
         lobby.lastAt = Math.max(lobby.lastAt, body.message.at)
       }
     } catch (error) {
