@@ -118,7 +118,7 @@ export function sendChat() {
   const text = lobby.draft.trim().slice(0, CHAT_TEXT_MAX)
   if (!text || lobby.sending || profileState.status !== 'ready' || !profileState.walletAddress) return
   lobby.sending = true
-  setDraft('')
+  setDraft(BLANK_DRAFT)
   executeTask(async () => {
     try {
       const response = await signedFetch({
@@ -147,7 +147,13 @@ export function sendChat() {
   })
 }
 
-/** Set the composer text from code (clear after send, restore after a failure) and remount the box so it shows. */
+/**
+ * What the composer holds after a send. The renderer ignores an empty `value` (the old text stays in the box, even on a
+ * remounted Input), so a lone space blanks it; `sendChat` trims it away and SEND stays disabled on whitespace.
+ */
+const BLANK_DRAFT = ' '
+
+/** Set the composer text from code (blank after send, restore after a failure) and remount the box so it shows. */
 function setDraft(text: string) {
   lobby.draft = text
   lobby.draftKey++
