@@ -1530,7 +1530,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
 
 const GUILD_TAB_ICON: Record<GuildTabId, string> = { lobby: 'images/icons/guild/invite.png', home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, war: 'images/icons/guild/raid.png', manage: GICON.settings, find: 'images/icons/guild/application.png' }
 
-function GuildTab(props: { id: GuildTabId; label: string; width?: number }) {
+function GuildTab(props: { key?: string; id: GuildTabId; label: string; width?: number }) {
   return (
     <Button
       label={props.label}
@@ -1620,15 +1620,18 @@ export function GuildPanel() {
             nowrap
             uiTransform={{ height: S(30), margin: { top: S(4) } }}
           />
-          <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8), bottom: S(10) } }}>
-            <GuildTab id="lobby" label="LOBBY" />
-            <GuildTab id="home" label="HOME" />
-            <GuildTab id="donate" label="DONATE" />
-            <GuildTab id="hq" label="HQ" />
-            <GuildTab id="tech" label="TECH" />
-            {remoteConfig.features.war ? <GuildTab id="war" label="WAR" /> : null}
-            {canEdit ? <GuildTab id="manage" label="MANAGE" /> : null}
-          </UiEntity>
+          {(() => {
+            // Tabs share the content width: 270 wide with six, narrower when WAR and MANAGE both show.
+            const tabs: [GuildTabId, string][] = [['lobby', 'LOBBY'], ['home', 'HOME'], ['donate', 'DONATE'], ['hq', 'HQ'], ['tech', 'TECH']]
+            if (remoteConfig.features.war) tabs.push(['war', 'WAR'])
+            if (canEdit) tabs.push(['manage', 'MANAGE'])
+            const width = Math.min(270, Math.floor(CONTENT_W / tabs.length) - 16)
+            return (
+              <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8), bottom: S(10) } }}>
+                {tabs.map(([id, label]) => <GuildTab key={`gtab-${id}`} id={id} label={label} width={width} />)}
+              </UiEntity>
+            )
+          })()}
 
           {guildTab === 'home' ? (
             <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
