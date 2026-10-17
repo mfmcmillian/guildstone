@@ -1,6 +1,6 @@
 import type { AwaySummary } from '../transactions'
 
-export type PanelId = 'skills' | 'bank' | 'workshop' | 'forge' | 'shop' | 'guild' | 'away'
+export type PanelId = 'skills' | 'bank' | 'workshop' | 'forge' | 'shop' | 'guild' | 'away' | 'hold'
 
 export const ui = {
   open: null as PanelId | null,

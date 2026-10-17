@@ -315,6 +315,18 @@ export function requestWork(skill: Skill, stop = false) {
   })
 }
 
+/** Storage / materials / coins from any server response that spent or paid them (Hold builds, troop training). Ordered by updatedAt like the rest. */
+export function applyWallets(result: { storage?: Record<string, number>; materials?: Record<string, number>; currency?: { coins: number; berries: number }; updatedAt: number }) {
+  if (result.updatedAt < lastServerUpdateAt) return
+  lastServerUpdateAt = result.updatedAt
+  if (result.storage) player.storage = sanitizeStorage(result.storage)
+  if (result.materials) player.materials = sanitizeMaterials(result.materials)
+  if (result.currency) {
+    player.coins = result.currency.coins
+    player.berries = result.currency.berries
+  }
+}
+
 /** `amount` sells part of a single stack (sellStorage only); omit it to sell the whole stack. */
 export function requestDepot(action: DepotAction, items: DepotItem[] = [], amount?: number) {
   if (profileState.status !== 'ready' || !profileState.walletAddress) return
