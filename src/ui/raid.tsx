@@ -41,10 +41,8 @@ const WAR_FRAME_W = 1850
 const FRAME_EDGE = 0
 const W = WAR_FRAME_W - FRAME_EDGE * 2
 const H = 990
-// Status strip under the field: you / feed / buttons. Its bottom padding clears the window's CLOSE tab.
-const BAR_H = 150
-const BAR_PAD_BOTTOM = 54
-const WAR_FRAME_H = H + BAR_H + FRAME_EDGE * 2
+// The window is exactly the field; the action buttons float over its bottom-right corner (ActionRow).
+const WAR_FRAME_H = H + FRAME_EDGE * 2
 const px = (x: number) => S((x / 100) * W)
 const py = (y: number) => S((y / 100) * H)
 
@@ -412,36 +410,18 @@ function Header(props: { v: RaidView }) {
   )
 }
 
-function BottomBar(props: { v: RaidView }) {
+// Action buttons over the bottom-right of the field, clear of the CLOSE tab in the middle and the frame edge.
+function ActionRow(props: { v: RaidView }) {
   const v = props.v
   const me = myFighter()
-  const feed = [...v.feed].slice(-3).reverse()
-  let status = ''
-  let statusColor = C.white
-  if (raid.spectating) status = 'WATCHING'
-  else if (me) {
-    status = whereText(v, me)
-    if (me.state === 'ko') statusColor = C.red
-    else if (me.state === 'in') statusColor = PURPLE_LIGHT
-  } else if (v.mine) status = v.status === 'live' ? 'Your guild is raiding' : ''
+  const btn = { height: S(56), margin: { left: S(10) } }
   return (
-    <UiEntity uiTransform={{ width: '100%', height: S(BAR_H), flexDirection: 'row', alignItems: 'center', padding: { left: S(42), right: S(42), top: S(10), bottom: S(BAR_PAD_BOTTOM) } }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 1) }}>
-      <UiEntity uiTransform={{ width: S(380), flexDirection: 'column', justifyContent: 'center' }}>
-        <Text value={me ? `${me.name} (you)` : status} size={S(26)} color={C.white} nowrap align="middle-left" uiTransform={{ height: S(34) }} />
-        {me ? <Text value={status} size={S(24)} color={statusColor} nowrap align="middle-left" uiTransform={{ height: S(32) }} /> : null}
-      </UiEntity>
-      <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', justifyContent: 'center' }}>
-        {feed.map((e, i) => (
-          <Text key={`feed-${e.at}-${i}`} value={e.text} size={S(22)} color={i === 0 ? C.white : C.gray} nowrap uiTransform={{ height: S(30) }} />
-        ))}
-      </UiEntity>
-      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
-        {me && v.status === 'live' && me.state === 'in' ? <Button label="BACK TO CAMP" color={C.blue} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(240), height: S(60), margin: { right: S(12) } }} onClick={() => requestHome()} /> : null}
-        {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE RAID" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(220), height: S(60) }} onClick={() => requestLeaveRaid()} /> : null}
-        {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(200), height: S(60), margin: { left: S(12) } }} onClick={() => requestSkip('next')} /> : null}
-        {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(160), height: S(60), margin: { left: S(12) } }} onClick={() => requestSkip('end')} /> : null}
-        {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(260), height: S(60) }} onClick={() => stopSpectating()} /> : null}
-      </UiEntity>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: S(26), right: S(30) }, flexDirection: 'row', alignItems: 'center' }}>
+      {me && v.status === 'live' && me.state === 'in' ? <Button label="BACK TO CAMP" color={C.blue} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => requestHome()} /> : null}
+      {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE RAID" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(210), ...btn }} onClick={() => requestLeaveRaid()} /> : null}
+      {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
+      {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}
+      {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(250), ...btn }} onClick={() => stopSpectating()} /> : null}
     </UiEntity>
   )
 }
@@ -459,6 +439,7 @@ function Field(props: { v: RaidView }) {
       <Roster v={v} side="a" />
       <Roster v={v} side="b" />
       <Header v={v} />
+      <ActionRow v={v} />
     </UiEntity>
   )
 }
@@ -625,7 +606,6 @@ export function WarTab(props: { height: number }) {
         {!idle && v && showResult ? <ResultCard v={v} /> : null}
         {idle ? <IdleScreen /> : null}
       </UiEntity>
-      {!idle && v ? <BottomBar v={v} /> : <UiEntity uiTransform={{ width: '100%', height: S(BAR_H) }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 1) }} />}
     </UiEntity>
   )
 }
@@ -662,7 +642,7 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
       }
     >
       {/* Modal lays content out 36 (padding) + 26 (title room) inside the frame; pull the field back out to the frame edge. */}
-      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: -(36 + 26 - FRAME_EDGE) * s, left: -(36 - FRAME_EDGE) * s }, width: S(W), height: S(H + BAR_H) }}>
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: -(36 + 26 - FRAME_EDGE) * s, left: -(36 - FRAME_EDGE) * s }, width: S(W), height: S(H) }}>
         <WarTab height={H} />
       </UiEntity>
     </Modal>

@@ -168,7 +168,7 @@ Design area 1720 × 920 inside the Guild panel. Background image fills it; every
 - Five point markers: name pill with pips, garrison line (`KOA 124 ATK vs ELF 230 ATK` when contested, `KOA · Kairos` when held, `empty`), status line (`−30% dmg inside · clash 0:07`, `you arrive in 0:09`).
 - Fighter tokens: sprite sheets `assassin_v2.png` / `assassin_enemy_v2.png`, 6×5 grid of 144 px cells, rows idle 4 / walk 4 / attack 6 / hit 2 / ko 4, drawn right-facing and flipped by `uvs`. Idle in camp or an uncontested building; attack loop (with a lunge) whenever both sides stand in the same building; hit pose + red flash and a floating `-N` when a poll lowers HP, `KO!` on a knock-out; the KO fall plays once and holds while the fighter is carried back. Name tag above, tiny HP bar below, grey when knocked out. Tokens and labels are non-interactive so clicks fall through to the building.
 - Each building: invisible hit area, gold ring + `GO` chip on hover, purple ring when you are inside.
-- Feed strip above the bottom bar (last 3 lines). Bottom bar: your status left, LEAVE RAID right. Spectators get neither.
+- No bottom bar or feed strip (removed 2026-10-17: the field fills the window; damage numbers, KO falls and the roster tell the story). Action buttons (BACK TO CAMP, LEAVE RAID, tester NEXT TICK / FINISH, STOP WATCHING) float over the bottom-right of the field.
 - Lobby view while gathering: countdown, both rosters, JOIN / ANSWER / START info. Board list of other guilds' raids under the RAID button when idle.
 
 Clicks dip and play the button sound like every other control.
