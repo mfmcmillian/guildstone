@@ -25,6 +25,8 @@ import {
   PendingCraft,
   player,
   RARE_RAWS,
+  RELIC_IDS,
+  RelicId,
   RareRaw,
   Skill,
   SKILLS,
@@ -74,9 +76,18 @@ export function sanitizeRareProgress(value: Record<string, number> | undefined):
 }
 
 export function sanitizePendingCraft(value: PendingCraftData | null | undefined): PendingCraft | null {
-  if (!value || typeof value !== 'object' || !(SKILLS as string[]).includes(value.skill)) return null
+  if (!value || typeof value !== 'object') return null
+  const relic = typeof value.relic === 'string' && (RELIC_IDS as string[]).includes(value.relic) ? (value.relic as RelicId) : undefined
+  const skill = (SKILLS as string[]).includes(String(value.skill)) ? (value.skill as Skill) : null
+  if (!relic && !skill) return null
   const status = ['pending', 'minting', 'done', 'failed'].includes(value.status) ? (value.status as PendingCraft['status']) : 'pending'
-  return { id: String(value.id ?? ''), skill: value.skill as Skill, level: Math.min(4, Math.max(1, cleanAmount(value.level))), status, rewardId: value.rewardId, at: cleanAmount(value.at) }
+  const level = relic ? 0 : Math.min(4, Math.max(1, cleanAmount(value.level)))
+  return { id: String(value.id ?? ''), skill, level, relic, status, rewardId: value.rewardId, at: cleanAmount(value.at) }
+}
+
+export function sanitizeCraftedRelics(value: Array<{ relic: string; at: number }> | undefined): typeof player.craftedRelics {
+  if (!Array.isArray(value)) return []
+  return value.filter((r) => r && (RELIC_IDS as string[]).includes(r.relic)).map((r) => ({ relic: r.relic as RelicId, at: cleanAmount(r.at) }))
 }
 
 export function sanitizeCraftedSuits(value: Array<{ skill: string; level: number; at: number }> | undefined): typeof player.craftedSuits {
@@ -178,6 +189,7 @@ export function initializeBackpackPersistence() {
     player.rareProgress = sanitizeRareProgress(profileState.profile.rareProgress)
     player.pendingCraft = sanitizePendingCraft(profileState.profile.pendingCraft)
     player.craftedSuits = sanitizeCraftedSuits(profileState.profile.craftedSuits)
+    player.craftedRelics = sanitizeCraftedRelics(profileState.profile.craftedRelics)
     player.guildDaily = sanitizeGuildDaily(profileState.profile.guildDaily)
     initialized = true
     executeTask(async () => {

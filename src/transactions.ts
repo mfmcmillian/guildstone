@@ -12,6 +12,8 @@ import {
   ItemId,
   MaterialKey,
   PendingCraft,
+  RELIC_INFO,
+  RelicId,
   player,
   RareRaw,
   RESOURCE_INFO,
@@ -23,7 +25,7 @@ import {
   setSkills,
   MASTERY_ENABLED
 } from './state'
-import { sanitizeCraftedSuits, sanitizeMaterials, sanitizePendingCraft, sanitizeRareProgress, sanitizeStorage } from './backpackPersistence'
+import { sanitizeCraftedRelics, sanitizeCraftedSuits, sanitizeMaterials, sanitizePendingCraft, sanitizeRareProgress, sanitizeStorage } from './backpackPersistence'
 import { playBoostSound, playCraftDoneSound, playErrorSound, playRareFindSound, playSuccessSound } from './uiSounds'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -400,6 +402,7 @@ interface CraftSuitResponse {
   /** The craft record: status pending | minting | done | failed. */
   craft?: PendingCraft | null
   craftedSuits?: typeof player.craftedSuits
+  craftedRelics?: typeof player.craftedRelics
   storage?: Record<string, number>
   materials?: Record<string, number>
   currency?: { coins: number; berries: number }
@@ -416,17 +419,34 @@ function applyCraftSuitResponse(result: CraftSuitResponse) {
   if (result.currency) applyCurrency(result.currency)
   if (result.craft !== undefined) player.pendingCraft = sanitizePendingCraft(result.craft)
   if (result.craftedSuits) player.craftedSuits = sanitizeCraftedSuits(result.craftedSuits)
+  if (result.craftedRelics) player.craftedRelics = sanitizeCraftedRelics(result.craftedRelics)
+}
+
+/** Display name for whatever a pending craft is minting. */
+function craftName(skill: Skill | null, level: number, relic?: RelicId): string {
+  if (relic) return RELIC_INFO[relic].name.toUpperCase()
+  return `${skill ? SKILL_INFO[skill].name : ''} L${level}`.toUpperCase()
 }
 
 /** Craft a profession suit: the server checks level + ownership, takes the materials and coins, then mints. */
 export function requestCraftSuit(skill: Skill, level: number) {
+  requestMint({ skill, level })
+}
+/** Craft a Relic or the Crown: same server flow as suits (ownership + level checks, materials, Rewards mint). */
+export function requestCraftRelic(relic: RelicId) {
+  requestMint({ relic })
+}
+function requestMint(body: { skill: Skill; level: number } | { relic: RelicId }) {
+  const relic = 'relic' in body ? body.relic : undefined
+  const skill = 'skill' in body ? body.skill : null
+  const level = 'level' in body ? body.level : 0
   if (profileState.status !== 'ready' || !profileState.walletAddress || craftSuitInFlight) return
   craftSuitInFlight = true
   executeTask(async () => {
     try {
       const response = await signedFetch({
         url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/craft-suit`,
-        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ skill, level }) }
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
       })
       const result = (response.body ? JSON.parse(response.body) : {}) as CraftSuitResponse
       applyCraftSuitResponse(result)
@@ -437,7 +457,7 @@ export function requestCraftSuit(skill: Skill, level: number) {
         playErrorSound()
         return
       }
-      const name = `${SKILL_INFO[skill].name} L${level}`.toUpperCase()
+      const name = craftName(skill, level, relic)
       flash(result.craft?.status === 'done' ? `${name} MINTED - check your backpack!` : `${name} IS BEING MINTED...`)
       playSuccessSound()
     } catch (error) {
@@ -470,7 +490,7 @@ export function pollCraftSuit() {
       applyCraftSuitResponse(result)
       const after = player.pendingCraft?.status
       if (before !== after && after === 'done') {
-        flash(`${SKILL_INFO[pending.skill].name.toUpperCase()} L${pending.level} MINTED - check your backpack!`)
+        flash(`${craftName(pending.skill, pending.level, pending.relic)} MINTED - check your backpack!`)
         playSuccessSound()
       } else if (before !== after && after === 'failed') {
         flash('MINT FAILED - your materials were refunded')

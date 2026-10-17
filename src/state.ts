@@ -307,8 +307,12 @@ export function emptyRareProgress(): Record<RareRaw, number> {
 }
 export interface PendingCraft {
   id: string
-  skill: Skill
+  /** Profession for suit crafts and profession Relics; null for the Crown. */
+  skill: Skill | null
+  /** Suit level (0 for Relic / Crown crafts). */
   level: number
+  /** Set when this is a Relic or Crown craft rather than a suit. */
+  relic?: RelicId
   status: 'pending' | 'minting' | 'done' | 'failed'
   rewardId?: string
   at: number
@@ -326,6 +330,8 @@ export const player = {
   pendingCraft: null as PendingCraft | null,
   /** Suit URNs the server has already minted for this player ("Minted" state until the wearable is worn). */
   craftedSuits: [] as Array<{ skill: Skill; level: number; at: number }>,
+  /** Relics / Crown the server has minted for this player (shown as MINTED until the wallet check sees them). */
+  craftedRelics: [] as Array<{ relic: RelicId; at: number }>,
   /** Beast Pelts credited from Antrom on the last sync (shown once as a treat). */
   antromPelts: 0,
   skills: {
@@ -695,6 +701,24 @@ export function suitRecipe(skill: Skill, level: number): SuitRecipe | null {
       return { cost: { [ref(skill, 3)]: 50, antrom_essence: 60, [comboL3[skill]]: 60, [ref('assassin', 3)]: 20, coins: 150000 }, level: 40 }
   }
 }
+// --- Relics + the Guildstone Crown (mirrors the server; prestige only, no effect on drops or capacity) --------
+export type RelicId = Skill | 'crown'
+export const RELIC_IDS: RelicId[] = [...SKILLS, 'crown']
+export const RELIC_INFO: Record<RelicId, { id: string; name: string; slot: string }> = {
+  lumberjack: { id: 'woodwarden_cloak', name: 'Woodwarden Cloak', slot: 'Back' },
+  miner: { id: 'stonelord_crown', name: 'Stonelord Crown', slot: 'Head' },
+  butcher: { id: 'beastmaster_mantle', name: 'Beastmaster Mantle', slot: 'Shoulders' },
+  assassin: { id: 'reaper_veil', name: 'Reaper Veil', slot: 'Mask' },
+  crown: { id: 'guildstone_crown', name: 'Guildstone Crown', slot: 'Head' }
+}
+/** Relic recipes. `level` is the profession level needed (0 for the Crown, which needs all four Relics instead). */
+export function relicRecipe(kind: RelicId): SuitRecipe {
+  if (kind === 'crown') return { cost: { guildstone_shard: 50, antrom_essence: 150, coins: 1_000_000 }, level: 0 }
+  // Assassin has no combo of its own; Ghostwood (Lumberjack L3 + Assassin L3) stands in, same as guildstone.dev.
+  const comboL3: Record<Skill, ItemId> = { lumberjack: 'ghostwood', assassin: 'ghostwood', miner: 'bloodstone', butcher: 'bloodstone' }
+  return { cost: { [LADDER[kind][4][2]]: 40, antrom_essence: 80, [comboL3[kind]]: 40, coins: 400_000 }, level: 50 }
+}
+
 /** How many of a recipe item the player holds (coins, storage raws or refined materials). */
 export function haveItem(id: ItemId | 'coins'): number {
   if (id === 'coins') return player.coins

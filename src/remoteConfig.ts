@@ -7,7 +7,9 @@ import { executeTask } from '@dcl/sdk/ecs'
 export const remoteConfig = {
   loaded: false,
   camp: { open: false, name: 'Antrom Camp', coords: '144,-7' },
-  ringDepot: true
+  ringDepot: true,
+  /** Antrom Relics collection, once minted: item URNs by kind and whether each can be crafted right now. */
+  relics: { collection: null as string | null, items: {} as Partial<Record<string, string>>, craftable: {} as Partial<Record<string, boolean>> }
 }
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -32,6 +34,14 @@ export function refreshRemoteConfig() {
         }
       }
       if (typeof data.ringDepot === 'boolean') remoteConfig.ringDepot = data.ringDepot
+      if (data.relics && typeof data.relics === 'object') {
+        const r = data.relics as { collection?: unknown; items?: unknown; craftable?: unknown }
+        remoteConfig.relics = {
+          collection: typeof r.collection === 'string' && r.collection ? r.collection.toLowerCase() : null,
+          items: r.items && typeof r.items === 'object' ? Object.fromEntries(Object.entries(r.items as Record<string, unknown>).filter(([, v]) => typeof v === 'string').map(([k, v]) => [k, (v as string).toLowerCase()])) : {},
+          craftable: r.craftable && typeof r.craftable === 'object' ? Object.fromEntries(Object.entries(r.craftable as Record<string, unknown>).map(([k, v]) => [k, v === true])) : {}
+        }
+      }
       remoteConfig.loaded = true
     } catch (error) {
       console.error('[config] Remote config failed:', error instanceof Error ? error.message : String(error))

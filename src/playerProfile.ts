@@ -60,8 +60,9 @@ export interface CraftQueueItemData {
 
 export interface PendingCraftData {
   id: string
-  skill: string
+  skill: string | null
   level: number
+  relic?: string
   status: string
   rewardId?: string
   at: number
@@ -102,6 +103,7 @@ export interface AfkPlayerProfile {
   pendingCraft?: PendingCraftData | null
   /** Suits the server has minted for this player. */
   craftedSuits?: Array<{ skill: string; level: number; at: number }>
+  craftedRelics?: Array<{ relic: string; at: number }>
   legacyGuildMigrationVersion?: number
   legacyGuildImportedAt?: number
   legacyStorageMigrationVersion?: number

@@ -1,6 +1,7 @@
 import { executeTask } from '@dcl/sdk/ecs'
 import { getPlayer } from '@dcl/sdk/players'
-import { Skill } from './state'
+import { RELIC_INFO, RelicId, Skill } from './state'
+import { remoteConfig } from './remoteConfig'
 
 /**
  * Profession suit wearables.
@@ -110,7 +111,8 @@ export function refreshOwnedSuits(wallet: string, minIntervalMs = 5 * 60_000) {
         const json = (await response.json()) as { elements?: { urn: string }[]; totalAmount?: number }
         for (const element of json.elements ?? []) {
           const urn = element.urn.toLowerCase()
-          if (urn.startsWith(SUIT_COLLECTION) || urn.startsWith(ASSASSIN_COLLECTION)) urns.add(urn)
+          const relics = remoteConfig.relics.collection
+          if (urn.startsWith(SUIT_COLLECTION) || urn.startsWith(ASSASSIN_COLLECTION) || (relics && urn.startsWith(relics))) urns.add(urn)
         }
         const total = json.totalAmount ?? 0
         if ((json.elements?.length ?? 0) === 0 || pageNum * 100 >= total) break
@@ -126,4 +128,26 @@ export function refreshOwnedSuits(wallet: string, minIntervalMs = 5 * 60_000) {
       owned.loading = false
     }
   })
+}
+
+// --- Relics + the Guildstone Crown ------------------------------------------------------------------
+// The collection URN and item ids arrive from remote config once it is minted; until then nothing can be owned.
+export function relicUrn(kind: RelicId): string | null {
+  return remoteConfig.relics.items[kind] ?? null
+}
+export function ownsRelic(kind: RelicId): boolean {
+  const urn = relicUrn(kind)
+  if (!urn) return false
+  if (owned.urns.has(urn)) return true
+  const wearables = getPlayer()?.wearables ?? []
+  return wearables.some((w) => matchesUrn(w, urn))
+}
+/** Can this relic be crafted right now (collection minted + dispenser configured on the server)? */
+export function relicCraftable(kind: RelicId): boolean {
+  return remoteConfig.relics.craftable[kind] === true
+}
+/** Thumbnail: the minted item once we know its URN, else the design art from guildstone.dev. */
+export function relicThumbnail(kind: RelicId): string {
+  const urn = relicUrn(kind)
+  return urn ? `https://peer.decentraland.org/lambdas/collections/contents/${urn}/thumbnail` : `https://guildstone.dev/img/item_${RELIC_INFO[kind].id}.jpg`
 }
