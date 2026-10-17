@@ -4,6 +4,8 @@ import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
 import { settings } from './settings'
+import type { UiLayout } from './ui/drag'
+import { isServer } from '@dcl/sdk/network'
 import {
   BaseResource,
   Boost,
@@ -949,6 +951,27 @@ export function setAlerts(on: boolean) {
       if (!response.ok) throw new Error(`Settings save failed (${response.status})`)
     } catch (error) {
       console.error('[transaction] Settings failed:', error instanceof Error ? error.message : String(error))
+    }
+  })
+}
+
+// ---- Window layout --------------------------------------------------------------------------------------------------
+/**
+ * Save where the windows were dragged (profile `uiLayout`). Called by ui/drag.ts a second after the last drag; one
+ * write per settle, never per frame. Only the real client saves: the scene copy inside the preview server can't sign.
+ */
+export function saveLayout(next: UiLayout) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || isServer()) return
+  const layout = Object.fromEntries(Object.entries(next).map(([id, o]) => [id, { x: Number(o.x.toFixed(4)), y: Number(o.y.toFixed(4)) }]))
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/layout`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layout }) }
+      })
+      if (!response.ok) throw new Error(`Layout save failed (${response.status})`)
+    } catch (error) {
+      console.error('[transaction] Layout failed:', error instanceof Error ? error.message : String(error))
     }
   })
 }

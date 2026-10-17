@@ -4,7 +4,7 @@ import { C, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
-import { DragId, dragOffset, startDrag } from './drag'
+import { DragId, dragOffsetPx, startDrag } from './drag'
 import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import {
   GuildInfo,
@@ -100,7 +100,8 @@ function fitBig(): Fit {
 function bigFrame(fit: Fit, title: string, drag?: DragId) {
   const base = { width: MODAL_W, height: MODAL_H, scale: fit.scale, offsetX: fit.offsetX, titleSize: TITLE_SIZE, titleWidth: Math.max(420, title.length * 40) }
   if (!drag) return base
-  return { ...base, offsetX: fit.offsetX + dragOffset[drag].dx, offsetY: dragOffset[drag].dy, onTitleDown: () => startDrag(drag) }
+  const o = dragOffsetPx(drag)
+  return { ...base, offsetX: fit.offsetX + o.dx, offsetY: o.dy, onTitleDown: () => startDrag(drag) }
 }
 
 // ---------------------------------------------------------------- PROFESSIONS

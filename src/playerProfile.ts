@@ -107,6 +107,8 @@ export interface AfkPlayerProfile {
   craftedRelics?: Array<{ relic: string; at: number }>
   /** HUD preferences (ALERTS toggle; chat language is set server-side). */
   settings?: ProfileSettings
+  /** Where the player dragged each window, as fractions of the canvas (see ui/drag.ts). */
+  uiLayout?: Partial<Record<string, { x?: number; y?: number }>>
   legacyGuildMigrationVersion?: number
   legacyGuildImportedAt?: number
   legacyStorageMigrationVersion?: number

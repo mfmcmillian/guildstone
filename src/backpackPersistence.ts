@@ -1,6 +1,7 @@
 import { engine, executeTask } from '@dcl/sdk/ecs'
 import { isServer } from '@dcl/sdk/network'
 import { seedSettings } from './settings'
+import { onLayoutChanged, seedLayout } from './ui/drag'
 import {
   BackpackData,
   BoostsData,
@@ -35,7 +36,7 @@ import {
   StorageKey,
   TOOL_MAX
 } from './state'
-import { claimAwayProgress, loadGuild } from './transactions'
+import { claimAwayProgress, loadGuild, saveLayout } from './transactions'
 import { sanitizeAssassinPieces } from './suits'
 import { showAwaySummary } from './ui/uiState'
 import { playSuccessSound } from './uiSounds'
@@ -193,6 +194,8 @@ export function initializeBackpackPersistence() {
     player.craftedRelics = sanitizeCraftedRelics(profileState.profile.craftedRelics)
     player.guildDaily = sanitizeGuildDaily(profileState.profile.guildDaily)
     seedSettings(profileState.profile.settings)
+    seedLayout(profileState.profile.uiLayout)
+    onLayoutChanged(saveLayout)
     initialized = true
     executeTask(async () => {
       await loadGuild(profileState.profile?.guildId)
