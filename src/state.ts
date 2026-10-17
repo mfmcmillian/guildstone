@@ -250,6 +250,8 @@ export interface GuildInfo {
   }
   contributions?: Record<string, GuildContribution>
   events?: GuildEvent[]
+  /** Warband record (docs/HOLD_AND_WARBAND.md). */
+  war?: { activeId: string | null; lastId: string | null; wins: number; losses: number; hordeWins: number; score: number }
 }
 
 export interface GuildContribution {

@@ -4,6 +4,7 @@ import { C, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
+import { WarTab } from './war'
 import { DragId, dragOffsetPx, startDrag } from './drag'
 import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import {
@@ -88,16 +89,16 @@ const skillColor = (s: Skill) => Color4.create(SKILL_INFO[s].color[0], SKILL_INF
 // padding. Text never goes below 20 design px.
 const MODAL_W = 1850
 const MODAL_H = 1250
-const CONTENT_W = 1720
+export const CONTENT_W = 1720
 const TITLE_SIZE = 52
 type Fit = { scale: number; offsetX: number }
 /** Call first thing in a panel (before any S()) so children are measured at the frame's scale. */
-function fitBig(): Fit {
+export function fitBig(): Fit {
   return fitModal(MODAL_W, MODAL_H, true)
 }
 /** Modal props for the shared frame. */
 /** Frame props for a full-size modal. Pass a DragId to make the window movable by its title tab (session-only offset). */
-function bigFrame(fit: Fit, title: string, drag?: DragId) {
+export function bigFrame(fit: Fit, title: string, drag?: DragId) {
   const base = { width: MODAL_W, height: MODAL_H, scale: fit.scale, offsetX: fit.offsetX, titleSize: TITLE_SIZE, titleWidth: Math.max(420, title.length * 40) }
   if (!drag) return base
   const o = dragOffsetPx(drag)
@@ -1171,7 +1172,7 @@ const guildForm = {
   settingsSeededFor: '',
   seeded: false
 }
-type GuildTabId = 'lobby' | 'home' | 'donate' | 'hq' | 'tech' | 'manage' | 'find'
+type GuildTabId = 'lobby' | 'home' | 'donate' | 'hq' | 'tech' | 'war' | 'manage' | 'find'
 let guildTab: GuildTabId = 'lobby'
 /** The GUILD button always lands on the Lobby. */
 export function resetGuildTab() {
@@ -1310,7 +1311,7 @@ function guildRoleColor(role: string): Color4 {
   return C.textMuted
 }
 
-function StatCard(props: { label: string; value: string; color: Color4; sub: string; last?: boolean }) {
+export function StatCard(props: { label: string; value: string; color: Color4; sub: string; last?: boolean }) {
   return (
     <Panel flat color={C.paper2} uiTransform={{ width: S(415), height: S(235), alignItems: 'center', justifyContent: 'center', margin: { right: props.last ? 0 : S(20) } }}>
       <Text value={props.label} size={S(24)} color={C.textMuted} />
@@ -1527,7 +1528,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
   )
 }
 
-const GUILD_TAB_ICON: Record<GuildTabId, string> = { lobby: 'images/icons/guild/invite.png', home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, manage: GICON.settings, find: 'images/icons/guild/application.png' }
+const GUILD_TAB_ICON: Record<GuildTabId, string> = { lobby: 'images/icons/guild/invite.png', home: GICON.motd, donate: GICON.treasury, hq: GICON.hq, tech: GICON.tech, war: GICON.kick, manage: GICON.settings, find: 'images/icons/guild/application.png' }
 
 function GuildTab(props: { id: GuildTabId; label: string; width?: number }) {
   return (
@@ -1617,6 +1618,7 @@ export function GuildPanel() {
             <GuildTab id="donate" label="DONATE" />
             <GuildTab id="hq" label="HQ" />
             <GuildTab id="tech" label="TECH" />
+            <GuildTab id="war" label="WAR" />
             {canEdit ? <GuildTab id="manage" label="MANAGE" /> : null}
           </UiEntity>
 
@@ -2067,6 +2069,7 @@ export function GuildPanel() {
           ) : null}
 
           {guildTab === 'manage' && canEdit ? <GuildManageTab guild={guild} wallet={wallet} /> : null}
+          {guildTab === 'war' ? <WarTab height={920} /> : null}
           {guildTab === 'lobby' ? <LobbyTab height={920} /> : null}
         </UiEntity>
       ) : (
