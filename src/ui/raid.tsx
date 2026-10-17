@@ -5,7 +5,7 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, SLICE_PILL } from './theme'
 import { OutlinedText, Text, Panel, Button, Bar, timerText } from './components'
-import { S } from './responsive'
+import { S, getCanvas, setScale } from './responsive'
 import { CONTENT_W } from './panels'
 import { player } from '../state'
 import {
@@ -522,6 +522,33 @@ export function WarTab(props: { height: number }) {
       {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
       {!idle && v && showResult ? <ResultCard v={v} /> : null}
       {idle ? <IdleScreen /> : null}
+    </UiEntity>
+  )
+}
+
+/**
+ * The WAR tab as a full-screen view: the battlefield scales to fill the screen (letterboxed, never cropped so the
+ * rosters stay on) under a slim bar with BACK (to the guild window), the title and CLOSE.
+ */
+const SCREEN_BAR = 70
+export function WarScreen(props: { title: string; onBack: () => void; onClose: () => void }) {
+  const canvas = getCanvas()
+  const availW = canvas.width - canvas.left - canvas.right
+  const availH = canvas.height - canvas.top - canvas.bottom
+  const scale = Math.max(0.3, Math.min(availW / W, availH / (H + SCREEN_BAR)))
+  setScale(scale)
+  const fieldW = S(W)
+  return (
+    <UiEntity
+      uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', padding: { top: canvas.top, bottom: canvas.bottom, left: canvas.left, right: canvas.right } }}
+      uiBackground={{ color: Color4.create(0.07, 0.09, 0.14, 1) }}
+    >
+      <UiEntity uiTransform={{ width: fieldW, height: S(SCREEN_BAR), flexDirection: 'row', alignItems: 'center' }}>
+        <Button label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(200), height: S(56) }} onClick={props.onBack} />
+        <OutlinedText value={props.title} size={S(34)} color={C.purple} uiTransform={{ flexGrow: 1, height: S(56) }} />
+        <Button label="CLOSE" color={C.red} sound="cancel" size={S(22)} uiTransform={{ width: S(160), height: S(56) }} onClick={props.onClose} />
+      </UiEntity>
+      <WarTab height={H} />
     </UiEntity>
   )
 }

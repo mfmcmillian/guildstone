@@ -1,10 +1,11 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
+import { t } from '../i18n'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
-import { WarTab, resetWarTab } from './raid'
+import { WarScreen, resetWarTab } from './raid'
 import { DragId, dragOffsetPx, startDrag } from './drag'
 import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import {
@@ -1391,7 +1392,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
           <Text value="Motto  (shown in the directory, 80 chars)" size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ margin: { top: S(14) }, flexShrink: 0 }} />
           <Input
             value={guildForm.motto}
-            placeholder="A short rallying cry"
+            placeholder={t('A short rallying cry')}
             fontSize={S(22)}
             color={C.text}
             uiTransform={{ width: '100%', height: S(56), margin: { bottom: S(10) }, flexShrink: 0 }}
@@ -1402,7 +1403,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
           <Text value="Description  (180 chars)" size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ flexShrink: 0 }} />
           <Input
             value={guildForm.description}
-            placeholder="Who you are and what you do"
+            placeholder={t('Who you are and what you do')}
             fontSize={S(20)}
             color={C.text}
             uiTransform={{ width: '100%', height: S(110), margin: { bottom: S(12) }, flexShrink: 0 }}
@@ -1596,6 +1597,10 @@ export function GuildPanel() {
   if (guildTab === 'manage' && !canEdit) guildTab = 'home'
 
   const title = guild ? `[${guild.tag}] GUILD` : 'GUILD'
+  // WAR takes the whole screen: the battlefield wants every pixel it can get, and the frame added nothing there.
+  if (guild && guildTab === 'war') {
+    return <WarScreen title={`[${guild.tag}]  SHADOW RAID`} onBack={() => { guildTab = 'home' }} onClose={closePanel} />
+  }
   return (
     // Movable window: grab the title tab (see drag.ts).
     <Modal title={title} color={C.purple} {...bigFrame(fit, title, 'guild')} onClose={closePanel}>
@@ -1635,7 +1640,7 @@ export function GuildPanel() {
                 <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
                   <Input
                     value={guildForm.motd}
-                    placeholder="New message for the guild"
+                    placeholder={t('New message for the guild')}
                     fontSize={S(26)}
                     color={C.text}
                     uiTransform={{ width: S(1100), height: S(70), margin: { right: S(12) } }}
@@ -2071,7 +2076,6 @@ export function GuildPanel() {
           ) : null}
 
           {guildTab === 'manage' && canEdit ? <GuildManageTab guild={guild} wallet={wallet} /> : null}
-          {guildTab === 'war' ? <WarTab height={920} /> : null}
           {guildTab === 'lobby' ? <LobbyTab height={920} /> : null}
         </UiEntity>
       ) : (
@@ -2089,7 +2093,7 @@ export function GuildPanel() {
               <Text value="Name" size={S(24)} color={C.textMuted} align="middle-left" uiTransform={{ margin: { top: S(30) } }} />
               <Input
                 value={guildForm.name}
-                placeholder="Guild name"
+                placeholder={t('Guild name')}
                 fontSize={S(28)}
                 color={C.text}
                 placeholderColor={C.textMuted}
@@ -2101,7 +2105,7 @@ export function GuildPanel() {
               <Text value="Tag  2-5 letters" size={S(24)} color={C.textMuted} align="middle-left" />
               <Input
                 value={guildForm.tag}
-                placeholder="TAG"
+                placeholder={t('TAG')}
                 fontSize={S(28)}
                 color={C.text}
                 placeholderColor={C.textMuted}
@@ -2172,7 +2176,7 @@ export function GuildPanel() {
                 <Text value="Have an invite tag?" size={S(26)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: 'auto', margin: { right: S(14) } }} />
                 <Input
                   value={guildForm.joinTag}
-                  placeholder="TAG"
+                  placeholder={t('TAG')}
                   fontSize={S(28)}
                   color={C.text}
                   placeholderColor={C.textMuted}
