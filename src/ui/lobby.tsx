@@ -13,6 +13,7 @@ import {
   tickLobby,
   refreshBoard,
   sendChat,
+  settleComposer,
   adminChat,
   inviteToGuild,
   acceptInvite,
@@ -95,6 +96,7 @@ function ChatColumn(props: { height: number }) {
   const invites = lobby.invites.filter((i) => !dismissedInvites.has(i.guildId))
   const inviteH = invites.length > 0 ? 66 : 0
   const feedH = props.height - 20 - inviteH - 64 - 10
+  settleComposer()
   const visible = lobby.messages.filter((m) => !lobby.muted.has(m.from))
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.tag, g.id]))
   // Newest first. Two lines for long messages.
@@ -118,6 +120,7 @@ function ChatColumn(props: { height: number }) {
         <Input
           key={`chat-input-${lobby.draftKey}`}
           value={lobby.draft}
+          disabled={lobby.composerBlankAt > 0}
           placeholder={lobby.sending ? 'Sending...' : 'Say something to everyone wearing the ring...'}
           fontSize={S(24)}
           color={C.text}

@@ -46,6 +46,8 @@ export const lobby = {
   draft: '',
   /** Bumped whenever `draft` is reset in code: the SDK Input only reads `value` on mount, so the box is remounted to clear it. */
   draftKey: 0,
+  /** While set (a timestamp), the composer is disabled so the renderer drops keyboard focus; the box is remounted blank when it passes. */
+  composerBlankAt: 0,
   sending: false,
   /** Address whose mini card is open, if any. */
   selected: null as string | null,
@@ -153,10 +155,22 @@ export function sendChat() {
  */
 const BLANK_DRAFT = ' '
 
-/** Set the composer text from code (blank after send, restore after a failure) and remount the box so it shows. */
+/**
+ * Set the composer text from code (blank after send, restore after a failure). The box is remounted so the new value
+ * shows, but only after a short disabled window: a focused text field keeps its editing buffer, so a value written while
+ * it still has keyboard focus is overwritten by the old text as soon as focus leaves. Disabling it first drops the focus.
+ */
 function setDraft(text: string) {
   lobby.draft = text
-  lobby.draftKey++
+  lobby.composerBlankAt = Date.now() + 120
+}
+
+/** Called from the chat render: once the disabled window has passed, remount the composer with the pending value. */
+export function settleComposer() {
+  if (lobby.composerBlankAt > 0 && Date.now() >= lobby.composerBlankAt) {
+    lobby.composerBlankAt = 0
+    lobby.draftKey++
+  }
 }
 
 /** Admin only (server enforces): remove one line, or block a wallet and purge its lines. */
