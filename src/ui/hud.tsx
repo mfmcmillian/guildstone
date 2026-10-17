@@ -1,7 +1,7 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, FONT, TEX, SLICE_128, SLICE_PILL, glow } from './theme'
-import { lobby, tickLobbyBackground } from '../lobby'
+import { lobbyUnread, tickLobbyBackground } from '../lobby'
 import { OutlinedText, Pill, Icon, Bar, Button, Panel, timerText } from './components'
 import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, fmtRate, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung } from '../state'
 import { togglePanel, ui } from './uiState'
@@ -209,7 +209,7 @@ export function Hud() {
                 size={S(FONT.button + 10)}
               />
               {/* Unread lobby chat since the Lobby tab was last open (slow background poll; see tickLobbyBackground). */}
-              {unreadBadge(settings.alerts ? lobby.unread : 0)}
+              {unreadBadge(settings.alerts ? lobbyUnread() : 0)}
             </UiEntity>
           ) : null}
           <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' || stepTarget() === 'relics' ? glow(C.blue) : C.blue} onClick={() => { if (stepTarget() === 'relics') openRelicsTab(); togglePanel('skills') }} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />

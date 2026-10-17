@@ -16,8 +16,28 @@ const BOARD_TTL_MS = 60_000
 export const CHAT_TEXT_MAX = 200
 /** Lines kept for scrollback; matches the server's AFK_CHAT_KEEP (the first poll returns the whole buffer). */
 const CHAT_KEEP = 500
+const GUILD_CHAT_KEEP = 200
 
-export interface ChatMessage { id: string; at: number; from: string; name: string; tag: string; text: string }
+export interface ChatMessage { id: string; at: number; from: string; name: string; tag: string; text: string; /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean }
+/** 'all' is the global lobby; 'guild' is my guild's private channel (members only, 200 lines, see the server). */
+export type Channel = 'all' | 'guild'
+export const CHANNELS: Channel[] = ['all', 'guild']
+
+export interface ChannelState {
+  messages: ChatMessage[]
+  /** Newest message time seen; the poll asks for lines after it. */
+  lastAt: number
+  /** Lines from others that arrived while this channel wasn't showing. Drives the HUD badge. */
+  unread: number
+  draft: string
+  /** Bumped whenever `draft` is reset in code: the SDK Input only reads `value` on mount, so the box is remounted to clear it. */
+  draftKey: number
+  /** Key of the Input being retired after a send. It stays mounted (hidden, disabled) until `composerBlankAt` passes. */
+  retiringKey: number | null
+  composerBlankAt: number
+  sending: boolean
+}
+const channelState = (): ChannelState => ({ messages: [], lastAt: 0, unread: 0, draft: '', draftKey: 0, retiringKey: null, composerBlankAt: 0, sending: false })
 export interface OnlinePlayer {
   address: string
   name: string
@@ -40,20 +60,15 @@ export interface CrownHolder { address: string; name: string; at: number }
 export interface BoardGuild { id: string; tag: string; name: string; hqLevel: number; points: number; weeklyPoints: number; memberCount: number; maxMembers: number }
 
 export const lobby = {
-  messages: [] as ChatMessage[],
+  /** Per-channel feed and composer. `ch.all` is the lobby everyone sees; `ch.guild` only fills while I'm in a guild. */
+  ch: { all: channelState(), guild: channelState() } as Record<Channel, ChannelState>,
+  /** Guild id the guild channel belongs to; cleared (with the feed) when the server stops sending it. */
+  guildChatId: '',
   online: [] as OnlinePlayer[],
   invites: [] as GuildInvite[],
   admin: false,
-  lastAt: 0,
   loadedOnce: false,
   failed: false,
-  draft: '',
-  /** Bumped whenever `draft` is reset in code: the SDK Input only reads `value` on mount, so the box is remounted to clear it. */
-  draftKey: 0,
-  /** Key of the Input being retired after a send. It stays mounted (hidden, disabled) until `composerBlankAt` passes. */
-  retiringKey: null as number | null,
-  composerBlankAt: 0,
-  sending: false,
   /** Address whose mini card is open, if any. */
   selected: null as string | null,
   /** Client-side mutes: hidden from the feed for this session. */
@@ -61,30 +76,48 @@ export const lobby = {
   /** Guild invites I sent this session, by wallet: drives the card button and stops double sends. */
   invited: {} as Record<string, 'sending' | 'sent' | 'failed'>,
   board: { players: [] as BoardPlayer[], guilds: [] as BoardGuild[], crown: null as CrownHolder | null, loadedAt: 0, loading: false },
-  /** Messages from other players that arrived while the Lobby tab wasn't showing. Drives the HUD badge. */
-  unread: 0,
-  /** True while the Lobby tab is on screen; set each frame by LobbyTab. */
-  visible: false
+  /** Channel whose feed is on screen right now ('' when the Lobby tab isn't showing); set each frame by the chat column. */
+  showing: '' as Channel | ''
 }
+
+/** Unread lines across both channels, for the HUD badge. */
+export const lobbyUnread = () => Math.min(99, lobby.ch.all.unread + lobby.ch.guild.unread)
+/** True while my guild's channel exists (I'm in a guild and the server has answered at least once). */
+export const hasGuildChat = () => lobby.guildChatId !== ''
 
 let pollInFlight = false
 let lastPollAt = 0
 /** Background cadence when the Lobby isn't open: enough for a badge, cheap on the server. */
 const LOBBY_BACKGROUND_POLL_MS = 30_000
 
-/** Call every frame from the lobby tab; it rate-limits itself. */
-export function tickLobby() {
-  lobby.visible = true
-  lobby.unread = 0
+/** Call every frame from the lobby tab with the channel on screen ('' on a leaderboard); it rate-limits itself. */
+export function tickLobby(showing: Channel | '') {
+  lobby.showing = showing
+  if (showing) lobby.ch[showing].unread = 0
   if (Date.now() - lastPollAt < LOBBY_POLL_MS) return
   pollLobby()
 }
 
 /** Call every frame from the HUD while the GUILD button is shown; polls slowly so the unread badge stays fresh. */
 export function tickLobbyBackground() {
-  lobby.visible = false
+  lobby.showing = ''
   if (Date.now() - lastPollAt < LOBBY_BACKGROUND_POLL_MS) return
   pollLobby()
+}
+
+/** Merge a poll's new lines into one channel, counting unread for lines from others while it wasn't on screen. */
+function mergeChannel(channel: Channel, incoming: ChatMessage[], keep: number) {
+  const st = lobby.ch[channel]
+  if (incoming.length === 0) return
+  const seen = new Set(st.messages.map((m) => m.id))
+  const fresh = incoming.filter((m) => !seen.has(m.id))
+  // First load is history, not news; after that count what others said while this channel wasn't showing.
+  if (lobby.loadedOnce && lobby.showing !== channel) {
+    const me = (profileState.walletAddress || '').toLowerCase()
+    st.unread = Math.min(99, st.unread + fresh.filter((m) => !m.system && m.from.toLowerCase() !== me && !lobby.muted.has(m.from)).length)
+  }
+  st.messages = [...st.messages, ...fresh].slice(-keep)
+  st.lastAt = Math.max(st.lastAt, ...incoming.map((m) => m.at))
 }
 
 export function pollLobby() {
@@ -93,19 +126,18 @@ export function pollLobby() {
   lastPollAt = Date.now()
   executeTask(async () => {
     try {
-      const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/lobby?since=${lobby.lastAt}`, init: { method: 'GET', headers: {} } })
+      const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/lobby?since=${lobby.ch.all.lastAt}&gsince=${lobby.ch.guild.lastAt}`, init: { method: 'GET', headers: {} } })
       if (!response.ok) throw new Error(`Lobby poll failed (${response.status})`)
-      const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; online: OnlinePlayer[]; invites: GuildInvite[]; admin: boolean }
-      if (Array.isArray(body.messages) && body.messages.length > 0) {
-        const seen = new Set(lobby.messages.map((m) => m.id))
-        const fresh = body.messages.filter((m) => !seen.has(m.id))
-        // First load is history, not news; after that count what others said while the Lobby was closed.
-        if (lobby.loadedOnce && !lobby.visible) {
-          const me = (profileState.walletAddress || '').toLowerCase()
-          lobby.unread = Math.min(99, lobby.unread + fresh.filter((m) => m.from.toLowerCase() !== me && !lobby.muted.has(m.from)).length)
-        }
-        lobby.messages = [...lobby.messages, ...fresh].slice(-CHAT_KEEP)
-        lobby.lastAt = Math.max(lobby.lastAt, ...body.messages.map((m) => m.at))
+      const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; guild?: { id: string; messages: ChatMessage[] } | null; online: OnlinePlayer[]; invites: GuildInvite[]; admin: boolean }
+      if (Array.isArray(body.messages)) mergeChannel('all', body.messages, CHAT_KEEP)
+      if (body.guild && typeof body.guild.id === 'string') {
+        // Switched guilds (or first answer): the old channel's lines don't belong to the new one.
+        if (lobby.guildChatId !== body.guild.id) lobby.ch.guild = channelState()
+        lobby.guildChatId = body.guild.id
+        if (Array.isArray(body.guild.messages)) mergeChannel('guild', body.guild.messages, GUILD_CHAT_KEEP)
+      } else if (lobby.guildChatId) {
+        lobby.guildChatId = ''
+        lobby.ch.guild = channelState()
       }
       lobby.online = Array.isArray(body.online) ? body.online : []
       lobby.invites = Array.isArray(body.invites) ? body.invites : []
@@ -121,35 +153,37 @@ export function pollLobby() {
   })
 }
 
-export function sendChat() {
-  const text = lobby.draft.trim().slice(0, CHAT_TEXT_MAX)
-  if (!text || lobby.sending || profileState.status !== 'ready' || !profileState.walletAddress) return
-  lobby.sending = true
-  setDraft(BLANK_DRAFT)
+export function sendChat(channel: Channel) {
+  const st = lobby.ch[channel]
+  const text = st.draft.trim().slice(0, CHAT_TEXT_MAX)
+  if (!text || st.sending || profileState.status !== 'ready' || !profileState.walletAddress) return
+  if (channel === 'guild' && !hasGuildChat()) return
+  st.sending = true
+  setDraft(channel, BLANK_DRAFT)
   executeTask(async () => {
     try {
       const response = await signedFetch({
         url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/chat`,
-        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, channel }) }
       })
       if (!response.ok) {
         let message = `Chat failed (${response.status})`
         try { message = (JSON.parse(response.body) as { error?: string }).error ?? message } catch { /* keep default */ }
         playErrorSound()
         flash(message.toUpperCase())
-        setDraft(text)
+        setDraft(channel, text)
         return
       }
       const body = JSON.parse(response.body) as { message?: ChatMessage }
       if (body.message) {
-        lobby.messages = [...lobby.messages, body.message].slice(-CHAT_KEEP)
-        lobby.lastAt = Math.max(lobby.lastAt, body.message.at)
+        st.messages = [...st.messages, body.message].slice(-(channel === 'all' ? CHAT_KEEP : GUILD_CHAT_KEEP))
+        st.lastAt = Math.max(st.lastAt, body.message.at)
       }
     } catch (error) {
       console.error('[lobby] send failed:', error instanceof Error ? error.message : String(error))
-      setDraft(text)
+      setDraft(channel, text)
     } finally {
-      lobby.sending = false
+      st.sending = false
     }
   })
 }
@@ -166,32 +200,44 @@ const BLANK_DRAFT = ' '
  * fields, so a plain remount gets the same still-focused field back. The old Input is therefore kept mounted (hidden,
  * disabled) for a moment so the new one is built on a different field; `settleComposer` drops it afterwards.
  */
-function setDraft(text: string) {
-  lobby.draft = text
-  lobby.retiringKey = lobby.draftKey
-  lobby.draftKey++
-  lobby.composerBlankAt = Date.now() + 150
+function setDraft(channel: Channel, text: string) {
+  const st = lobby.ch[channel]
+  st.draft = text
+  st.retiringKey = st.draftKey
+  st.draftKey++
+  st.composerBlankAt = Date.now() + 150
 }
 
 /** Called from the chat render: once the hand-over window has passed, drop the retired Input. */
-export function settleComposer() {
-  if (lobby.composerBlankAt > 0 && Date.now() >= lobby.composerBlankAt) {
-    lobby.composerBlankAt = 0
-    lobby.retiringKey = null
+export function settleComposer(channel: Channel) {
+  const st = lobby.ch[channel]
+  if (st.composerBlankAt > 0 && Date.now() >= st.composerBlankAt) {
+    st.composerBlankAt = 0
+    st.retiringKey = null
   }
 }
 
-/** Admin only (server enforces): remove one line, or block a wallet and purge its lines. */
-export function adminChat(op: 'delete' | 'block', idOrTarget: string) {
-  if (!lobby.admin || profileState.status !== 'ready' || !profileState.walletAddress) return
+/** Can I remove lines in this channel? Lobby admins anywhere; the guild leader and Royal Guard in the guild channel. */
+export function canModerate(channel: Channel): boolean {
+  if (lobby.admin) return true
+  if (channel !== 'guild' || !player.guild) return false
+  const me = (profileState.walletAddress || '').toLowerCase()
+  return player.guild.leaderId === me || (player.guild.royalGuardIds ?? []).includes(me)
+}
+
+/** Moderation (server enforces): remove one line, or (lobby admins, 'all' only) block a wallet and purge its lines. */
+export function adminChat(op: 'delete' | 'block', idOrTarget: string, channel: Channel = 'all') {
+  if (!canModerate(channel) || profileState.status !== 'ready' || !profileState.walletAddress) return
+  if (op === 'block' && (channel !== 'all' || !lobby.admin)) return
   executeTask(async () => {
     try {
-      const payload = op === 'delete' ? { admin: 'delete', id: idOrTarget } : { admin: 'block', target: idOrTarget }
+      const payload = op === 'delete' ? { admin: 'delete', id: idOrTarget, channel } : { admin: 'block', target: idOrTarget }
       await signedFetch({
         url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/chat`,
         init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
       })
-      lobby.messages = op === 'delete' ? lobby.messages.filter((m) => m.id !== idOrTarget) : lobby.messages.filter((m) => m.from !== idOrTarget)
+      const st = lobby.ch[channel]
+      st.messages = op === 'delete' ? st.messages.filter((m) => m.id !== idOrTarget) : st.messages.filter((m) => m.from !== idOrTarget)
       flash(op === 'delete' ? 'MESSAGE REMOVED' : 'PLAYER BLOCKED')
     } catch (error) {
       console.error('[lobby] admin failed:', error instanceof Error ? error.message : String(error))
@@ -201,8 +247,9 @@ export function adminChat(op: 'delete' | 'block', idOrTarget: string) {
 
 /** A line only this client sees, in the feed where the player is looking (confirmations, errors). Never sent. */
 export function pushLocalLine(text: string) {
-  const line: ChatMessage = { id: `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, at: lobby.lastAt, from: profileState.walletAddress ?? '', name: 'LOBBY', tag: '', text }
-  lobby.messages = [...lobby.messages, line].slice(-CHAT_KEEP)
+  const st = lobby.ch.all
+  const line: ChatMessage = { id: `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, at: st.lastAt, from: profileState.walletAddress ?? '', name: 'LOBBY', tag: '', text }
+  st.messages = [...st.messages, line].slice(-CHAT_KEEP)
 }
 
 export function inviteToGuild(address: string, name: string) {
@@ -326,9 +373,11 @@ export function settleBugCard() {
 }
 
 // ---- Leaderboards ------------------------------------------------------------------------------------------------
-export type BoardId = 'chat' | 'levels' | Skill | 'suits' | 'hq' | 'points' | 'weekly'
+export type BoardId = 'chat' | 'guildchat' | 'levels' | Skill | 'suits' | 'hq' | 'points' | 'weekly'
+/** 'guildchat' is only offered while hasGuildChat(); its label is built from the guild tag at render time. */
 export const BOARDS: Array<{ id: BoardId; label: string }> = [
   { id: 'chat', label: 'CHAT' },
+  { id: 'guildchat', label: 'GUILD' },
   { id: 'levels', label: 'LEVELS' },
   ...SKILLS.map((s) => ({ id: s as BoardId, label: SKILL_INFO[s].name.toUpperCase() })),
   { id: 'suits', label: 'SUITS' },
@@ -336,7 +385,7 @@ export const BOARDS: Array<{ id: BoardId; label: string }> = [
   { id: 'points', label: 'GUILD PTS' },
   { id: 'weekly', label: 'THIS WEEK' }
 ]
-export const BOARD_TITLE: Record<Exclude<BoardId, 'chat'>, string> = {
+export const BOARD_TITLE: Record<Exclude<BoardId, 'chat' | 'guildchat'>, string> = {
   levels: 'TOTAL LEVEL  •  all four professions added up',
   lumberjack: 'LUMBERJACK  •  by XP',
   miner: 'MINER  •  by XP',
@@ -350,7 +399,7 @@ export const BOARD_TITLE: Record<Exclude<BoardId, 'chat'>, string> = {
 
 export interface BoardRow { key: string; name: string; tag: string; value: string; mine: boolean }
 
-export function boardRows(id: Exclude<BoardId, 'chat'>, limit = 15): BoardRow[] {
+export function boardRows(id: Exclude<BoardId, 'chat' | 'guildchat'>, limit = 15): BoardRow[] {
   const me = profileState.walletAddress ?? ''
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.id, g.tag]))
   const myGuild = player.guild?.id ?? ''
@@ -375,7 +424,7 @@ export function boardRows(id: Exclude<BoardId, 'chat'>, limit = 15): BoardRow[] 
 }
 
 /** Where I sit on a player board, 1-based (0 when unranked). */
-export function myBoardRank(id: Exclude<BoardId, 'chat'>): number {
+export function myBoardRank(id: Exclude<BoardId, 'chat' | 'guildchat'>): number {
   const rows = boardRows(id, 10_000)
   return rows.findIndex((r) => r.mine) + 1
 }

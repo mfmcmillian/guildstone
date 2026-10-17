@@ -15,6 +15,9 @@ import {
   sendChat,
   settleComposer,
   adminChat,
+  canModerate,
+  hasGuildChat,
+  type Channel,
   inviteToGuild,
   acceptInvite,
   joinGuildByTag,
@@ -55,7 +58,9 @@ function statusLine(p: OnlinePlayer): string {
 }
 
 export function LobbyTab(props: { height: number }) {
-  tickLobby()
+  // The guild board only exists while I'm in a guild; fall back to the lobby if it disappears under me.
+  if (board === 'guildchat' && !hasGuildChat()) board = 'chat'
+  tickLobby(board === 'chat' ? 'all' : board === 'guildchat' ? 'guild' : '')
   refreshBoard()
   const H = props.height
   const colH = H - 56 - 12
@@ -63,27 +68,33 @@ export function LobbyTab(props: { height: number }) {
   const myGuild = player.guild
   const canInvite = !!myGuild && (myGuild.leaderId === me || myGuild.royalGuardIds?.includes(me))
   const selected = lobby.selected ? lobby.online.find((p) => p.address === lobby.selected) ?? null : null
+  const boards = hasGuildChat() ? BOARDS : BOARDS.filter((b) => b.id !== 'guildchat')
 
   return (
     <UiEntity uiTransform={{ width: S(CHAT_W + GAP + SIDE_W), height: S(H), flexDirection: 'column' }}>
-      {/* Board switcher: CHAT plus the leaderboards */}
+      {/* Board switcher: CHAT, [TAG] guild chat when in a guild, then the leaderboards. Unread counts ride on the chat tabs. */}
       <UiEntity uiTransform={{ width: '100%', height: S(56), flexDirection: 'row', margin: { bottom: S(12) } }}>
-        {BOARDS.map((b, i) => (
-          <Button
-            key={`board-${b.id}`}
-            label={b.label}
-            color={board === b.id ? C.purple : C.navySoft}
-            size={S(19)}
-            uiTransform={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, height: S(56), margin: { left: i === 0 ? 0 : S(4), right: i === BOARDS.length - 1 ? 0 : S(4) } }}
-            onClick={() => {
-              board = b.id
-            }}
-          />
-        ))}
+        {boards.map((b, i) => {
+          const unread = b.id === 'chat' ? lobby.ch.all.unread : b.id === 'guildchat' ? lobby.ch.guild.unread : 0
+          const base = b.id === 'guildchat' ? `[${myGuild?.tag ?? 'GUILD'}]` : b.label
+          return (
+            <Button
+              key={`board-${b.id}`}
+              label={unread > 0 && board !== b.id ? `${base} (${unread})` : base}
+              color={board === b.id ? C.purple : unread > 0 ? C.green : C.navySoft}
+              size={S(19)}
+              pad={8}
+              uiTransform={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, height: S(56), margin: { left: i === 0 ? 0 : S(4), right: i === boards.length - 1 ? 0 : S(4) } }}
+              onClick={() => {
+                board = b.id
+              }}
+            />
+          )
+        })}
       </UiEntity>
 
       <UiEntity uiTransform={{ width: '100%', height: S(colH), flexDirection: 'row' }}>
-        {board === 'chat' ? <ChatColumn height={colH} /> : <BoardColumn id={board} height={colH} />}
+        {board === 'chat' ? <ChatColumn channel="all" height={colH} /> : board === 'guildchat' ? <ChatColumn channel="guild" height={colH} /> : <BoardColumn id={board} height={colH} />}
         <UiEntity uiTransform={{ width: S(GAP) }} />
         {selected ? <PlayerCard p={selected} height={colH} canInvite={canInvite} /> : <OnlineColumn height={colH} />}
       </UiEntity>
@@ -92,24 +103,33 @@ export function LobbyTab(props: { height: number }) {
 }
 
 // ---- Chat ------------------------------------------------------------------------------------------------------
-function ChatColumn(props: { height: number }) {
-  const invites = lobby.invites.filter((i) => !dismissedInvites.has(i.guildId))
+function ChatColumn(props: { channel: Channel; height: number }) {
+  const { channel } = props
+  const st = lobby.ch[channel]
+  const guildChannel = channel === 'guild'
+  // Invites only matter on the lobby feed; the guild channel is members-only.
+  const invites = guildChannel ? [] : lobby.invites.filter((i) => !dismissedInvites.has(i.guildId))
   const inviteH = invites.length > 0 ? 66 : 0
   const feedH = props.height - 20 - inviteH - 64 - 10
   // Newest at the bottom; walk back until the feed is full. Two lines for long messages, one otherwise.
-  settleComposer()
-  const visible = lobby.messages.filter((m) => !lobby.muted.has(m.from))
-  const rows: Array<{ id: string; from: string; guild: string; line: string; h: number }> = []
+  settleComposer(channel)
+  const visible = st.messages.filter((m) => !lobby.muted.has(m.from))
+  const rows: Array<{ id: string; from: string; guild: string; line: string; h: number; system: boolean }> = []
   let used = 0
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.tag, g.id]))
   for (let i = visible.length - 1; i >= 0; i--) {
     const m = visible[i]
-    const line = `${m.tag ? `[${m.tag}] ` : ''}${m.name}:  ${m.text}`
+    // Guild channel: everyone shares the tag, so skip it. System lines read as "— X joined the guild".
+    const line = m.system ? `—  ${m.text}` : `${m.tag && !guildChannel ? `[${m.tag}] ` : ''}${m.name}:  ${m.text}`
     const h = line.length > 92 ? 56 : 30
     if (used + h > feedH) break
     used += h
-    rows.unshift({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', line, h })
+    rows.unshift({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', line, h, system: m.system === true })
   }
+  const moderator = canModerate(channel)
+  const emptyText = !lobby.loadedOnce
+    ? lobby.failed ? 'Could not reach the lobby. Retrying...' : 'Joining the lobby...'
+    : guildChannel ? 'Guild only. Nothing here yet, say hi to your guild!' : 'Nobody has said anything yet. Say hi!'
 
   return (
     <Panel flat color={C.navySoft} uiTransform={{ width: S(CHAT_W), height: S(props.height), padding: S(10), flexDirection: 'column' }}>
@@ -124,7 +144,7 @@ function ChatColumn(props: { height: number }) {
       <UiEntity uiTransform={{ width: '100%', height: S(feedH), flexDirection: 'column', justifyContent: 'flex-end' }}>
         {rows.length === 0 ? (
           <Text
-            value={!lobby.loadedOnce ? (lobby.failed ? 'Could not reach the lobby. Retrying...' : 'Joining the lobby...') : 'Nobody has said anything yet. Say hi!'}
+            value={emptyText}
             size={S(24)}
             color={C.textMuted}
             uiTransform={{ width: '100%', height: S(40) }}
@@ -135,17 +155,17 @@ function ChatColumn(props: { height: number }) {
               key={r.id}
               uiTransform={{ width: '100%', height: S(r.h), flexDirection: 'row', alignItems: 'flex-start' }}
               onMouseDown={() => {
-                if (r.from === me()) return
+                if (r.system || !r.from || r.from === me()) return
                 playButtonSound()
                 lobby.selected = r.from
               }}
             >
-              <Text value={r.line} size={S(22)} color={nameColor(r.from, r.guild)} align="top-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
-              {lobby.admin ? (
+              <Text value={r.line} size={S(22)} color={r.system ? C.textMuted : nameColor(r.from, r.guild)} align="top-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
+              {moderator && !r.system ? (
                 <UiEntity
                   uiTransform={{ width: S(30), height: S(26), alignItems: 'center', justifyContent: 'center', margin: { left: S(6) } }}
                   uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: C.red }}
-                  onMouseDown={() => adminChat('delete', r.id)}
+                  onMouseDown={() => adminChat('delete', r.id, channel)}
                 >
                   <Text value="x" size={S(18)} color={C.white} />
                 </UiEntity>
@@ -157,23 +177,23 @@ function ChatColumn(props: { height: number }) {
 
       <UiEntity uiTransform={{ width: '100%', height: S(64), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
         <Input
-          key={`chat-input-${lobby.draftKey}`}
-          value={lobby.draft}
-          placeholder={lobby.sending ? 'Sending...' : 'Say something to everyone wearing the ring...'}
+          key={`chat-input-${channel}-${st.draftKey}`}
+          value={st.draft}
+          placeholder={st.sending ? 'Sending...' : guildChannel ? `Say something to [${player.guild?.tag ?? 'your guild'}] only...` : 'Say something to everyone wearing the ring...'}
           fontSize={S(24)}
           color={C.text}
           placeholderColor={C.textMuted}
           uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(60), margin: { right: S(10) } }}
           onChange={(value) => {
-            lobby.draft = value.slice(0, CHAT_TEXT_MAX)
+            st.draft = value.slice(0, CHAT_TEXT_MAX)
           }}
-          onSubmit={() => sendChat()}
+          onSubmit={() => sendChat(channel)}
         />
-        {lobby.retiringKey !== null ? (
+        {st.retiringKey !== null ? (
           // Retired box after a send, see setDraft in lobby.ts. Hidden and disabled; removed by settleComposer.
-          <Input key={`chat-input-${lobby.retiringKey}`} value="" disabled fontSize={S(24)} uiTransform={{ positionType: 'absolute', width: 0, height: 0 }} />
+          <Input key={`chat-input-${channel}-${st.retiringKey}`} value="" disabled fontSize={S(24)} uiTransform={{ positionType: 'absolute', width: 0, height: 0 }} />
         ) : null}
-        <Button key="chat-send" label="SEND" color={C.green} disabled={lobby.sending || lobby.draft.trim().length === 0} size={S(22)} uiTransform={{ width: S(150), height: S(60), minWidth: 0 }} onClick={() => sendChat()} />
+        <Button key={`chat-send-${channel}`} label="SEND" color={guildChannel ? C.purple : C.green} disabled={st.sending || st.draft.trim().length === 0} size={S(22)} uiTransform={{ width: S(150), height: S(60), minWidth: 0 }} onClick={() => sendChat(channel)} />
       </UiEntity>
     </Panel>
   )
@@ -183,7 +203,7 @@ const me = () => profileState.walletAddress ?? ''
 
 // ---- Leaderboards ----------------------------------------------------------------------------------------------
 function BoardColumn(props: { id: BoardId; height: number }) {
-  const id = props.id as Exclude<BoardId, 'chat'>
+  const id = props.id as Exclude<BoardId, 'chat' | 'guildchat'>
   const rows = boardRows(id, 50)
   const playerBoard = !(id === 'hq' || id === 'points' || id === 'weekly')
   const rank = playerBoard ? myBoardRank(id) : 0
