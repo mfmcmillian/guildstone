@@ -1,6 +1,7 @@
 // Demo game state. Backpack changes are persisted once the wallet profile is ready.
 import { settings } from './settings'
 import type { GuildRaidSummary } from './raid'
+import { emptyHeroes } from './hero'
 
 export type BaseResource = 'wood' | 'rock' | 'meat' | 'bone'
 export type Material = 'plank' | 'brick' | 'jerky' | 'bonedust'
@@ -355,6 +356,8 @@ export const player = {
   } as Record<Skill, MasteryState>,
   /** Tool tier per profession (0-5). */
   tools: { lumberjack: 0, miner: 0, butcher: 0, assassin: 0 } as Record<Skill, number>,
+  /** Hero levels (src/hero.ts): a base-resource sink that feeds the raid fighter. */
+  heroes: emptyHeroes(),
   activeZone: null as ZoneId | null,
   workProgress: 0, // 0..1 within the current cycle
   perfectStreak: 0,

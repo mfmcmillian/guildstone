@@ -38,6 +38,7 @@ import {
 } from './state'
 import { adoptKoaLanguage, claimAwayProgress, loadGuild, saveLayout } from './transactions'
 import { sanitizeAssassinPieces } from './suits'
+import { sanitizeHeroes } from './hero'
 import { showAwaySummary } from './ui/uiState'
 import { playSuccessSound } from './uiSounds'
 
@@ -182,6 +183,7 @@ export function initializeBackpackPersistence() {
     player.skills = sanitizeSkills(profileState.profile.skills)
     player.mastery = sanitizeMastery(profileState.profile.mastery)
     player.tools = sanitizeTools(profileState.profile.tools)
+    player.heroes = sanitizeHeroes(profileState.profile.heroes)
     player.equippedAssassinPieces = player.skills.assassin.suit > 0 ? sanitizeAssassinPieces(profileState.profile.equippedSuits?.assassin) : []
     const boosts = sanitizeBoosts(profileState.profile.boosts)
     player.rationUntil = boosts.rationUntil

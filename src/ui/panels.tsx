@@ -975,7 +975,7 @@ export function WorkshopPanel() {
 }
 
 // ---------------------------------------------------------------- FORGE
-function Need(props: { key?: string; item: ItemId; have: number; need: number }) {
+export function Need(props: { key?: string; item: ItemId; have: number; need: number }) {
   const ok = props.have >= props.need
   return (
     <UiEntity

@@ -2,6 +2,7 @@ import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Hud, Toast } from './hud'
 import { Dock, ShowUiButton } from './dock'
 import { SkillsPanel, BankPanel, WorkshopPanel, ForgePanel, ShopPanel, GuildPanel, AwayPanel } from './panels'
+import { HeroPanel } from './hero'
 import { LevelUpBanner } from './levelUp'
 import { RareFindBanner } from './rareFind'
 import { WelcomePanel, shouldShowWelcome } from './guide'
@@ -20,6 +21,7 @@ function Root() {
       {ui.open === 'shop' ? <ShopPanel /> : null}
       {ui.open === 'guild' ? <GuildPanel /> : null}
       {ui.open === 'away' ? <AwayPanel /> : null}
+      {ui.open === 'hero' ? <HeroPanel /> : null}
       {shouldShowWelcome() ? <WelcomePanel /> : null}
       <LevelUpBanner />
       <RareFindBanner />

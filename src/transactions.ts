@@ -3,6 +3,7 @@ import { signedFetch } from '~system/SignedFetch'
 import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
+import { HEROES, sanitizeHeroes, type HeroId } from './hero'
 import { settings } from './settings'
 import { setLanguage, t, type Language } from './i18n'
 import type { UiLayout } from './ui/drag'
@@ -613,6 +614,47 @@ export function requestTool(skill: Skill) {
       playSuccessSound()
     } catch (error) {
       console.error('[transaction] Tool upgrade failed:', error instanceof Error ? error.message : String(error))
+      playErrorSound()
+    } finally {
+      upgradeRequestInFlight = false
+    }
+  })
+}
+
+/** When the last hero level-up landed (the Hero menu plays the attack animation for a moment). */
+export let heroLevelUpAt = 0
+export function requestHeroUpgrade(hero: HeroId) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || upgradeRequestInFlight) return
+  upgradeRequestInFlight = true
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/hero`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hero }) }
+      })
+      if (!response.ok) {
+        let message = `Hero upgrade failed (${response.status})`
+        try {
+          message = (JSON.parse(response.body) as { error?: string }).error ?? message
+        } catch {
+          /* keep default message */
+        }
+        flash(message)
+        playErrorSound()
+        return
+      }
+      const result = JSON.parse(response.body) as { updatedAt: number; heroes: unknown; storage: typeof player.storage; backpack: typeof player.backpack }
+      if (result.updatedAt >= lastServerUpdateAt) {
+        lastServerUpdateAt = result.updatedAt
+        player.heroes = sanitizeHeroes(result.heroes)
+        player.storage = sanitizeStorage(result.storage)
+        player.backpack = result.backpack
+      }
+      heroLevelUpAt = Date.now()
+      flash(`${HEROES[hero].name.toUpperCase()} LEVEL ${player.heroes[hero].level}`)
+      playSuccessSound()
+    } catch (error) {
+      console.error('[transaction] Hero upgrade failed:', error instanceof Error ? error.message : String(error))
       playErrorSound()
     } finally {
       upgradeRequestInFlight = false

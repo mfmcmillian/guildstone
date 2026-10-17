@@ -37,9 +37,14 @@ dagger = tools.assassin          (0–5)
 vipLvl = KoA VIP tier from players/{wallet}.vipScore  (0 Bronze … 5 Mythic)
 vip    = 1 + 0.04 × vipLvl       (cap +20 %)
 
-HP  = round((100 + 10·level + 50·set) × vip)
-ATK = round((10 + 0.5·level + 15·dagger) × vip)
+hero   = heroes.assassin.level   (1–30, the HERO window; api/afkHero.js)
+HP  = round((100 + 10·level + 50·set + 25·(hero−1)) × vip)
+ATK = round((10 + 0.5·level + 15·dagger + 3·(hero−1)) × vip)
+speed    = 1 + 0.02·(hero−1)     walk / home time ÷ speed
+recovery = 1 + 0.03·(hero−1)     knock-out carry time ÷ recovery
 ```
+
+**Hero (added 2026-10-17).** A base-resource sink: level n → n+1 costs `round(200 × 1.18^(n−1))` of *each* of wood, rock, meat and bone, paid from Depot storage first then the backpack (200 each at level 1, ~20.6k each for the last step, ~134k each over the road; a month or so of steady gathering). Server table `HEROES` in `api/afkHero.js`, mirrored for display in `src/hero.ts`; `POST /antrom-afk/player/:address/hero { hero }`. Profile field `heroes: { assassin: { level } }`. One hero today; both tables are keyed by hero id so more can be added. Later heroes/tiers may use higher-tier materials; not now.
 
 | Player | HP | ATK |
 | --- | --- | --- |

@@ -34,6 +34,10 @@ export interface Fighter {
   fromX: number | null
   fromY: number | null
   departAt: number
+  /** Hero level and its walk / knock-out-carry rate multipliers (1 = base). */
+  hero?: number
+  speed?: number
+  recovery?: number
   ticks: number
   dealt: number
   taken: number

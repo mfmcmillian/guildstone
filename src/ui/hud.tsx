@@ -212,6 +212,8 @@ export function Hud() {
               {unreadBadge(settings.alerts ? lobbyUnread() : 0)}
             </UiEntity>
           ) : null}
+          {/* HERO: level your raid fighter with base resources (ui/hero.tsx). */}
+          <Button key="hud-hero" label="HERO" icon="images/icons/assassin.png" color={C.red} onClick={() => togglePanel('hero')} uiTransform={{ height: S(96), minWidth: S(340), margin: { bottom: S(12) } }} size={S(FONT.button + 10)} />
           <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' || stepTarget() === 'relics' ? glow(C.blue) : C.blue} onClick={() => { if (stepTarget() === 'relics') openRelicsTab(); togglePanel('skills') }} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />
         </UiEntity>
       )}

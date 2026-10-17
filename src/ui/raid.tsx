@@ -14,25 +14,11 @@ import {
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
 
-// Raid art is served from guildstone.dev (data only) so the wearable stays under its 2 MB cap; bump the _vN suffix when
-// a file changes, img/ is cached for a week. Sources: C:/Users/matth/mock/opt (cut_sheets.js builds the grids).
-const ART = 'https://guildstone.dev/img/raid'
+import { ANIM, ART, HERO_SHEET, Sprite, loopFrame, onceFrame, type Anim } from './sprite'
+
 const BG = `${ART}/battlefield_v1.jpg`
-const SHEET: Record<SideId, string> = { a: `${ART}/assassin_v2.png`, b: `${ART}/assassin_enemy_v2.png` }
-/**
- * Sprite sheet layout: 6 columns x 5 rows of 144 px cells, one row per animation, frames left to right, facing right,
- * feet on a shared baseline. Rows: idle, walk, attack, hit, ko.
- */
-type Anim = 'idle' | 'walk' | 'attack' | 'hit' | 'ko'
-const SHEET_COLS = 6
-const SHEET_ROWS = 5
-const ANIM: Record<Anim, { row: number; frames: number; ms: number }> = {
-  idle: { row: 0, frames: 4, ms: 260 },
-  walk: { row: 1, frames: 4, ms: 95 },
-  attack: { row: 2, frames: 6, ms: 95 },
-  hit: { row: 3, frames: 2, ms: 160 },
-  ko: { row: 4, frames: 4, ms: 200 }
-}
+// Side a (the caller) wears the player palette, side b the enemy palette. Sheets per hero live in sprite.tsx.
+const SHEET: Record<SideId, string> = { a: HERO_SHEET.assassin.own, b: HERO_SHEET.assassin.enemy }
 const HIT_FLASH_MS = 320
 const FLOAT_MS = 1300
 // The field fills the WAR window edge to edge: the Modal draws a frame-only overlay on top (edgeToEdge), so the art
@@ -105,13 +91,13 @@ function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: 
       const period = ANIM.attack.frames * ANIM.attack.ms
       const phase = ((now + index * 173) % period) / period
       const lunge = Math.sin(phase * Math.PI) * 1.4 * (side === 'a' ? 1 : -1)
-      return { x: x + lunge, y, anim: 'attack', frame: Math.floor(((now + index * 173) % period) / ANIM.attack.ms), flip: side === 'b' }
+      return { x: x + lunge, y, anim: 'attack', frame: loopFrame('attack', now, index * 173), flip: side === 'b' }
     }
-    return { x, y, anim: 'idle', frame: Math.floor(now / ANIM.idle.ms) % ANIM.idle.frames, flip: side === 'b' }
+    return { x, y, anim: 'idle', frame: loopFrame('idle', now), flip: side === 'b' }
   }
   if (f.state === 'camp') {
     const [x, y] = spot('camp', index)
-    return { x, y, anim: 'idle', frame: Math.floor(now / ANIM.idle.ms) % ANIM.idle.frames, flip: side === 'b' }
+    return { x, y, anim: 'idle', frame: loopFrame('idle', now), flip: side === 'b' }
   }
   // Walking (by choice or knocked out). The server says where the leg started and when; its length depends on distance.
   const to: PointId | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
@@ -124,7 +110,7 @@ function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: 
   const anim: Anim = f.state === 'ko' ? 'ko' : 'walk'
   // KO plays the fall once from the moment of the knock-out, then holds the last frame on the way back to camp.
   const koStart = f.arriveAt - total
-  const frame = anim === 'ko' ? Math.min(ANIM.ko.frames - 1, Math.floor(Math.max(0, now - raid.clockOffset - koStart) / ANIM.ko.ms)) : Math.floor(now / ANIM[anim].ms) % ANIM[anim].frames
+  const frame = anim === 'ko' ? onceFrame('ko', now - raid.clockOffset, koStart) : loopFrame(anim, now)
   return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, anim, frame, flip: tx < fx }
 }
 
@@ -167,14 +153,8 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
   noteDamage(v, f, p.x, p.y)
   const flashing = Date.now() - (hitAt[`${v.id}:${f.id}`] ?? 0) < HIT_FLASH_MS
   const hitPose = flashing && p.anim !== 'ko'
-  const row = hitPose ? ANIM.hit.row : ANIM[p.anim].row
-  const frame = hitPose ? Math.min(ANIM.hit.frames - 1, Math.floor((Date.now() - (hitAt[`${v.id}:${f.id}`] ?? 0)) / ANIM.hit.ms)) : p.frame
-  const u0 = frame / SHEET_COLS
-  const u1 = (frame + 1) / SHEET_COLS
-  // uvs run bottom-left, top-left, top-right, bottom-right; v=1 is the top of the texture.
-  const v1 = 1 - row / SHEET_ROWS
-  const v0 = 1 - (row + 1) / SHEET_ROWS
-  const uvs = p.flip ? [u1, v0, u1, v1, u0, v1, u0, v0] : [u0, v0, u0, v1, u1, v1, u1, v0]
+  const anim: Anim = hitPose ? 'hit' : p.anim
+  const frame = hitPose ? onceFrame('hit', Date.now(), hitAt[`${v.id}:${f.id}`] ?? 0) : p.frame
   const ko = f.state === 'ko' || f.hp <= 0
   const tint = ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : flashing ? Color4.create(1, 0.45, 0.45, 1) : C.white
   const you = v.you === f.id
@@ -191,7 +171,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           <Text value={you ? 'YOU' : f.name.toUpperCase().slice(0, 8)} size={S(20)} color={you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
-      <UiEntity uiTransform={{ width: size, height: size }} uiBackground={{ textureMode: 'stretch', texture: { src: SHEET[side] }, uvs, color: tint }} />
+      <Sprite src={SHEET[side]} anim={anim} frame={frame} flip={p.flip} size={size} color={tint} />
       <UiEntity uiTransform={{ width: S(64), height: S(10), margin: { top: S(2) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}>
         <UiEntity uiTransform={{ width: `${Math.max(0, Math.min(100, (f.hp / f.hpMax) * 100))}%`, height: '100%' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: hpColor(f) }} />
       </UiEntity>

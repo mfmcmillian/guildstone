@@ -643,6 +643,25 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Gathering in Antrom AFK: level {0} {1}{2}. Come idle with us in Decentraland. #AntromAFK #Decentraland', 'Je récolte dans Antrom AFK : niveau {0} {1}{2}. Viens idle avec nous dans Decentraland. #AntromAFK #Decentraland', 'Recolectando en Antrom AFK: nivel {0} {1}{2}. Ven a idlear con nosotros en Decentraland. #AntromAFK #Decentraland', '我在 Antrom AFK 采集：{0}级{1}{2}。来 Decentraland 和我们一起挂机吧。#AntromAFK #Decentraland'],
   ['with [{0}]', 'avec [{0}]', 'con [{0}]', '与 [{0}]'],
 
+  // --- Hero ---
+  ['HERO', 'HÉROS', 'HÉROE', '英雄'],
+  ["Your hero fights your guild's raids. Level him with wood, rock, meat and bone from your Depot and backpack.", 'Ton héros combat dans les raids de ta guilde. Fais-le monter avec du bois, de la pierre, de la viande et des os de ton Dépôt et de ton sac.', 'Tu héroe lucha en las incursiones de tu gremio. Súbelo de nivel con madera, piedra, carne y hueso de tu Depósito y mochila.', '你的英雄为公会出战突袭。用仓库和背包里的木材、石头、肉和骨头提升他的等级。'],
+  ['LEVEL {0} → {1}', 'NIVEAU {0} → {1}', 'NIVEL {0} → {1}', '等级 {0} → {1}'],
+  ['LEVEL {0}  MAX', 'NIVEAU {0}  MAX', 'NIVEL {0}  MÁX', '等级 {0}  满级'],
+  ['HP', 'PV', 'PS', '生命'],
+  ['ATTACK', 'ATTAQUE', 'ATAQUE', '攻击'],
+  ['SPEED', 'VITESSE', 'VELOCIDAD', '速度'],
+  ['RECOVERY', 'RÉCUPÉRATION', 'RECUPERACIÓN', '恢复'],
+  ['More health in a raid', 'Plus de santé en raid', 'Más salud en la incursión', '突袭中更多生命'],
+  ['More damage every clash', 'Plus de dégâts à chaque affrontement', 'Más daño en cada choque', '每次交锋造成更多伤害'],
+  ['Reach buildings sooner', 'Atteins les bâtiments plus vite', 'Llega antes a los edificios', '更快抵达建筑'],
+  ['Back from a knock-out sooner', 'Reviens plus vite après un KO', 'Vuelve antes tras un KO', '被击倒后更快归队'],
+  ['UPGRADE', 'AMÉLIORER', 'MEJORAR', '升级'],
+  ['{0} LEVEL {1}', '{0} NIVEAU {1}', '{0} NIVEL {1}', '{0} 等级 {1}'],
+  ['Hero upgrade failed ({0})', 'Échec de l’amélioration du héros ({0})', 'Falló la mejora del héroe ({0})', '英雄升级失败（{0}）'],
+  ['→  +{0}', '→  +{0}', '→  +{0}', '→  +{0}'],
+  ['→  +{0}%', '→  +{0}%', '→  +{0}%', '→  +{0}%'],
+
   // --- Shadow Raid ---
   ['ANTROM STORM', 'ANTROM STORM', 'ANTROM STORM', 'ANTROM STORM'],
   ['START RAID', 'LANCER LE RAID', 'INICIAR INCURSIÓN', '开始突袭'],
