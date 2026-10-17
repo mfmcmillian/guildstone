@@ -1,5 +1,5 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
-import { Hud } from './hud'
+import { Hud, Toast } from './hud'
 import { Dock, ShowUiButton } from './dock'
 import { SkillsPanel, BankPanel, WorkshopPanel, ForgePanel, ShopPanel, GuildPanel, AwayPanel } from './panels'
 import { LevelUpBanner } from './levelUp'
@@ -23,6 +23,8 @@ function Root() {
       {shouldShowWelcome() ? <WelcomePanel /> : null}
       <LevelUpBanner />
       <RareFindBanner />
+      {/* Last so flash() toasts sit above every window. */}
+      <Toast />
     </UiEntity>
   )
 }

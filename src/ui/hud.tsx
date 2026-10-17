@@ -52,6 +52,23 @@ function unreadBadge(count: number) {
   )
 }
 
+/**
+ * The flash() toast. Rendered by Root after every window so it is never hidden behind one: before this it lived
+ * inside Hud, which paints first, so "INVITE SENT", "SLOW DOWN" and friends were invisible while a window was open.
+ */
+export function Toast() {
+  const toast = player.lastGain && Date.now() - player.lastGain.at < 1600 ? player.lastGain.text : null
+  if (!toast) return null
+  const canvas = getCanvas()
+  // Over the zone block on the HUD; a little lower over a window's title tab so it does not cover it.
+  const top = ui.open !== null ? S(150) : S(player.activeZone ? 204 : 96)
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + top, left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+      <OutlinedText value={toast} size={S(FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(800) }} />
+    </UiEntity>
+  )
+}
+
 export function Hud() {
   // HUD sizes are relative to the real canvas; positions sit inside the explorer's own HUD insets.
   setScale(hudScale())
@@ -67,7 +84,6 @@ export function Hud() {
   const count = backpackCount()
   const cap = backpackCap()
   const full = backpackFull()
-  const toast = player.lastGain && Date.now() - player.lastGain.at < 1600 ? player.lastGain.text : null
   const zoneColor = info ? Color4.create(info.color[0], info.color[1], info.color[2], 1) : C.green
   const menuOpen = ui.open !== null
 
@@ -132,13 +148,6 @@ export function Hud() {
           </UiEntity>
         ) : null
       })() : null}
-
-      {/* Toast */}
-      {toast ? (
-        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(zone ? 204 : 96), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
-          <OutlinedText value={toast} size={S(FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(800) }} />
-        </UiEntity>
-      ) : null}
 
       {/* Backpack: large and raised above the Explorer's bottom HUD */}
       {menuOpen ? null : (

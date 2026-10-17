@@ -304,7 +304,16 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
       <Text value={`Suits crafted: ${p.crafted}`} size={S(20)} color={C.textMuted} uiTransform={{ width: '100%', height: S(28), margin: { top: S(4), bottom: S(12) } }} />
 
       <UiEntity uiTransform={{ flexGrow: 1 }} />
-      {props.canInvite && !p.guild ? <Button key="card-invite" label={`INVITE TO [${player.guild?.tag}]`} color={C.green} size={S(22)} uiTransform={btn} onClick={() => inviteToGuild(p.address)} /> : null}
+      {props.canInvite && !p.guild ? (() => {
+        const status = lobby.invited[p.address]
+        const label = status === 'sending' ? 'SENDING…' : status === 'sent' ? 'INVITED' : `INVITE TO [${player.guild?.tag}]`
+        return (
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
+            <Button key="card-invite" label={label} color={status === 'sent' ? C.gray : C.green} textColor={status === 'sent' ? C.greenDark : undefined} size={S(22)} disabled={status === 'sending' || status === 'sent'} uiTransform={btn} onClick={() => inviteToGuild(p.address, p.name)} />
+            {status === 'sent' ? <Text value="They'll see it in their lobby" size={S(18)} color={C.textMuted} nowrap uiTransform={{ width: '100%', height: S(26), margin: { bottom: S(8) } }} /> : null}
+          </UiEntity>
+        )
+      })() : null}
       {props.canInvite && p.guild && p.guild !== player.guild?.id ? <Text value={`Already in [${p.tag}]`} size={S(20)} color={C.textMuted} uiTransform={{ width: '100%', height: S(28), margin: { bottom: S(8) } }} /> : null}
       {iAmGuildless && p.tag && guildInfo ? (
         guildInfo.memberCount >= guildInfo.maxMembers ? (

@@ -47,6 +47,8 @@ export const lobby = {
   selected: null as string | null,
   /** Client-side mutes: hidden from the feed for this session. */
   muted: new Set<string>(),
+  /** Guild invites I sent this session, by wallet: drives the card button and stops double sends. */
+  invited: {} as Record<string, 'sending' | 'sent' | 'failed'>,
   board: { players: [] as BoardPlayer[], guilds: [] as BoardGuild[], loadedAt: 0, loading: false },
   /** Messages from other players that arrived while the Lobby tab wasn't showing. Drives the HUD badge. */
   unread: 0,
@@ -165,8 +167,19 @@ export function adminChat(op: 'delete' | 'block', idOrTarget: string) {
   })
 }
 
-export function inviteToGuild(address: string) {
-  requestGuild('manage', { op: 'invite', member: address })
+/** A line only this client sees, in the feed where the player is looking (confirmations, errors). Never sent. */
+export function pushLocalLine(text: string) {
+  const line: ChatMessage = { id: `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, at: lobby.lastAt, from: profileState.walletAddress ?? '', name: 'LOBBY', tag: '', text }
+  lobby.messages = [...lobby.messages, line].slice(-CHAT_KEEP)
+}
+
+export function inviteToGuild(address: string, name: string) {
+  if (lobby.invited[address] === 'sending' || lobby.invited[address] === 'sent') return
+  lobby.invited[address] = 'sending'
+  requestGuild('manage', { op: 'invite', member: address }, (ok, message) => {
+    lobby.invited[address] = ok ? 'sent' : 'failed'
+    pushLocalLine(ok ? `Invite sent to ${name}. They'll see it in their lobby and can accept from there.` : `Could not invite ${name}: ${message}`)
+  })
 }
 
 export function acceptInvite(invite: GuildInvite) {

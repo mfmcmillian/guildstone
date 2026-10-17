@@ -782,11 +782,16 @@ export interface GuildRequestDetails {
   confirmTag?: string
 }
 
-export function requestGuild(action: GuildAction, details: GuildRequestDetails = {}) {
-  if (profileState.status !== 'ready' || !profileState.walletAddress || guildRequestInFlight) return
+/** `onDone` fires once with the outcome (and the server's error text on failure) so callers can show inline feedback. */
+export function requestGuild(action: GuildAction, details: GuildRequestDetails = {}, onDone?: (ok: boolean, message: string) => void) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || guildRequestInFlight) {
+    onDone?.(false, 'Try again in a moment')
+    return
+  }
   guildRequestInFlight = true
 
   executeTask(async () => {
+    let outcome: [boolean, string] = [false, 'Guild request failed']
     try {
       const response = await signedFetch({
         url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/guild`,
@@ -805,8 +810,10 @@ export function requestGuild(action: GuildAction, details: GuildRequestDetails =
           // keep fallback message
         }
         flash(message.toUpperCase())
+        outcome = [false, message]
         throw new Error(message)
       }
+      outcome = [true, '']
 
       const result = JSON.parse(response.body) as {
         updatedAt: number
@@ -836,6 +843,7 @@ export function requestGuild(action: GuildAction, details: GuildRequestDetails =
       console.error('[transaction] Guild failed:', error instanceof Error ? error.message : String(error))
     } finally {
       guildRequestInFlight = false
+      onDone?.(outcome[0], outcome[1])
     }
   })
 }
