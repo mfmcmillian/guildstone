@@ -69,7 +69,6 @@ const TOKEN_GAP = 72
 const PURPLE_LIGHT = Color4.fromHexString('#c9a3ffff')
 const DARK = Color4.create(0.106, 0.141, 0.212, 0.88)
 const DARK_SOFT = Color4.create(0.165, 0.208, 0.314, 0.92)
-const DIM = Color4.create(0, 0, 0, 0.55)
 // Tints for the building-shaped glow masks (white silhouette halo + faint body fill, alpha baked into the PNG).
 const GLOW_GOLD = Color4.create(1, 0.82, 0.25, 1)
 const GLOW_PURPLE = Color4.create(0.7, 0.4, 1, 0.9)
@@ -464,14 +463,6 @@ function Field(props: { v: RaidView }) {
   )
 }
 
-function CenterCard(props: { width: number; children?: ReactEcs.JSX.Element | ReactEcs.JSX.Element[] | (ReactEcs.JSX.Element | null)[] }) {
-  return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: DIM }}>
-      <Panel uiTransform={{ width: S(props.width), padding: S(28), alignItems: 'center' }}>{props.children}</Panel>
-    </UiEntity>
-  )
-}
-
 function LobbyCard(props: { v: RaidView }) {
   const v = props.v
   const countA = v.sides.a.fighters.length
@@ -499,45 +490,74 @@ function LobbyCard(props: { v: RaidView }) {
   )
 }
 
+// Result screen: dimmed field, big verdict, one scoreboard column per side (score, then a row per fighter with
+// dealt / taken / KO / Valor), your own line picked out, RAID AGAIN / DONE.
+const RES_COL_W = 560
+const RES_COLS = { name: 190, dealt: 100, taken: 100, kos: 60, valor: 90 }
+const RES_BG = Color4.create(0.06, 0.05, 0.12, 0.82)
+function ResultColumn(props: { key?: string; v: RaidView; side: SideId }) {
+  const { v, side } = props
+  const s = v.sides[side]
+  if (!s) return null
+  const r = v.result
+  const winner = r && r.winner === side
+  const tagColor = side === 'a' ? C.purple : C.gold
+  const cell = (value: string, width: number, color: Color4, size = 22) => <Text value={value} size={S(size)} color={color} nowrap align="middle-center" uiTransform={{ width: S(width), height: S(32) }} />
+  return (
+    <UiEntity uiTransform={{ width: S(RES_COL_W), flexDirection: 'column', alignItems: 'center', margin: { left: S(10), right: S(10) }, padding: { top: S(16), bottom: S(14), left: S(16), right: S(16) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: RES_BG }}>
+      <Text value={s.wraith ? 'THE WRAITHS' : `[${s.tag}]  ${s.name}`} size={S(24)} color={tagColor} nowrap uiTransform={{ height: S(30) }} />
+      <OutlinedText value={String(v.score[side])} size={S(72)} color={winner ? C.yellow : C.white} />
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', margin: { top: S(6) } }}>
+        {cell('', RES_COLS.name, C.textMuted, 20)}
+        {cell('DEALT', RES_COLS.dealt, C.textMuted, 20)}
+        {cell('TAKEN', RES_COLS.taken, C.textMuted, 20)}
+        {cell('KO', RES_COLS.kos, C.textMuted, 20)}
+        {cell(s.wraith ? '' : 'VALOR', RES_COLS.valor, C.textMuted, 20)}
+      </UiEntity>
+      {s.fighters.map((f) => {
+        const you = v.you === f.id
+        const c = you ? C.white : Color4.create(0.85, 0.82, 0.95, 1)
+        return (
+          <UiEntity key={`res-${side}-${f.id}`} uiTransform={{ width: '100%', height: S(34), flexDirection: 'row', alignItems: 'center' }} uiBackground={you ? { textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(0.64, 0.35, 1, 0.35) } : undefined}>
+            <Text value={you ? `${f.name} (you)` : f.name} size={S(22)} color={c} nowrap align="middle-left" uiTransform={{ width: S(RES_COLS.name), height: S(32), padding: { left: S(10) }, overflow: 'hidden' }} />
+            {cell(String(f.dealt), RES_COLS.dealt, c)}
+            {cell(String(f.taken), RES_COLS.taken, c)}
+            {cell(String(f.kos), RES_COLS.kos, c)}
+            {cell(r && !s.wraith ? `+${r.valor[f.id] ?? 0}` : '', RES_COLS.valor, C.green)}
+          </UiEntity>
+        )
+      })}
+    </UiEntity>
+  )
+}
+
 function ResultCard(props: { v: RaidView }) {
   const v = props.v
   const r = v.result
   const mine = v.mine
   const won = r && mine && r.winner === mine
   const lost = r && mine && r.winner !== 'draw' && r.winner !== mine
-  const title = v.status === 'cancelled' ? 'CALLED OFF' : !mine ? (r && r.winner !== 'draw' ? `${sideTag(v.sides[r.winner])} WIN` : 'DRAW') : won ? 'VICTORY' : lost ? 'DEFEAT' : 'DRAW'
-  const color = v.status === 'cancelled' ? C.textMuted : won ? C.green : lost ? C.red : C.blue
-  const rows = (side: SideId) => {
-    const s = v.sides[side]
-    if (!s) return null
-    return (
-      <UiEntity uiTransform={{ width: S(480), flexDirection: 'column', margin: { left: S(12), right: S(12) } }}>
-        <Text value={`${sideTag(s)}  ${v.score[side]}`} size={S(28)} color={side === 'a' ? C.purple : C.gold} nowrap uiTransform={{ height: S(36) }} />
-        {s.fighters.map((f) => (
-          <UiEntity key={`res-${side}-${f.id}`} uiTransform={{ width: '100%', height: S(30), flexDirection: 'row', alignItems: 'center' }}>
-            <Text value={f.name} size={S(22)} color={v.you === f.id ? C.purple : C.text} nowrap align="middle-left" uiTransform={{ width: S(170), height: S(30), overflow: 'hidden' }} />
-            <Text value={`${f.dealt} dealt · ${f.taken} taken · ${f.kos} KO`} size={S(20)} color={C.textMuted} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(30) }} />
-            {r && !s.wraith ? <Text value={`+${r.valor[f.id] ?? 0} Valor`} size={S(20)} color={C.greenDark} nowrap align="middle-right" uiTransform={{ width: S(100), height: S(30) }} /> : null}
-          </UiEntity>
-        ))}
-      </UiEntity>
-    )
-  }
+  const cancelled = v.status === 'cancelled'
+  const title = cancelled ? 'CALLED OFF' : !mine ? (r && r.winner !== 'draw' ? `${sideTag(v.sides[r.winner])} WIN` : 'DRAW') : won ? 'VICTORY' : lost ? 'DEFEAT' : 'DRAW'
+  const color = cancelled ? C.textMuted : won ? C.green : lost ? C.red : C.blue
+  const sub = cancelled
+    ? (v.feed.length > 0 ? v.feed[v.feed.length - 1].text : '')
+    : v.rules.test ? 'Test raid  •  nothing recorded' : won ? 'Valor banked. Hold the Citadel longer next time for more.' : lost ? 'The buildings pay every clash you hold them. Spread out and strike back.' : 'Even on points.'
   return (
-    <CenterCard width={1100}>
-      <OutlinedText value={title} size={S(52)} color={color} />
-      {v.status !== 'cancelled' ? <Text value={`${sideTag(v.sides.a)} ${v.score.a}  —  ${v.score.b} ${sideTag(v.sides.b)}`} size={S(30)} color={C.text} nowrap uiTransform={{ height: S(40) }} /> : null}
-      {v.status !== 'cancelled' ? (
-        <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(12) } }}>
-          {rows('a')}
-          {rows('b')}
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.7) }}>
+      <OutlinedText value={title} size={S(84)} color={color} />
+      {sub ? <Text value={sub} size={S(22)} color={Color4.create(0.85, 0.82, 0.95, 1)} nowrap uiTransform={{ height: S(30), margin: { top: -S(6) } }} /> : null}
+      {!cancelled ? (
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'flex-start', margin: { top: S(18) } }}>
+          <ResultColumn v={v} side="a" />
+          <ResultColumn v={v} side="b" />
         </UiEntity>
       ) : null}
-      <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(20) } }}>
-        {mine && raid.officer && !raid.spectating ? <Button label="RAID AGAIN" color={C.purple} disabled={raid.busy} size={S(28)} uiTransform={{ width: S(280), height: S(72), margin: { right: S(12) } }} onClick={() => { dismissedResult = v.id; requestStartRaid() }} /> : null}
-        <Button label={raid.spectating ? 'STOP WATCHING' : 'DONE'} color={C.navySoft} sound="cancel" size={S(28)} uiTransform={{ width: S(260), height: S(72) }} onClick={() => { if (raid.spectating) stopSpectating(); else dismissedResult = v.id }} />
+      <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(24) } }}>
+        {mine && raid.officer && !raid.spectating ? <Button label="RAID AGAIN" color={C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(320), height: S(84), margin: { right: S(16) } }} onClick={() => { dismissedResult = v.id; requestStartRaid() }} /> : null}
+        <Button label={raid.spectating ? 'STOP WATCHING' : 'DONE'} color={C.navySoft} sound="cancel" size={S(30)} uiTransform={{ width: S(280), height: S(84) }} onClick={() => { if (raid.spectating) stopSpectating(); else dismissedResult = v.id }} />
       </UiEntity>
-    </CenterCard>
+    </UiEntity>
   )
 }
 
