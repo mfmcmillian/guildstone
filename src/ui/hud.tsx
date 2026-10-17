@@ -63,6 +63,11 @@ export function Toast() {
   )
 }
 
+/** Shared size of the three bottom-right dock buttons (GUILD / HERO / PROFESSIONS) so all three fit above the HUD insets. */
+const DOCK_H = 70
+const DOCK_W = 280
+const DOCK_FONT = FONT.button + 2
+
 export function Hud() {
   // HUD sizes are relative to the real canvas; positions sit inside the explorer's own HUD insets.
   setScale(hudScale())
@@ -199,22 +204,22 @@ export function Hud() {
         <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: canvas.bottom + S(24), right: canvas.right + edgeX }, flexDirection: 'column', alignItems: 'flex-end' }}>
           {/* Guild appears at Lv 5 (or once in one) so the first minutes are just gather -> bank */}
           {showGuild() ? (
-            <UiEntity uiTransform={{ height: S(96), minWidth: S(340), margin: { bottom: S(12) } }}>
+            <UiEntity uiTransform={{ height: S(DOCK_H), minWidth: S(DOCK_W), margin: { bottom: S(8) } }}>
               <Button
                 label={player.guild ? `[${player.guild.tag}]` : 'GUILD'}
                 icon="images/icons/suit.png"
                 color={C.purple}
                 onClick={() => { resetGuildTab(); togglePanel('guild') }}
                 uiTransform={{ width: '100%', height: '100%' }}
-                size={S(FONT.button + 10)}
+                size={S(DOCK_FONT)}
               />
               {/* Unread lobby chat since the Lobby tab was last open (slow background poll; see tickLobbyBackground). */}
               {unreadBadge(settings.alerts ? lobbyUnread() : 0)}
             </UiEntity>
           ) : null}
           {/* HERO: level your raid fighter with base resources (ui/hero.tsx). */}
-          <Button key="hud-hero" label="HERO" icon="images/icons/assassin.png" color={C.red} onClick={() => togglePanel('hero')} uiTransform={{ height: S(96), minWidth: S(340), margin: { bottom: S(12) } }} size={S(FONT.button + 10)} />
-          <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' || stepTarget() === 'relics' ? glow(C.blue) : C.blue} onClick={() => { if (stepTarget() === 'relics') openRelicsTab(); togglePanel('skills') }} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />
+          <Button key="hud-hero" label="HERO" icon="images/icons/assassin.png" color={C.red} onClick={() => togglePanel('hero')} uiTransform={{ height: S(DOCK_H), minWidth: S(DOCK_W), margin: { bottom: S(8) } }} size={S(DOCK_FONT)} />
+          <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' || stepTarget() === 'relics' ? glow(C.blue) : C.blue} onClick={() => { if (stepTarget() === 'relics') openRelicsTab(); togglePanel('skills') }} uiTransform={{ height: S(DOCK_H), minWidth: S(DOCK_W) }} size={S(DOCK_FONT)} />
         </UiEntity>
       )}
     </UiEntity>
