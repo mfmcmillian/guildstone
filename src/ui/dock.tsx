@@ -90,10 +90,10 @@ export function Dock() {
             The crossed-out glyph is the OFF state. Alerts and language are saved on the profile. */}
         <UiEntity uiTransform={{ width: '100%', height: S(44), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(8) } }}>
           <OutlinedText value="ANTROM AFK" size={S(FONT.body + 2)} color={C.yellow} align="middle-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
-          <IconButton icon={languageInfo().flag} size={S(34)} aspect={1.375} uiTransform={{ margin: { right: S(10) } }} onClick={() => { languageOpen = !languageOpen }} />
-          <IconButton icon="images/ui/ic_eye.png" size={S(40)} uiTransform={{ margin: { right: S(6) } }} onClick={() => { languageOpen = false; ui.hidden = true }} />
-          <IconButton icon={settings.alerts ? 'images/ui/ic_bell.png' : 'images/ui/ic_bell_off.png'} size={S(40)} uiTransform={{ margin: { right: S(6) } }} onClick={() => setAlerts(!settings.alerts)} />
-          <IconButton icon={isMuted() ? 'images/ui/ic_sound_off.png' : 'images/ui/ic_sound.png'} size={S(40)} onClick={() => setMuted(!isMuted())} />
+          <IconButton icon={languageInfo().flag} size={S(34)} aspect={1.375} uiTransform={{ margin: { right: S(16) } }} onClick={() => { languageOpen = !languageOpen }} />
+          <IconButton icon="images/ui/ic_eye.png" size={S(42)} uiTransform={{ margin: { right: S(14) } }} onClick={() => { languageOpen = false; ui.hidden = true }} />
+          <IconButton icon={settings.alerts ? 'images/ui/ic_bell.png' : 'images/ui/ic_bell_off.png'} size={S(42)} uiTransform={{ margin: { right: S(14) } }} onClick={() => setAlerts(!settings.alerts)} />
+          <IconButton icon={isMuted() ? 'images/ui/ic_sound_off.png' : 'images/ui/ic_sound.png'} size={S(42)} onClick={() => setMuted(!isMuted())} />
         </UiEntity>
         {languageOpen ? (
           // Language picker: one row of flags with native names; the current one sits on a purple pill.
