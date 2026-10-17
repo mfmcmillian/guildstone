@@ -70,9 +70,12 @@ const PURPLE_LIGHT = Color4.fromHexString('#c9a3ffff')
 const DARK = Color4.create(0.106, 0.141, 0.212, 0.88)
 const DARK_SOFT = Color4.create(0.165, 0.208, 0.314, 0.92)
 const DIM = Color4.create(0, 0, 0, 0.55)
-const GLOW_GOLD = Color4.create(1, 0.82, 0.25, 0.32)
-const GLOW_PURPLE = Color4.create(0.64, 0.35, 1, 0.28)
-const CLEAR = Color4.create(0, 0, 0, 0)
+// Tints for the building-shaped glow masks (white silhouette halo + faint body fill, alpha baked into the PNG).
+const GLOW_GOLD = Color4.create(1, 0.82, 0.25, 1)
+const GLOW_PURPLE = Color4.create(0.7, 0.4, 1, 0.9)
+const GLOW_HEADING = Color4.create(1, 0.82, 0.25, 0.45)
+// glow_<point>_v1.png covers the hit box plus this margin on every side (design px), see mock/opt/glows.js.
+const GLOW_PAD = 40
 const sideColor = (side: SideId | null) => (side === 'a' ? PURPLE_LIGHT : side === 'b' ? C.yellow : C.gray)
 const hpColor = (f: Fighter) => (f.hp <= 0 ? C.red : f.hp / f.hpMax < 0.3 ? C.red : f.hp / f.hpMax < 0.6 ? C.orange : C.green)
 const left = (until: number) => timerText(until - raid.clockOffset)
@@ -276,11 +279,10 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
   const here = me.state === 'in' && me.at === point
   const heading = me.state === 'walk' && me.target === point
   const hovered = hoverPoint === point && !here
-  const color = hovered ? GLOW_GOLD : here ? GLOW_PURPLE : heading ? Color4.create(1, 0.82, 0.25, 0.14) : CLEAR
+  const color = hovered ? GLOW_GOLD : here ? GLOW_PURPLE : heading ? GLOW_HEADING : null
   return (
     <UiEntity
       uiTransform={{ positionType: 'absolute', position: { left: px(cx) - S(w) / 2, top: py(cy) - S(h) / 2 }, width: S(w), height: S(h), alignItems: 'center', justifyContent: 'flex-end' }}
-      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circleFlat }, textureSlices: SLICE_128, color }}
       onMouseEnter={() => { hoverPoint = point }}
       onMouseLeave={() => { if (hoverPoint === point) hoverPoint = null }}
       onMouseDown={() => {
@@ -288,6 +290,13 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
         requestGo(point)
       }}
     >
+      {color ? (
+        // Building-shaped halo: a white mask cut from the battlefield art, tinted. Does not take the pointer, so the hit box above stays the target.
+        <UiEntity
+          uiTransform={{ positionType: 'absolute', position: { left: -S(GLOW_PAD), top: -S(GLOW_PAD) }, width: S(w + GLOW_PAD * 2), height: S(h + GLOW_PAD * 2), pointerFilter: 'none' }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: `${ART}/glow_${point}_v1.png` }, color }}
+        />
+      ) : null}
       {hovered ? (
         <UiEntity uiTransform={{ height: S(40), padding: { left: S(20), right: S(20) }, margin: { bottom: -S(20) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: C.yellow }}>
           <OutlinedText value={heading ? 'ON YOUR WAY' : 'GO'} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
