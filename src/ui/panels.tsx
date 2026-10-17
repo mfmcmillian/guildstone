@@ -5,7 +5,7 @@ import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer } fro
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
 import { DragId, dragOffset, startDrag } from './drag'
-import { share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
+import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import {
   GuildInfo,
   player,
@@ -77,7 +77,7 @@ import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
-import { canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
+import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
 import { crownHolder, isCrownHolder, refreshBoard } from '../lobby'
 import { stepTarget } from './guide'
 
@@ -151,16 +151,16 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
         value={set ? piece.name.replace('Ether Assassin ', '').toUpperCase() : piece.name.toUpperCase()}
         size={S(26)}
         color={owned ? C.white : C.textMuted}
-        uiTransform={{ margin: { top: S(10) } }}
+        uiTransform={{ width: '100%', margin: { top: S(10) } }}
       />
-      <Text
-        // Set pieces: rarity + list price so the cheapest-first order explains itself; wearing any N pieces is suit level N.
-        value={set ? `${(piece.rarity ?? '').toUpperCase()}  •  ${piece.mana ?? '?'} MANA` : `Tier ${level} drops  •  +${SUIT_CAP[level]} bag`}
-        size={S(22)}
-        color={owned ? C.text : C.textMuted}
-        nowrap
-        uiTransform={{ height: S(30) }}
-      />
+      {set ? (
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(2) } }}>
+          <Text value={(piece.rarity ?? '').toUpperCase()} size={S(20)} color={owned ? C.text : C.textMuted} nowrap uiTransform={{ width: '100%', height: S(26) }} />
+          <Text value={piece.usd != null ? assassinPriceLine(piece.usd) : ''} size={S(20)} color={owned ? C.text : C.textMuted} nowrap uiTransform={{ width: '100%', height: S(26) }} />
+        </UiEntity>
+      ) : (
+        <Text value={`Tier ${level} drops  •  +${SUIT_CAP[level]} bag`} size={S(20)} color={owned ? C.text : C.textMuted} nowrap uiTransform={{ width: '100%', height: S(30) }} />
+      )}
       {recipe ? (
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(8) } }}>
           <Text value={`Lv ${recipe.level}${prevOwned ? '' : `  •  own L${level - 1} first`}`} size={S(20)} color={levelOk && prevOwned ? C.greenDark : C.red} nowrap uiTransform={{ height: S(26) }} />
@@ -216,12 +216,20 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
           onClick={() => (set ? toggleSet(true) : requestEquipSuit(skill, level))}
         />
       ) : (
-        <Text
-          value={checking ? 'CHECKING…' : set ? (index === 0 ? 'START HERE  •  cheapest piece in the Marketplace' : `NOT OWNED  •  any ${level} pieces worn = suit L${level}`) : 'NOT OWNED'}
-          size={S(20)}
-          color={set && index === 0 ? C.greenDark : C.textMuted}
-          uiTransform={{ height: S(64) }}
-        />
+        checking ? (
+          <Text value="CHECKING…" size={S(20)} color={C.textMuted} uiTransform={{ height: S(64) }} />
+        ) : set ? (
+          <Button
+            key={`buy-${piece.urn}`}
+            label="MARKETPLACE"
+            color={C.purple}
+            size={S(24)}
+            uiTransform={{ width: S(240), height: S(64) }}
+            onClick={() => openUrl(pieceMarketplaceUrl(piece))}
+          />
+        ) : (
+          <Text value="NOT OWNED" size={S(20)} color={C.textMuted} uiTransform={{ height: S(64) }} />
+        )
       )}
     </UiEntity>
   )
@@ -257,12 +265,10 @@ function SuitRow(props: { key?: string; skill: Skill }) {
         <Text value={st.suit > 0 ? `Tier ${st.suit} drops unlocked` : `Base ${info.resource} only`} size={S(24)} color={st.suit > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} />
         <Text value={st.suit > 0 ? `+${suitBag(st.suit)} backpack` : `no backpack bonus`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
         {set ? (
-          <Text
-            value={pieces > 0 ? `${wornPieces} / ${pieces} owned pieces worn  •  each piece = +1 level` : 'Own Ether Assassin pieces to equip'}
-            size={S(20)}
-            color={wornPieces > 0 ? C.greenDark : C.textMuted}
-            uiTransform={{ height: S(56), margin: { top: S(8) } }}
-          />
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(8) } }}>
+            <Text value={pieces > 0 ? `${wornPieces} / ${pieces} worn` : 'Buy pieces to equip'} size={S(20)} color={wornPieces > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ width: '100%', height: S(26) }} />
+            <Text value="each piece = +1 suit level" size={S(20)} color={C.textMuted} nowrap uiTransform={{ width: '100%', height: S(26) }} />
+          </UiEntity>
         ) : null}
       </Panel>
       {[0, 1, 2, 3].map((index) => <SuitNftCard key={`${s}-${index}`} skill={s} index={index} />)}
@@ -317,7 +323,7 @@ function SuitsTab() {
       <SuitRow skill={suitsSkill} />
       <Text
         value={costHint ?? (isSetLine(suitsSkill)
-          ? 'Ether Assassin pieces are bought in the Marketplace. Each worn piece counts as one suit level.'
+          ? 'Tap MARKETPLACE to buy. USD mint, paid in MANA. Each worn piece is one suit level.'
           : `Craft ${SKILL_INFO[suitsSkill].name} suits here with materials and coins: the wearable is minted to your wallet. Wear it to unlock the next tier of drops in the ${SKILL_INFO[suitsSkill].zoneName}; every worn suit also adds bag space.`)}
         size={S(24)}
         color={costHint ? C.gold : C.textMuted}

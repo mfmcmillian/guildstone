@@ -10,15 +10,19 @@ export const SITE_URL = 'https://guildstone.dev'
 export const SHARE_BERRIES = 3
 const SHARE_COOLDOWN_MS = 20 * 60 * 60 * 1000
 
-/** Needs ALLOW_TO_OPEN_EXTERNAL_LINK in scene.json; the client shows its own "open this link?" confirmation. */
-export function openSite(path = '') {
+/** Needs OPEN_EXTERNAL_LINK in scene.json; the client shows its own "open this link?" confirmation. */
+export function openUrl(url: string) {
   executeTask(async () => {
     try {
-      await openExternalUrl({ url: `${SITE_URL}${path}` })
+      await openExternalUrl({ url })
     } catch (error) {
       console.error('[links] open failed:', error instanceof Error ? error.message : String(error))
     }
   })
+}
+
+export function openSite(path = '') {
+  openUrl(`${SITE_URL}${path}`)
 }
 
 export const share = {

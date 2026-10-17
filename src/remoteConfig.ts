@@ -9,7 +9,9 @@ export const remoteConfig = {
   camp: { open: false, name: 'Antrom Camp', coords: '144,-7' },
   ringDepot: true,
   /** Antrom Relics collection, once minted: item URNs by kind and whether each can be crafted right now. */
-  relics: { collection: null as string | null, items: {} as Partial<Record<string, string>>, craftable: {} as Partial<Record<string, boolean>> }
+  relics: { collection: null as string | null, items: {} as Partial<Record<string, string>>, craftable: {} as Partial<Record<string, boolean>> },
+  /** Live USD per 1 MANA (0 until the first quote). Assassin mint prices are USD-pegged and paid in MANA. */
+  manaUsd: 0
 }
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -43,10 +45,35 @@ export function refreshRemoteConfig() {
         }
       }
       remoteConfig.loaded = true
+      await refreshManaUsd()
     } catch (error) {
       console.error('[config] Remote config failed:', error instanceof Error ? error.message : String(error))
     }
   })
+}
+
+/** Same sources as guildstone.dev: CoinGecko, then Binance. */
+async function refreshManaUsd() {
+  const sources: Array<[string, (body: unknown) => number]> = [
+    ['https://api.coingecko.com/api/v3/simple/price?ids=decentraland&vs_currencies=usd', (body) => {
+      const n = Number((body as { decentraland?: { usd?: unknown } })?.decentraland?.usd)
+      return n
+    }],
+    ['https://api.binance.com/api/v3/ticker/price?symbol=MANAUSDT', (body) => Number((body as { price?: unknown })?.price)]
+  ]
+  for (const [url, read] of sources) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) continue
+      const n = read(await response.json())
+      if (Number.isFinite(n) && n > 0) {
+        remoteConfig.manaUsd = n
+        return
+      }
+    } catch {
+      /* try the next source */
+    }
+  }
 }
 
 /** Where to send players for the economy stations, phrased for the HUD. */

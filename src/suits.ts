@@ -15,9 +15,9 @@ export const ASSASSIN_COLLECTION = 'urn:decentraland:matic:collections-v2:0x0bf1
 export interface SuitPiece {
   urn: string
   name: string
-  /** Set pieces only: marketplace rarity and list price, shown on the card so the buy order is obvious. */
+  /** Set pieces only: marketplace rarity and USD mint price. The shop charges that amount in MANA at the live rate. */
   rarity?: string
-  mana?: number
+  usd?: number
 }
 
 /** Per profession, 4 entries. For tiered lines index = level−1; for set lines index = piece. */
@@ -26,13 +26,34 @@ const SUIT_PIECES: Record<Skill, SuitPiece[]> = {
   lumberjack: [1, 4, 7, 10].map((id, i) => ({ urn: `${SUIT_COLLECTION}:${id}`, name: `Lumberjack L${i + 1}` })),
   miner: [2, 5, 8, 11].map((id, i) => ({ urn: `${SUIT_COLLECTION}:${id}`, name: `Miner L${i + 1}` })),
   // Cheapest first. The set has no order (suit level = pieces worn), so list it the way a player should buy.
-  // Prices are marketplace list prices as of 2026-10-14.
+  // usd is the Builder mint price (USD). Marketplace stores USD-wei and charges MANA at the live rate.
   assassin: [
-    { urn: `${ASSASSIN_COLLECTION}:1`, name: 'Ether Assassin Gloves', rarity: 'Rare', mana: 3 },
-    { urn: `${ASSASSIN_COLLECTION}:2`, name: 'Ether Assassin Armor', rarity: 'Epic', mana: 6.5 },
-    { urn: `${ASSASSIN_COLLECTION}:3`, name: 'Ether Assassin Pants', rarity: 'Legendary', mana: 19 },
-    { urn: `${ASSASSIN_COLLECTION}:0`, name: 'Ether Assassin Boots', rarity: 'Exotic', mana: 37.5 }
+    { urn: `${ASSASSIN_COLLECTION}:1`, name: 'Ether Assassin Gloves', rarity: 'Rare', usd: 3 },
+    { urn: `${ASSASSIN_COLLECTION}:2`, name: 'Ether Assassin Armor', rarity: 'Epic', usd: 6.5 },
+    { urn: `${ASSASSIN_COLLECTION}:3`, name: 'Ether Assassin Pants', rarity: 'Legendary', usd: 19 },
+    { urn: `${ASSASSIN_COLLECTION}:0`, name: 'Ether Assassin Boots', rarity: 'Exotic', usd: 37.5 }
   ]
+}
+
+/** Decentraland Marketplace item page for a wearable URN. */
+export function pieceMarketplaceUrl(piece: SuitPiece): string {
+  const parts = piece.urn.split(':')
+  return `https://decentraland.org/marketplace/contracts/${parts[parts.length - 2]}/items/${parts[parts.length - 1]}`
+}
+
+/** `$3` / `$6.50` — USD mint, paid in MANA. */
+export function usdLabel(n: number): string {
+  return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`
+}
+
+/** Matches guildstone.dev: `~12 MANA · $3` once the live rate is in, otherwise just `$3`. */
+export function assassinPriceLine(usd: number): string {
+  const dollars = usdLabel(usd)
+  const rate = remoteConfig.manaUsd
+  if (!(rate > 0)) return dollars
+  const mana = usd / rate
+  const manaText = mana >= 10 ? String(Math.round(mana)) : mana.toFixed(1)
+  return `~${manaText} MANA · ${dollars}`
 }
 
 /** True when the line is a set: the suit level comes from how many pieces you own, not which one. */
