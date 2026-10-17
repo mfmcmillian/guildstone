@@ -557,50 +557,38 @@ function BoardRow(props: { key?: string; e: BoardEntry }) {
   )
 }
 
+// Intro screen: the battlefield dimmed under the ANTROM STORM logo and one big START RAID button. Live raids from
+// other guilds (ANSWER / WATCH) list underneath when there are any.
+const LOGO = `${ART}/antrom_storm_v1.png`
+const LOGO_W = 760
+const LOGO_H = Math.round(LOGO_W * (538 / 867))
 function IdleScreen() {
   const g = player.guild
   const sum = raid.summary ?? g?.raid ?? null
-  const me = raid.me
-  const stats = me?.stats ?? null
   const today = new Date(serverNow()).toISOString().slice(0, 10)
   const used = sum && sum.day === today ? sum.count : 0
   const perDay = raid.rules.raidsPerDay
   const leftToday = raid.tester ? 1 : Math.max(0, perDay - used)
-  const loading = raid.loadedAt === 0 || (raid.summary === null && raid.busy)
+  const canStart = raid.officer && leftToday > 0 && !raid.busy
+  const error = raid.error && Date.now() - raid.errorAt < 6000 ? raid.error : ''
+  const note = error
+    ? error
+    : !raid.officer ? 'Only the leader and royal guard can call or answer a raid. You can JOIN once one is called.'
+    : raid.tester ? 'Tester: your raids start with one fighter and are not recorded'
+    : `${leftToday} of ${perDay} raids left today`
   return (
-    <CenterCard width={1180}>
-      <OutlinedText value="SHADOW RAID" size={S(48)} color={C.purple} />
-      <Text value={`${Math.round((raid.rules.ticks * raid.rules.tickMs) / 60000)} minutes, ${raid.rules.sideMin}–${raid.rules.sideMax} a side. Hold buildings when the tick lands. Most points wins.`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
-      {stats ? (
-        <Text value={`Your Assassin:  HP ${stats.hp}   ATK ${stats.atk}   (Lv ${stats.level} · Dagger ${stats.dagger}${stats.set > 0 ? ` · Set ${stats.set}` : ''}${stats.vip > 0 ? ` · ${vipText(stats.vip)}` : ''})`} size={S(26)} color={C.text} nowrap uiTransform={{ height: S(36), margin: { top: S(10) } }} />
-      ) : (
-        <Text value={loading ? 'Reading the field...' : 'Your Assassin level, Dagger tier, set pieces and VIP make your HP and ATK.'} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { top: S(10) } }} />
-      )}
-      <Text value={sum ? `${g ? `[${g.tag}]` : ''}  WINS ${sum.wins}  •  LOSSES ${sum.losses}  •  DRAWS ${sum.draws}  •  VALOR ${sum.score}${me ? `      YOU  •  ${me.valor} Valor  •  ${me.raids} raids  •  ${me.kos} KOs` : ''}` : ''} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
-      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(16) } }}>
-        {raid.officer ? (
-          <Button label="RAID" color={leftToday > 0 ? C.purple : C.gray} textColor={leftToday > 0 ? C.white : C.textMuted} disabled={raid.busy || leftToday === 0} size={S(32)} uiTransform={{ width: S(300), height: S(84), margin: { right: S(20) } }} onClick={() => requestStartRaid()} />
-        ) : null}
-        <Text value={raid.tester ? 'Tester: your raids start with one fighter and are not recorded' : raid.officer ? `${leftToday} of ${perDay} left today  •  ${Math.round(raid.rules.gatherMs / 1000)} s to gather  •  Wraiths fill in if nobody answers` : 'Only the leader and royal guard can call or answer a raid. You can JOIN once one is called.'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ width: 'auto', height: S(30) }} />
-      </UiEntity>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.66) }}>
+      <UiEntity uiTransform={{ width: S(LOGO_W), height: S(LOGO_H) }} uiBackground={{ textureMode: 'stretch', texture: { src: LOGO } }} />
+      <Button label="START RAID" color={canStart ? C.purple : C.gray} textColor={canStart ? C.white : C.textMuted} disabled={!canStart} size={S(36)} uiTransform={{ width: S(440), height: S(100), margin: { top: S(6) } }} onClick={() => requestStartRaid()} />
+      <Text value={note} size={S(22)} color={error ? C.red : Color4.create(0.85, 0.82, 0.95, 1)} nowrap uiTransform={{ height: S(32), margin: { top: S(14) } }} />
+      {sum ? <Text value={g ? `[${g.tag}]  WINS ${sum.wins}  •  LOSSES ${sum.losses}  •  DRAWS ${sum.draws}  •  VALOR ${sum.score}` : `WINS ${sum.wins}  •  LOSSES ${sum.losses}  •  DRAWS ${sum.draws}  •  VALOR ${sum.score}`} size={S(20)} color={Color4.create(0.7, 0.66, 0.85, 1)} nowrap uiTransform={{ height: S(28), margin: { top: S(2) } }} /> : null}
       {raid.board.length > 0 ? (
-        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', margin: { top: S(18) } }}>
-          <Text value="RAIDS GOING ON RIGHT NOW" size={S(22)} color={C.textMuted} nowrap align="middle-left" uiTransform={{ height: S(28) }} />
-          {raid.board.slice(0, 4).map((e) => <BoardRow key={`board-${e.id}`} e={e} />)}
-        </UiEntity>
-      ) : (
-        <Text value="No other guild is raiding right now." size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(18) } }} />
-      )}
-      {sum && sum.history.length > 0 ? (
-        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', margin: { top: S(14) } }}>
-          <Text value="LAST RAIDS" size={S(22)} color={C.textMuted} nowrap align="middle-left" uiTransform={{ height: S(28) }} />
-          {sum.history.slice(0, 5).map((h) => (
-            <Text key={`hist-${h.id}`} value={`${h.outcome.toUpperCase()}  ${h.mine}–${h.theirs}  vs ${h.wraith ? 'the Wraiths' : `[${h.vsTag}]`}`} size={S(22)} color={h.outcome === 'win' ? C.greenDark : h.outcome === 'loss' ? C.red : C.textMuted} nowrap align="middle-left" uiTransform={{ height: S(28) }} />
-          ))}
+        <UiEntity uiTransform={{ width: S(1100), flexDirection: 'column', margin: { top: S(18) }, padding: { left: S(24), right: S(24), top: S(10), bottom: S(14) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.06, 0.05, 0.12, 0.8) }}>
+          <Text value="RAIDS GOING ON RIGHT NOW" size={S(20)} color={C.textMuted} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
+          {raid.board.slice(0, 3).map((e) => <BoardRow key={`board-${e.id}`} e={e} />)}
         </UiEntity>
       ) : null}
-      {raid.error && Date.now() - raid.errorAt < 6000 ? <Text value={raid.error} size={S(22)} color={C.red} nowrap uiTransform={{ height: S(30), margin: { top: S(8) } }} /> : null}
-    </CenterCard>
+    </UiEntity>
   )
 }
 

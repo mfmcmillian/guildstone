@@ -1,5 +1,7 @@
 # Shadow Raid — guild combat for AntromAFK
 
+Player-facing name: **Antrom Storm** (window title `[TAG]  ANTROM STORM`, logo `img/raid/antrom_storm_v1.png` on the intro screen). "Shadow Raid" stays as the internal/code name.
+
 Status: MVP1 built on branch `bases-combat` (2026-10-17). Server: `dcl-firebase-backend/api/afkRaid.js`. Client: `src/raid.ts`, `src/ui/raid.tsx` (the WAR window), art served from `https://guildstone.dev/img/raid/` (guildstone-web `img/raid/`, versioned file names because img/ is cached a week; sources and the grid cutter in `C:/Users/matth/mock/opt`).
 
 Supersedes the Hold & Warband design (troops, bases, 24h marches). There are no troops: every player **is** their Assassin, and a raid is five minutes long.

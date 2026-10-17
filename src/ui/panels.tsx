@@ -1600,7 +1600,7 @@ export function GuildPanel() {
   const title = guild ? `[${guild.tag}] GUILD` : 'GUILD'
   // WAR takes the whole screen: the battlefield wants every pixel it can get, and the frame added nothing there.
   if (guild && guildTab === 'war') {
-    return <WarScreen title={`[${guild.tag}]  SHADOW RAID`} onBack={() => { guildTab = 'home' }} onClose={closePanel} />
+    return <WarScreen title={`[${guild.tag}]  ANTROM STORM`} onBack={() => { guildTab = 'home' }} onClose={closePanel} />
   }
   return (
     // Movable window: grab the title tab (see drag.ts).
