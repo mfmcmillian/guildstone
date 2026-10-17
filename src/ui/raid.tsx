@@ -4,18 +4,35 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, SLICE_PILL } from './theme'
-import { OutlinedText, Text, Panel, Button, Bar, timerText } from './components'
-import { S, getCanvas, setScale, CONTENT_W } from './responsive'
+import { OutlinedText, Text, Panel, Button, Bar, Modal, timerText } from './components'
+import { S, fitModal, CONTENT_W } from './responsive'
+import { dragOffsetPx, startDrag } from './drag'
 import { player } from '../state'
 import {
   BoardEntry, Fighter, PointId, POINT_IDS, POINT_LABEL, RaidView, Side, SideId,
-  myFighter, pollRaid, raid, refreshRaid, requestAnswerRaid, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestStartRaid,
+  myFighter, pollRaid, raid, refreshRaid, requestAnswerRaid, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestSkip, requestStartRaid,
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating, sumAtk
 } from '../raid'
 
 const BG = 'images/raid/battlefield.jpg'
 const SHEET: Record<SideId, string> = { a: 'images/raid/assassin.png', b: 'images/raid/assassin_enemy.png' }
-const FRAMES = 4
+/**
+ * Sprite sheet layout: one row per animation, frames left to right, every frame the same square, facing right.
+ * The current sheets are a single 4-frame row, so every animation plays that row; when the full sheets land, set
+ * ROWS to 5 and the per-animation row/frames below (idle 0, walk 1, attack 2, hit 3, ko 4).
+ */
+type Anim = 'idle' | 'walk' | 'attack' | 'hit' | 'ko'
+const SHEET_COLS = 4
+const SHEET_ROWS = 1
+const ANIM: Record<Anim, { row: number; frames: number; ms: number }> = {
+  idle: { row: 0, frames: 1, ms: 400 },
+  walk: { row: 0, frames: 4, ms: 130 },
+  attack: { row: 0, frames: 4, ms: 90 },
+  hit: { row: 0, frames: 1, ms: 120 },
+  ko: { row: 0, frames: 4, ms: 220 }
+}
+const HIT_FLASH_MS = 320
+const FLOAT_MS = 1300
 const W = CONTENT_W
 const H = 920
 const px = (x: number) => S((x / 100) * W)
@@ -57,7 +74,12 @@ let dismissedResult = ''
 const lastSeen: Record<string, PointId | 'camp'> = {}
 
 /** Live position of a fighter in design px (feet). */
-function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: number; y: number; frame: number; flip: boolean } {
+/** Both sides standing with HP in the same building: the fight is on there. */
+function contested(v: RaidView, point: PointId): boolean {
+  return standingAt(v.sides.a, point).length > 0 && standingAt(v.sides.b, point).length > 0
+}
+
+function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: number; y: number; anim: Anim; frame: number; flip: boolean } {
   const key = `${v.id}:${f.id}`
   const spot = (where: PointId | 'camp', i: number): [number, number] => {
     const base = where === 'camp' ? CAMP[side] : FIELD[where].stand
@@ -66,13 +88,21 @@ function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: 
   }
   if (f.state === 'in' && f.at) lastSeen[key] = f.at
   if (f.state === 'camp') lastSeen[key] = 'camp'
+  const now = Date.now()
   if (f.state === 'in' && f.at) {
     const [x, y] = spot(f.at, index)
-    return { x, y, frame: 0, flip: side === 'b' }
+    if (f.hp > 0 && contested(v, f.at)) {
+      // Attack loop: step toward the enemy and back on a per-fighter phase so a pack doesn't move in lockstep.
+      const period = ANIM.attack.frames * ANIM.attack.ms
+      const phase = ((now + index * 173) % period) / period
+      const lunge = Math.sin(phase * Math.PI) * 1.4 * (side === 'a' ? 1 : -1)
+      return { x: x + lunge, y, anim: 'attack', frame: Math.floor(((now + index * 173) % period) / ANIM.attack.ms), flip: side === 'b' }
+    }
+    return { x, y, anim: 'idle', frame: Math.floor(now / ANIM.idle.ms) % ANIM.idle.frames, flip: side === 'b' }
   }
   if (f.state === 'camp') {
     const [x, y] = spot('camp', index)
-    return { x, y, frame: 0, flip: side === 'b' }
+    return { x, y, anim: 'idle', frame: Math.floor(now / ANIM.idle.ms) % ANIM.idle.frames, flip: side === 'b' }
   }
   // Walking (by choice or knocked out).
   const from = lastSeen[key] ?? 'camp'
@@ -81,18 +111,58 @@ function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: 
   const [tx, ty] = spot(to, index)
   const total = f.state === 'ko' ? v.rules.koWalkMs : to === 'camp' ? v.rules.homeMs : v.rules.walkMs
   const t = Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total))
+  const anim: Anim = f.state === 'ko' ? 'ko' : 'walk'
+  const frame = Math.floor(now / ANIM[anim].ms) % ANIM[anim].frames
+  return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, anim, frame, flip: tx < fx }
+}
+
+// Damage feedback. HP only changes when a poll lands, so the drop is turned into a floating number and a red flash.
+const lastHp: Record<string, number> = {}
+const hitAt: Record<string, number> = {}
+let floats: { id: string; text: string; color: Color4; x: number; y: number; at: number }[] = []
+function noteDamage(v: RaidView, f: Fighter, x: number, y: number) {
+  const key = `${v.id}:${f.id}`
+  const prev = lastHp[key]
+  lastHp[key] = f.hp
+  if (prev === undefined || f.hp >= prev) return
   const now = Date.now()
-  const frame = Math.floor(now / (f.state === 'ko' ? 220 : 130)) % FRAMES
-  return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, frame, flip: tx < fx }
+  hitAt[key] = now
+  floats.push({ id: `${key}:${now}`, text: `-${prev - f.hp}`, color: C.red, x, y, at: now })
+  if (f.hp <= 0) floats.push({ id: `${key}:ko:${now}`, text: 'KO!', color: C.yellow, x, y: y - 6, at: now + 200 })
+  if (floats.length > 40) floats = floats.slice(-40)
+}
+function Floats() {
+  const now = Date.now()
+  floats = floats.filter((d) => now - d.at < FLOAT_MS)
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%' }}>
+      {floats.filter((d) => now >= d.at).map((d) => {
+        const t = (now - d.at) / FLOAT_MS
+        const alpha = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4
+        return (
+          <UiEntity key={d.id} uiTransform={{ positionType: 'absolute', position: { left: px(d.x) - S(60), top: py(d.y) - S(TOKEN + 40) - S(70) * t }, width: S(120), height: S(40), alignItems: 'center', justifyContent: 'center' }}>
+            <OutlinedText value={d.text} size={S(d.text === 'KO!' ? 34 : 28)} color={Color4.create(d.color.r, d.color.g, d.color.b, alpha)} />
+          </UiEntity>
+        )
+      })}
+    </UiEntity>
+  )
 }
 
 function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; index: number }) {
   const { v, side, f } = props
   const p = fighterPos(v, side, f, props.index)
-  const u0 = p.frame / FRAMES
-  const u1 = (p.frame + 1) / FRAMES
-  const uvs = p.flip ? [u1, 0, u1, 1, u0, 1, u0, 0] : [u0, 0, u0, 1, u1, 1, u1, 0]
+  noteDamage(v, f, p.x, p.y)
+  const flashing = Date.now() - (hitAt[`${v.id}:${f.id}`] ?? 0) < HIT_FLASH_MS
+  const row = flashing && ANIM.hit.row !== ANIM.idle.row ? ANIM.hit.row : ANIM[p.anim].row
+  const u0 = p.frame / SHEET_COLS
+  const u1 = (p.frame + 1) / SHEET_COLS
+  // uvs run bottom-left, top-left, top-right, bottom-right; v=1 is the top of the texture.
+  const v1 = 1 - row / SHEET_ROWS
+  const v0 = 1 - (row + 1) / SHEET_ROWS
+  const uvs = p.flip ? [u1, v0, u1, v1, u0, v1, u0, v0] : [u0, v0, u0, v1, u1, v1, u1, v0]
   const ko = f.state === 'ko' || f.hp <= 0
+  const tint = ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : flashing ? Color4.create(1, 0.45, 0.45, 1) : C.white
   const you = v.you === f.id
   const size = S(TOKEN)
   return (
@@ -107,7 +177,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           <Text value={you ? 'YOU' : f.name.toUpperCase().slice(0, 8)} size={S(20)} color={you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
-      <UiEntity uiTransform={{ width: size, height: size }} uiBackground={{ textureMode: 'stretch', texture: { src: SHEET[side] }, uvs, color: ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : C.white }} />
+      <UiEntity uiTransform={{ width: size, height: size }} uiBackground={{ textureMode: 'stretch', texture: { src: SHEET[side] }, uvs, color: tint }} />
       <UiEntity uiTransform={{ width: S(64), height: S(10), margin: { top: S(2) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}>
         <UiEntity uiTransform={{ width: `${Math.max(0, Math.min(100, (f.hp / f.hpMax) * 100))}%`, height: '100%' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: hpColor(f) }} />
       </UiEntity>
@@ -347,6 +417,8 @@ function BottomBar(props: { v: RaidView }) {
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
         {me && v.status === 'live' && me.state === 'in' ? <Button label="BACK TO CAMP" color={C.blue} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(240), height: S(60), margin: { right: S(12) } }} onClick={() => requestHome()} /> : null}
         {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE RAID" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(220), height: S(60) }} onClick={() => requestLeaveRaid()} /> : null}
+        {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(200), height: S(60), margin: { left: S(12) } }} onClick={() => requestSkip('next')} /> : null}
+        {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(160), height: S(60), margin: { left: S(12) } }} onClick={() => requestSkip('end')} /> : null}
         {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(260), height: S(60) }} onClick={() => stopSpectating()} /> : null}
       </UiEntity>
     </UiEntity>
@@ -361,6 +433,7 @@ function Field(props: { v: RaidView }) {
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%' }}>
       {POINT_IDS.map((p) => <Marker key={`marker-${p}`} v={v} point={p} />)}
       <Tokens v={v} />
+      <Floats />
       {canMove ? POINT_IDS.map((p) => <HitArea key={`hit-${p}`} v={v} point={p} me={me!} />) : null}
       <Roster v={v} side="a" />
       <Roster v={v} side="b" />
@@ -529,26 +602,21 @@ export function WarTab(props: { height: number }) {
  * The WAR tab as a full-screen view: the battlefield scales to fill the screen (letterboxed, never cropped so the
  * rosters stay on) under a slim bar with BACK (to the guild window), the title and CLOSE.
  */
-const SCREEN_BAR = 70
+// Own window: the field fills the frame's content area (same width as the guild window, shorter), the title tab
+// drags it like the other windows (saved as uiLayout.war) and a GUILD tab at the bottom-left goes back.
+const WAR_FRAME_W = 1850
+const WAR_FRAME_H = H + 36 * 2 + 26
 export function WarScreen(props: { title: string; onBack: () => void; onClose: () => void }) {
-  const canvas = getCanvas()
-  const availW = canvas.width - canvas.left - canvas.right
-  const availH = canvas.height - canvas.top - canvas.bottom
-  const scale = Math.max(0.3, Math.min(availW / W, availH / (H + SCREEN_BAR)))
-  setScale(scale)
-  const fieldW = S(W)
+  const fit = fitModal(WAR_FRAME_W, WAR_FRAME_H)
+  const o = dragOffsetPx('war')
+  const s = fit.scale
   return (
-    <UiEntity
-      uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', padding: { top: canvas.top, bottom: canvas.bottom, left: canvas.left, right: canvas.right } }}
-      uiBackground={{ color: Color4.create(0.07, 0.09, 0.14, 1) }}
-    >
-      <UiEntity uiTransform={{ width: fieldW, height: S(SCREEN_BAR), flexDirection: 'row', alignItems: 'center' }}>
-        <Button label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(200), height: S(56) }} onClick={props.onBack} />
-        <OutlinedText value={props.title} size={S(34)} color={C.purple} uiTransform={{ flexGrow: 1, height: S(56) }} />
-        <Button label="CLOSE" color={C.red} sound="cancel" size={S(22)} uiTransform={{ width: S(160), height: S(56) }} onClick={props.onClose} />
-      </UiEntity>
+    <Modal title={props.title} color={C.purple} width={WAR_FRAME_W} height={WAR_FRAME_H} scale={s} offsetX={fit.offsetX + o.dx} offsetY={o.dy} titleSize={52} titleWidth={Math.max(420, props.title.length * 40)} onTitleDown={() => startDrag('war')} onClose={props.onClose}>
       <WarTab height={H} />
-    </UiEntity>
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s - 36 * s, left: 0 }, width: 220 * s, height: 68 * s }}>
+        <Button label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onBack} />
+      </UiEntity>
+    </Modal>
   )
 }
 

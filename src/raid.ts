@@ -113,7 +113,7 @@ export const raid = {
 /** Server time right now, as the client best knows it. */
 export const serverNow = () => Date.now() + raid.clockOffset
 
-type RaidAction = 'view' | 'start' | 'answer' | 'join' | 'leave' | 'go' | 'home'
+type RaidAction = 'view' | 'start' | 'answer' | 'join' | 'leave' | 'go' | 'home' | 'skip'
 interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; tester?: boolean; features?: unknown; rules?: Partial<RaidRules>; me: MyRaid; serverNow: number; updatedAt: number }
 
 function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: (result: RaidResponse) => void) {
@@ -226,6 +226,10 @@ export function requestGo(point: PointId) {
 }
 export function requestHome() {
   send('home')
+}
+/** Tester only, test raids only: pull the clocks forward to the next event or the end. */
+export function requestSkip(to: 'next' | 'end') {
+  send('skip', { to })
 }
 
 // ---------------------------------------------------------------- derived helpers for the renderer
