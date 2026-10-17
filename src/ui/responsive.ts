@@ -12,6 +12,9 @@ import { isMobile } from '@dcl/sdk/platform'
 
 export const DESIGN_W = 1920
 export const DESIGN_H = 1080
+/** Usable row width inside the big modal frame (MODAL_W 1850 minus padding). Lives here, not in panels.tsx, so
+ * raid.tsx can read it without a panels <-> raid import cycle (which left it undefined at load and sized the WAR view NaN). */
+export const CONTENT_W = 1720
 
 /** Mobile: screen fraction per element is pushed up so touch targets are large (stom: "3x buttons"). */
 const MOBILE_HUD_BOOST = 1.7

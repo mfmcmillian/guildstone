@@ -3,7 +3,7 @@ import { t } from '../i18n'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
-import { S, fitModal } from './responsive'
+import { S, fitModal, CONTENT_W } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
 import { WarScreen, resetWarTab } from './raid'
 import { DragId, dragOffsetPx, startDrag } from './drag'
@@ -90,7 +90,6 @@ const skillColor = (s: Skill) => Color4.create(SKILL_INFO[s].color[0], SKILL_INF
 // padding. Text never goes below 20 design px.
 const MODAL_W = 1850
 const MODAL_H = 1250
-export const CONTENT_W = 1720
 const TITLE_SIZE = 52
 type Fit = { scale: number; offsetX: number }
 /** Call first thing in a panel (before any S()) so children are measured at the frame's scale. */

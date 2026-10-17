@@ -5,8 +5,7 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, SLICE_PILL } from './theme'
 import { OutlinedText, Text, Panel, Button, Bar, timerText } from './components'
-import { S, getCanvas, setScale } from './responsive'
-import { CONTENT_W } from './panels'
+import { S, getCanvas, setScale, CONTENT_W } from './responsive'
 import { player } from '../state'
 import {
   BoardEntry, Fighter, PointId, POINT_IDS, POINT_LABEL, RaidView, Side, SideId,
