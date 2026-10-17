@@ -7,7 +7,7 @@ import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_S
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
-import { bankBagNow, resetGuildTab } from './panels'
+import { bankBagNow, openRelicsTab, resetGuildTab } from './panels'
 import { openSite } from '../links'
 import { playButtonSound } from '../uiSounds'
 import { nextStep, showGuild, stepTarget } from './guide'
@@ -217,7 +217,7 @@ export function Hud() {
               {unreadBadge(lobby.unread)}
             </UiEntity>
           ) : null}
-          <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' ? glow(C.blue) : C.blue} onClick={() => togglePanel('skills')} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />
+          <Button key="hud-professions" label="PROFESSIONS" icon="images/icons/lumberjack.png" color={stepTarget() === 'professions' || stepTarget() === 'relics' ? glow(C.blue) : C.blue} onClick={() => { if (stepTarget() === 'relics') openRelicsTab(); togglePanel('skills') }} uiTransform={{ height: S(96), minWidth: S(340) }} size={S(FONT.button + 10)} />
         </UiEntity>
       )}
     </UiEntity>

@@ -28,7 +28,9 @@ export interface OnlinePlayer {
 }
 export interface GuildInvite { guildId: string; tag: string; name: string; byName: string; at: number }
 
-export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number }
+export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number; relics?: string[] }
+/** Who forged the Guildstone Crown (one ever). */
+export interface CrownHolder { address: string; name: string; at: number }
 export interface BoardGuild { id: string; tag: string; name: string; hqLevel: number; points: number; weeklyPoints: number; memberCount: number; maxMembers: number }
 
 export const lobby = {
@@ -49,7 +51,7 @@ export const lobby = {
   muted: new Set<string>(),
   /** Guild invites I sent this session, by wallet: drives the card button and stops double sends. */
   invited: {} as Record<string, 'sending' | 'sent' | 'failed'>,
-  board: { players: [] as BoardPlayer[], guilds: [] as BoardGuild[], loadedAt: 0, loading: false },
+  board: { players: [] as BoardPlayer[], guilds: [] as BoardGuild[], crown: null as CrownHolder | null, loadedAt: 0, loading: false },
   /** Messages from other players that arrived while the Lobby tab wasn't showing. Drives the HUD badge. */
   unread: 0,
   /** True while the Lobby tab is on screen; set each frame by LobbyTab. */
@@ -198,8 +200,9 @@ export function refreshBoard() {
     try {
       const response = await fetch(`${BACKEND_URL}/antrom-afk/leaderboard`)
       if (!response.ok) throw new Error(`Leaderboard failed (${response.status})`)
-      const body = (await response.json()) as { players?: BoardPlayer[]; guilds?: BoardGuild[] }
+      const body = (await response.json()) as { players?: BoardPlayer[]; guilds?: BoardGuild[]; crown?: CrownHolder | null }
       lobby.board.players = Array.isArray(body.players) ? body.players : []
+      lobby.board.crown = body.crown && typeof body.crown.address === 'string' ? { address: body.crown.address.toLowerCase(), name: String(body.crown.name || ''), at: Number(body.crown.at) || 0 } : null
       lobby.board.guilds = Array.isArray(body.guilds) ? body.guilds : []
     } catch (error) {
       console.error('[lobby] board failed:', error instanceof Error ? error.message : String(error))
@@ -264,3 +267,7 @@ export function myBoardRank(id: Exclude<BoardId, 'chat'>): number {
   const rows = boardRows(id, 10_000)
   return rows.findIndex((r) => r.mine) + 1
 }
+
+/** Crown holder, if forged. Refreshed with the leaderboard. */
+export const crownHolder = () => lobby.board.crown
+export const isCrownHolder = (address: string) => !!lobby.board.crown && lobby.board.crown.address === address.toLowerCase()

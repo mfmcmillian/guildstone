@@ -1,6 +1,6 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, TEX, SLICE_128 } from './theme'
+import { C, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer } from './components'
 import { S, fitModal } from './responsive'
 import { LobbyTab, resetLobbyView } from './lobby'
@@ -43,6 +43,10 @@ import {
   RareDropDef,
   RARE_RAWS,
   RARE_DROPS,
+  RELIC_IDS,
+  RELIC_INFO,
+  RelicId,
+  relicRecipe,
   RARE_MATERIALS,
   COMBOS,
   gateMet,
@@ -72,8 +76,10 @@ import { closePanel, openPanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
-import { refreshGuild, requestBoost, requestCraft, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
-import { canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, pieceThumbnail, refreshOwnedSuits, suitPieces } from '../suits'
+import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
+import { canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
+import { crownHolder, refreshBoard } from '../lobby'
+import { stepTarget } from './guide'
 
 const skillColor = (s: Skill) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
 
@@ -98,7 +104,8 @@ function bigFrame(fit: Fit, title: string, drag?: DragId) {
 }
 
 // ---------------------------------------------------------------- PROFESSIONS
-let skillsTab: 'professions' | 'suits' = 'professions'
+let skillsTab: 'professions' | 'suits' | 'relics' = 'professions'
+export function openRelicsTab() { skillsTab = 'relics' }
 
 function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
   const { skill, index } = props
@@ -320,6 +327,137 @@ function SuitsTab() {
   )
 }
 
+// ---------------------------------------------------------------- RELICS
+// Prestige wearables worn over the suit: one Relic per profession (own that L4 suit + Lv 50) and the Guildstone
+// Crown (all four Relics; only one will ever be forged). No effect on drops, capacity, gates or tools.
+const RELIC_CARD_H = 700
+
+function RelicCard(props: { key?: string; kind: RelicId }) {
+  const { kind } = props
+  const info = RELIC_INFO[kind]
+  const recipe = relicRecipe(kind)
+  const crown = kind === 'crown'
+  const color = crown ? C.gold : skillColor(kind)
+  const owned = ownsRelic(kind)
+  const minted = !owned && player.craftedRelics.some((r) => r.relic === kind)
+  const checking = !ownedSuitsKnown() && !owned
+  const pending = player.pendingCraft
+  const mintingThis = pending !== null && pending.relic === kind && (pending.status === 'pending' || pending.status === 'minting')
+  const mintingOther = pending !== null && !mintingThis && (pending.status === 'pending' || pending.status === 'minting')
+  const holder = crown ? crownHolder() : null
+  const forgedByOther = holder !== null && !owned && holder.address !== (profileState.walletAddress || '').toLowerCase()
+  // Requirements (the server re-checks every one of these against the wallet).
+  const reqs: Array<{ text: string; ok: boolean }> = crown
+    ? [
+        { text: 'Own all four Relics', ok: SKILLS.every((s) => ownsRelic(s)) },
+        { text: 'All four professions at L4', ok: SKILLS.every((s) => canEquipLevel(s, 4)) }
+      ]
+    : [
+        { text: `Own ${SKILL_INFO[kind].name} L4`, ok: canEquipLevel(kind, 4) },
+        { text: `${SKILL_INFO[kind].name} Lv ${recipe.level}`, ok: player.skills[kind].level >= recipe.level }
+      ]
+  const reqsOk = reqs.every((r) => r.ok)
+  const open = relicCraftable(kind)
+  const craftable = open && reqsOk && canAffordSuit(recipe) && !mintingThis && !mintingOther && !minted && !owned && !forgedByOther
+  const costEntries = Object.entries(recipe.cost) as Array<[ItemId | 'coins', number]>
+  return (
+    <UiEntity
+      uiTransform={{ width: S(330), height: S(RELIC_CARD_H), flexDirection: 'column', alignItems: 'center', padding: S(20), margin: { left: S(6), right: S(6) } }}
+      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: owned ? C.paper2 : C.navySoft }}
+    >
+      <UiEntity
+        uiTransform={{ width: S(200), height: S(200), alignItems: 'center', justifyContent: 'center' }}
+        uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: owned ? color : C.gray }}
+      >
+        <UiEntity uiTransform={{ width: S(188), height: S(188) }} uiBackground={{ textureMode: 'stretch', texture: { src: relicThumbnail(kind) }, color: owned ? C.white : Color4.create(0.55, 0.55, 0.6, 1) }} />
+      </UiEntity>
+      <OutlinedText value={info.name.toUpperCase()} size={S(25)} color={owned ? C.white : C.textMuted} uiTransform={{ margin: { top: S(10) } }} />
+      <Text value={`${crown ? 'UNIQUE' : 'MYTHIC'}  •  ${info.slot}`} size={S(21)} color={owned ? C.text : C.textMuted} nowrap uiTransform={{ height: S(28) }} />
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(8) } }}>
+        {reqs.map((r) => (
+          <Text key={r.text} value={r.text} size={S(20)} color={r.ok ? C.greenDark : C.red} nowrap uiTransform={{ height: S(26) }} />
+        ))}
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', margin: { top: S(6) } }}>
+          {costEntries.map(([id, need]) => {
+            const have = haveItem(id)
+            const icon = id === 'coins' ? RESOURCE_INFO.coin.icon : RESOURCE_INFO[id].icon
+            return (
+              <UiEntity
+                key={id}
+                uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(140), height: S(34), margin: { left: S(2), right: S(2) } }}
+                onMouseEnter={() => { costHint = itemSource(id) }}
+                onMouseLeave={() => { if (costHint === itemSource(id)) costHint = null }}
+              >
+                <Icon src={icon} size={S(30)} />
+                <Text value={`${compact(have)}/${compact(need)}`} size={S(20)} color={have >= need ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: S(104), height: S(34), margin: { left: S(4) } }} />
+              </UiEntity>
+            )
+          })}
+        </UiEntity>
+      </UiEntity>
+      <Spacer />
+      {owned ? (
+        <Text value={crown ? 'YOURS  •  the only one' : 'OWNED  •  wear it from your backpack'} size={S(20)} color={C.greenDark} uiTransform={{ height: S(64) }} />
+      ) : forgedByOther ? (
+        <Text value={`FORGED BY ${holder?.name || 'another player'}`} size={S(22)} color={C.gold} uiTransform={{ height: S(64) }} />
+      ) : mintingThis ? (
+        <Text value="MINTING…" size={S(24)} color={C.yellow} uiTransform={{ height: S(64) }} />
+      ) : minted ? (
+        <Text value={checking ? 'CHECKING…' : 'MINTED - checking wallet…'} size={S(20)} color={C.greenDark} uiTransform={{ height: S(64) }} />
+      ) : (
+        <Button
+          key={`craft-relic-${kind}`}
+          label={open ? 'CRAFT' : 'NOT MINTED YET'}
+          color={open ? C.orange : C.gray}
+          textColor={open ? undefined : C.textMuted}
+          size={S(open ? 26 : 20)}
+          disabled={!craftable}
+          uiTransform={{ width: S(250), height: S(64) }}
+          onClick={() => requestCraftRelic(kind)}
+        />
+      )}
+    </UiEntity>
+  )
+}
+
+function RelicsTab() {
+  refreshOwnedSuits(profileState.walletAddress || '')
+  refreshBoard()
+  const ownedCount = SKILLS.filter((s) => ownsRelic(s)).length
+  const holder = crownHolder()
+  const anyOpen = RELIC_IDS.some((k) => relicCraftable(k))
+  return (
+    <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
+      <Panel flat color={C.paper2} uiTransform={{ width: S(CONTENT_W), height: S(130), flexDirection: 'row', alignItems: 'center', padding: { left: S(30), right: S(30) } }}>
+        <Icon src="images/icons/guild/crown_small.png" size={S(80)} uiTransform={{ margin: { right: S(20) }, flexShrink: 0 }} />
+        <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, flexShrink: 1, width: S(1100) }}>
+          <Text value="RELICS & THE GUILDSTONE CROWN" size={S(30)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(40) }} />
+          <Text
+            value="Worn over your suit to show you finished a profession's road. They change nothing about drops or bag space. The Crown needs all four Relics, and only one will ever be forged: first to finish the craft keeps it."
+            size={S(22)}
+            color={C.textMuted}
+            align="middle-left"
+            uiTransform={{ height: S(60) }}
+          />
+        </UiEntity>
+        <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-end', width: S(440), flexShrink: 0 }}>
+          <OutlinedText value={`${ownedCount} / 4 RELICS`} size={S(32)} color={C.gold} align="middle-right" />
+          <Text value={holder ? `Crown forged by ${holder.name || shortWallet(holder.address)}` : anyOpen ? 'The Crown is unforged' : 'Collection not minted yet: recipes are design targets'} size={S(22)} color={holder ? C.gold : C.textMuted} align="middle-right" nowrap uiTransform={{ height: S(30) }} />
+        </UiEntity>
+      </Panel>
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: S(16) } }}>
+        {RELIC_IDS.map((kind) => <RelicCard key={kind} kind={kind} />)}
+      </UiEntity>
+      <Text
+        value={costHint ?? 'Relic crafts mint to your wallet like suits: materials and coins are taken, the Rewards server sends the wearable, and the card flips to OWNED once your wallet shows it.'}
+        size={S(24)}
+        color={costHint ? C.gold : C.textMuted}
+        uiTransform={{ width: S(1500), height: S(70), margin: { top: S(18) } }}
+      />
+    </UiEntity>
+  )
+}
+
 let expandedSkill: Skill | null = null
 
 /** One rung of a profession's unlock ladder: lit when reached, greyed until then, yellow when it's the next one. */
@@ -339,16 +477,16 @@ function LadderChip(props: { key?: string; top: string; bottom: string; tone: 'r
 }
 
 export function SkillsPanel() {
-  const suits = skillsTab === 'suits'
   const fit = fitBig()
-  const title = suits ? 'SUITS' : 'PROFESSIONS'
+  const title = skillsTab === 'suits' ? 'SUITS' : skillsTab === 'relics' ? 'RELICS' : 'PROFESSIONS'
   return (
     <Modal title={title} color={C.blue} {...bigFrame(fit, title, 'skills')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { bottom: S(16) } }}>
         <Button label="PROFESSIONS" color={skillsTab === 'professions' ? C.blue : C.navySoft} size={S(32)} uiTransform={{ width: S(380), height: S(78), margin: { right: S(8) } }} onClick={() => { skillsTab = 'professions' }} />
-        <Button label="SUITS" color={skillsTab === 'suits' ? C.blue : C.navySoft} size={S(32)} uiTransform={{ width: S(380), height: S(78), margin: { left: S(8) } }} onClick={() => { skillsTab = 'suits' }} />
+        <Button label="SUITS" color={skillsTab === 'suits' ? C.blue : C.navySoft} size={S(32)} uiTransform={{ width: S(380), height: S(78), margin: { left: S(8), right: S(8) } }} onClick={() => { skillsTab = 'suits' }} />
+        <Button key="tab-relics" label="RELICS" icon="images/icons/guild/crown_small.png" color={skillsTab === 'relics' ? C.gold : stepTarget() === 'relics' ? glow(C.navySoft) : C.navySoft} size={S(32)} uiTransform={{ width: S(380), height: S(78), margin: { left: S(8) } }} onClick={() => { skillsTab = 'relics' }} />
       </UiEntity>
-      {skillsTab === 'suits' ? <SuitsTab /> : SKILLS.map((s) => {
+      {skillsTab === 'suits' ? <SuitsTab /> : skillsTab === 'relics' ? <RelicsTab /> : SKILLS.map((s) => {
         const st = player.skills[s]
         const need = xpForLevel(st.level)
         const expanded = expandedSkill === s

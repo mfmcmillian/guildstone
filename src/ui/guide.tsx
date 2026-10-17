@@ -9,6 +9,7 @@ import { openSite } from '../links'
 import { activeSkill, toggleProfession } from '../work'
 import { ringStationsEnabled, campHint } from '../remoteConfig'
 import { ui } from './uiState'
+import { ownsRelic, relicCraftable } from '../suits'
 
 /**
  * New-player guidance, all derived from player state so nothing needs saving:
@@ -34,7 +35,7 @@ export const showShop = () => player.berries > 0 || anyBoostActive()
 export const showGuild = () => !!player.guild || topLevel() >= 5
 
 // --- What next -------------------------------------------------------------------------------------
-export type StepTarget = 'bag' | 'workshop' | 'forge' | 'shop' | 'professions'
+export type StepTarget = 'bag' | 'workshop' | 'forge' | 'shop' | 'professions' | 'relics'
 export interface NextStep {
   text: string
   color: Color4
@@ -61,6 +62,9 @@ export function nextStep(): NextStep | null {
   const upgrade = upgradeReady()
   if (upgrade) return { text: `You can craft your ${TOOL_NAME[upgrade]} at the ${at('TOOL BENCH')}: +10% yield`, color: C.green, target: 'forge' }
   if (topLevel() >= 10 && !anySuit()) return { text: 'Suits unlock rare drops: PROFESSIONS -> SUITS', color: C.yellow, target: 'professions' }
+  // A finished road (L4 suit + Lv 50) with its Relic open to craft: the one endgame nudge. Nothing fires until the collection is minted.
+  const relicReady = SKILLS.find((s) => player.skills[s].suit >= 4 && player.skills[s].level >= 50 && relicCraftable(s) && !ownsRelic(s))
+  if (relicReady) return { text: `${SKILL_INFO[relicReady].name} road complete: forge its Relic in PROFESSIONS -> RELICS`, color: C.gold, target: 'relics' }
   if (player.berries >= 5 && player.coins >= 250 && !anyBoostActive()) return { text: `${player.berries} berries: grab a 10-minute boost in the ${at('SHOP')}`, color: C.yellow, target: 'shop' }
   return null
 }
