@@ -100,6 +100,8 @@ export interface AfkPlayerProfile {
   tools?: Partial<Record<string, number>>
   /** Hero levels (server afkHero.js). */
   heroes?: Partial<Record<string, { level?: number }>>
+  /** The hero that fights in raids (a HeroId). */
+  hero?: string
   /** Progress (0..1) toward the next unit of each rare drop. */
   rareProgress?: Record<string, number>
   /** Suit craft in flight (Rewards mint), if any. */

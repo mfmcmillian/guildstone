@@ -1,31 +1,44 @@
-// Heroes: a base-resource sink that feeds your raid fighter. The server owns the upgrade (POST /hero) and the
-// numbers; this table mirrors dcl-firebase-backend/api/afkHero.js for display only. Keep the two in step.
+// Heroes: a base-resource sink that feeds your raid fighter. The server owns the upgrade and the pick (POST /hero)
+// and the numbers; this table mirrors dcl-firebase-backend/api/afkHero.js for display only. Keep the two in step.
+// Three heroes on one curve, each with its own level; the player fights with one (player.hero). They counter in a
+// triangle: a hero hits the one it `beats` for COUNTER_MULT x damage.
 import type { BaseResource } from './state'
 
-export type HeroId = 'assassin'
-export const HERO_IDS: HeroId[] = ['assassin']
+export type HeroId = 'assassin' | 'knight' | 'warlock'
+export const HERO_IDS: HeroId[] = ['assassin', 'knight', 'warlock']
+export const DEFAULT_HERO: HeroId = 'assassin'
+export const COUNTER_MULT = 1.2
 export type HeroStat = 'hp' | 'atk' | 'speed' | 'recovery'
 export const HERO_STATS: HeroStat[] = ['hp', 'atk', 'speed', 'recovery']
 
 export interface HeroDef {
   name: string
+  /** The hero this one deals COUNTER_MULT x damage to. */
+  beats: HeroId
   maxLevel: number
   /** Step n -> n+1 costs round(base * growth^(n-1)) of EACH listed resource. */
   cost: { base: number; growth: number; resources: BaseResource[] }
   /** Per level above 1. hp/atk are flat points; speed/recovery are rates. */
   perLevel: Record<HeroStat, number>
 }
-export const HEROES: Record<HeroId, HeroDef> = {
-  assassin: {
-    name: 'Assassin',
-    maxLevel: 30,
-    cost: { base: 200, growth: 1.18, resources: ['wood', 'rock', 'meat', 'bone'] },
-    perLevel: { hp: 25, atk: 3, speed: 0.02, recovery: 0.03 }
-  }
+const CURVE = {
+  maxLevel: 30,
+  cost: { base: 200, growth: 1.18, resources: ['wood', 'rock', 'meat', 'bone'] as BaseResource[] },
+  perLevel: { hp: 25, atk: 3, speed: 0.02, recovery: 0.03 }
 }
+export const HEROES: Record<HeroId, HeroDef> = {
+  assassin: { name: 'Assassin', beats: 'warlock', ...CURVE },
+  knight: { name: 'Knight', beats: 'assassin', ...CURVE },
+  warlock: { name: 'Warlock', beats: 'knight', ...CURVE }
+}
+/** The hero that beats `id`. */
+export const beatenBy = (id: HeroId): HeroId => HERO_IDS.find((h) => HEROES[h].beats === id) ?? id
 
 export type HeroState = Record<HeroId, { level: number }>
-export const emptyHeroes = (): HeroState => ({ assassin: { level: 1 } })
+export const emptyHeroes = (): HeroState => ({ assassin: { level: 1 }, knight: { level: 1 }, warlock: { level: 1 } })
+
+export const isHeroId = (v: unknown): v is HeroId => typeof v === 'string' && (HERO_IDS as string[]).includes(v)
+export const sanitizeHeroId = (v: unknown): HeroId => (isHeroId(v) ? v : DEFAULT_HERO)
 
 export function sanitizeHeroes(raw: unknown): HeroState {
   const out = emptyHeroes()

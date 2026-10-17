@@ -3,7 +3,7 @@ import { signedFetch } from '~system/SignedFetch'
 import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
-import { HEROES, sanitizeHeroes, type HeroId } from './hero'
+import { HEROES, sanitizeHeroes, sanitizeHeroId, type HeroId } from './hero'
 import { settings } from './settings'
 import { setLanguage, t, type Language } from './i18n'
 import type { UiLayout } from './ui/drag'
@@ -623,6 +623,37 @@ export function requestTool(skill: Skill) {
 
 /** When the last hero level-up landed (the Hero menu plays the attack animation for a moment). */
 export let heroLevelUpAt = 0
+type HeroResponse = { updatedAt: number; hero: unknown; heroes: unknown; storage: typeof player.storage; backpack: typeof player.backpack }
+
+/** Make `hero` the one that fights in raids (POST /hero action 'select'). */
+export function requestHeroSelect(hero: HeroId) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || upgradeRequestInFlight || player.hero === hero) return
+  upgradeRequestInFlight = true
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/hero`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hero, action: 'select' }) }
+      })
+      if (!response.ok) {
+        flash(`Hero select failed (${response.status})`)
+        playErrorSound()
+        return
+      }
+      const result = JSON.parse(response.body) as HeroResponse
+      if (result.updatedAt >= lastServerUpdateAt) lastServerUpdateAt = result.updatedAt
+      player.hero = sanitizeHeroId(result.hero)
+      flash(`${HEROES[player.hero].name.toUpperCase()} WILL FIGHT`)
+      playSuccessSound()
+    } catch (error) {
+      console.error('[transaction] Hero select failed:', error instanceof Error ? error.message : String(error))
+      playErrorSound()
+    } finally {
+      upgradeRequestInFlight = false
+    }
+  })
+}
+
 export function requestHeroUpgrade(hero: HeroId) {
   if (profileState.status !== 'ready' || !profileState.walletAddress || upgradeRequestInFlight) return
   upgradeRequestInFlight = true
@@ -643,10 +674,11 @@ export function requestHeroUpgrade(hero: HeroId) {
         playErrorSound()
         return
       }
-      const result = JSON.parse(response.body) as { updatedAt: number; heroes: unknown; storage: typeof player.storage; backpack: typeof player.backpack }
+      const result = JSON.parse(response.body) as HeroResponse
       if (result.updatedAt >= lastServerUpdateAt) {
         lastServerUpdateAt = result.updatedAt
         player.heroes = sanitizeHeroes(result.heroes)
+        player.hero = sanitizeHeroId(result.hero)
         player.storage = sanitizeStorage(result.storage)
         player.backpack = result.backpack
       }

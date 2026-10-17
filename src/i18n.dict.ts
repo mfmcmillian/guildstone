@@ -645,6 +645,14 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
 
   // --- Hero ---
   ['HERO', 'HÉROS', 'HÉROE', '英雄'],
+  ['Knight', 'Chevalier', 'Caballero', '骑士'],
+  ['Warlock', 'Démoniste', 'Brujo', '术士'],
+  ['YOUR FIGHTER', 'TON COMBATTANT', 'TU LUCHADOR', '你的战士'],
+  ['FIGHT WITH {0}', 'COMBATTRE AVEC {0}', 'LUCHAR CON {0}', '让{0}出战'],
+  ['{0} WILL FIGHT', '{0} COMBATTRA', '{0} LUCHARÁ', '{0}将出战'],
+  ['+{0}% DAMAGE TO {1}', '+{0} % DE DÉGÂTS SUR {1}', '+{0} % DE DAÑO A {1}', '对{1}伤害 +{0}%'],
+  ['{0} DOES +{1}% TO YOU', '{0} TE FAIT +{1} %', '{0} TE HACE +{1} %', '{0}对你伤害 +{1}%'],
+  ['Hero select failed ({0})', 'Échec du choix du héros ({0})', 'Falló la elección del héroe ({0})', '英雄选择失败（{0}）'],
   ['HP', 'PV', 'PS', '生命'],
   ['ATTACK', 'ATTAQUE', 'ATAQUE', '攻击'],
   ['SPEED', 'VITESSE', 'VELOCIDAD', '速度'],

@@ -6,6 +6,7 @@ import { isServer } from '@dcl/sdk/network'
 import { profileState } from './playerProfile'
 import { applyFeatures } from './remoteConfig'
 import { flash, player } from './state'
+import type { HeroId } from './hero'
 import { playErrorSound, playSuccessSound } from './uiSounds'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -34,7 +35,8 @@ export interface Fighter {
   fromX: number | null
   fromY: number | null
   departAt: number
-  /** Hero level and its walk / knock-out-carry rate multipliers (1 = base). */
+  /** Which hero (src/hero.ts) and its level, plus walk / knock-out-carry rate multipliers (1 = base). */
+  kind?: HeroId
   hero?: number
   speed?: number
   recovery?: number

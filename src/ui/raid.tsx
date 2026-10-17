@@ -8,6 +8,7 @@ import { OutlinedText, Text, Panel, Button, Bar, Modal, timerText } from './comp
 import { S, fitModal } from './responsive'
 import { dragOffsetPx, startDrag } from './drag'
 import { player } from '../state'
+import { sanitizeHeroId } from '../hero'
 import {
   BoardEntry, Fighter, PointId, POINT_IDS, POINT_LABEL, RaidView, Side, SideId,
   myFighter, pollRaid, raid, refreshRaid, requestAnswerRaid, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestSkip, requestStartRaid,
@@ -18,7 +19,8 @@ import { ANIM, ART, HERO_SHEET, Sprite, loopFrame, onceFrame, type Anim } from '
 
 const BG = `${ART}/battlefield_v1.jpg`
 // Side a (the caller) wears the player palette, side b the enemy palette. Sheets per hero live in sprite.tsx.
-const SHEET: Record<SideId, string> = { a: HERO_SHEET.assassin.own, b: HERO_SHEET.assassin.enemy }
+/** Sprite sheet for a fighter: its hero's art, own palette on our side and the Wraith palette on the other. */
+const sheetFor = (side: SideId, f: Fighter) => HERO_SHEET[sanitizeHeroId(f.kind)][side === 'a' ? 'own' : 'enemy']
 const HIT_FLASH_MS = 320
 const FLOAT_MS = 1300
 // The field fills the WAR window edge to edge: the Modal draws a frame-only overlay on top (edgeToEdge), so the art
@@ -171,7 +173,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           <Text value={you ? 'YOU' : f.name.toUpperCase().slice(0, 8)} size={S(20)} color={you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
-      <Sprite src={SHEET[side]} anim={anim} frame={frame} flip={p.flip} size={size} color={tint} />
+      <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} color={tint} />
       <UiEntity uiTransform={{ width: S(64), height: S(10), margin: { top: S(2) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}>
         <UiEntity uiTransform={{ width: `${Math.max(0, Math.min(100, (f.hp / f.hpMax) * 100))}%`, height: '100%' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: hpColor(f) }} />
       </UiEntity>
