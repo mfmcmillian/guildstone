@@ -686,7 +686,7 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['KO · back at camp {0}', 'KO · au camp dans {0}', 'KO · en el campamento en {0}', '倒地 · {0}后回营地'],
   ['ready', 'prêt', 'listo', '就绪'],
   ['click any building to walk there · 15 s', 'clique un bâtiment pour y aller · 15 s', 'haz clic en un edificio para ir · 15 s', '点击任意建筑前往 · 15 秒'],
-  ['unheld · 15 s walk', 'libre · 15 s de marche', 'libre · 15 s a pie', '无人占领 · 步行 15 秒'],
+  ['unheld · {0} s walk', 'libre · {0} s de marche', 'libre · {0} s a pie', '无人占领 · 步行 {0} 秒'],
   ['you arrive in {0}', 'tu arrives dans {0}', 'llegas en {0}', '{0}后到达'],
   ['+{0} to {1} every tick', '+{0} pour {1} à chaque tick', '+{0} para {1} cada tick', '每回合 {1} +{0}'],
   ['clash in {0}', 'affrontement dans {0}', 'choque en {0}', '{0}后交战'],

@@ -28,7 +28,7 @@ const SHEET_COLS = 6
 const SHEET_ROWS = 5
 const ANIM: Record<Anim, { row: number; frames: number; ms: number }> = {
   idle: { row: 0, frames: 4, ms: 260 },
-  walk: { row: 1, frames: 4, ms: 130 },
+  walk: { row: 1, frames: 4, ms: 95 },
   attack: { row: 2, frames: 6, ms: 95 },
   hit: { row: 3, frames: 2, ms: 160 },
   ko: { row: 4, frames: 4, ms: 200 }
@@ -248,7 +248,7 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
   if (live && a.length > 0 && b.length > 0) line3 = `${holder ? `${sideTag(v.sides[holder])} hold · −${Math.round(def.armour * 100)}% dmg inside · ` : ''}clash in ${left(v.nextTickAt)}`
   else if (live && me && me.state === 'walk' && me.target === point) line3 = `you arrive in ${left(me.arriveAt)}`
   else if (live && holder && (a.length > 0 || b.length > 0)) line3 = `+${def.pips} to ${sideTag(v.sides[holder])} every tick`
-  else if (live) line3 = `unheld · 15 s walk`
+  else if (live) line3 = `unheld · ${Math.round(v.rules.walkMs / 1000)} s walk`
   const pillColor = holder === 'a' ? Color4.create(0.5, 0.3, 0.85, 0.95) : holder === 'b' ? Color4.create(0.72, 0.5, 0.05, 0.95) : DARK_SOFT
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(lx) - width / 2, top: py(ly) - S(22) }, width, flexDirection: 'column', alignItems: 'center' }}>
