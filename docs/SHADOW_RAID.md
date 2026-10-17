@@ -179,6 +179,13 @@ Clicks dip and play the button sound like every other control.
 - Hiding enemy HP from spectators.
 - Chat during a raid (guild chat already exists one tab over).
 
-## 13. Numbers to tune (all server-side)
+## 13. Numbers to tune (live, from the control dashboard)
 
-`TICK_MS 15000`, `TICKS 20`, `GATHER_MS 90000`, `WALK_MS 15000`, `HOME_MS 10000`, `KO_WALK_MS 30000`, `SIDE_MAX 4`, `SIDE_MIN 2`, `RAIDS_PER_DAY 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `2/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+Defaults: `tickMs 15000`, `ticks 20`, `gatherMs 90000`, `walkMs 15000`, `homeMs 10000`, `koWalkMs 30000`, `sideMax 4`, `sideMin 2`, `raidsPerDay 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `2/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+
+They live in `api/afkAdminConfig.js` (defaults + clamps) and are overridden by the Firestore doc `players/afk_v1_admin_config`, edited from **guildstone-admin** (`https://guildstone-admin.vercel.app`, admin key = `AFK_ADMIN_KEY` in the backend's Vercel env). The server caches the doc for 20 s. A raid copies the numbers into `raid.rules` when it is called, so edits never change a raid in progress; the client reads `view.rules` / `view.points` and the idle screen reads the current `rules` from the poll response (no client constants).
+
+## 14. Kill switch and testing
+
+- **`features.war`** (dashboard switch): off → `/antrom-afk/config` and every raid poll return `features.war=false`, the ring hides the WAR tab (anyone on it lands on HOME) and the server answers `start / answer / join / go / home` with "Raids are paused for now". `view` and `leave` still work; raids already live finish on their own.
+- **Testers** (dashboard list of wallets): a raid called by a tester has `rules.test=true` and `sideMin=1`, so it starts with one fighter against a mirror Wraith, ignores the daily cap and is never recorded (no guild record, no Valor, no history, no system line other than "test raid is over"). The board shows it as a *test raid*; another guild can still answer it (also unrecorded). Use with the dashboard timers (e.g. `tickMs 5000`, `walkMs 5000`, `gatherMs 15000`) to run a whole raid in under two minutes.

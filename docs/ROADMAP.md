@@ -333,6 +333,7 @@ Status: planning. Goal: years of guild progression with several kinds of progres
 
 Design and numbers: [SHADOW_RAID.md](SHADOW_RAID.md). Five-minute 2v2–4v4 raids on one battlefield (the WAR tab), five buildings to hold, HP/ATK from the Assassin profession (level, Dagger tier, set pieces, KoA VIP). Server `api/afkRaid.js` (lazy 15 s ticks, Wraith bots when no guild answers, Valor, guild record), client `src/raid.ts` + `src/ui/raid.tsx`, art in `images/raid/`. Replaced the earlier Hold & Warband prototype (troops and bases), which was removed from both repos. The WAR tab is a full-screen view (`WarScreen`, own scale from the canvas, `◀ GUILD` / `CLOSE` bar on top) rather than a tab inside the guild frame, so the battlefield gets the whole window.
 
+- [x] **Live controls (2026-10-17).** Control dashboard `guildstone-admin` (own repo + Vercel project, admin key `AFK_ADMIN_KEY`): WAR kill switch (`features.war`, ring hides the tab, server refuses raid actions), every raid number editable with clamps and a change log, tester wallets whose raids start solo vs the Wraiths and record nothing. Config doc `players/afk_v1_admin_config`; raids snapshot their rules. See SHADOW_RAID.md §13–14.
 - [ ] Valor spend (banner frames, titles) and a Valor leaderboard on guildstone.dev.
 - [ ] Focus-fire / target choice if spread damage feels flat.
 - [ ] Scheduled raids and best-of-three once two guilds are raiding regularly.
