@@ -37,8 +37,8 @@ const STATS_W = W - 72 - STAGE_W - GAP
 const PAD = 28
 const CARD_W = (STATS_W - PAD * 2 - GAP) / 2
 const CARD_H = 150
-/** Training-yard backdrop (guildstone.dev, 560x700 like the stage); the hero's feet land on its dirt floor. */
-const STAGE_BG = `${ART}/hero_stage_v1.jpg`
+/** Per-hero backdrop (guildstone.dev, 560x700 like the stage); the hero's feet land on its floor. */
+const STAGE_BG: Record<HeroId, string> = { assassin: `${ART}/hero_stage_assassin_v1.jpg`, knight: `${ART}/hero_stage_knight_v1.jpg`, warlock: `${ART}/hero_stage_warlock_v1.jpg` }
 const STAGE_FOOT = Color4.create(0.04, 0.02, 0.09, 0.55)
 const CARD_BG = Color4.create(1, 1, 1, 0.55)
 const CHIP_GREEN = Color4.create(0.12, 0.64, 0.36, 0.22)
@@ -56,7 +56,7 @@ function HeroStage(props: { id: HeroId; level: number }) {
   const maxed = props.level >= def.maxLevel
   const fighting = player.hero === props.id
   return (
-    <UiEntity uiTransform={{ width: S(STAGE_W), height: S(BODY_H), flexDirection: 'column', alignItems: 'center', padding: { left: S(PAD), right: S(PAD), bottom: S(PAD) } }} uiBackground={{ textureMode: 'stretch', texture: { src: STAGE_BG } }}>
+    <UiEntity uiTransform={{ width: S(STAGE_W), height: S(BODY_H), flexDirection: 'column', alignItems: 'center', padding: { left: S(PAD), right: S(PAD), bottom: S(PAD) } }} uiBackground={{ textureMode: 'stretch', texture: { src: STAGE_BG[props.id] } }}>
       <Spacer />
       <Sprite src={HERO_SHEET[props.id].own} anim={celebrating ? 'attack' : 'idle'} frame={loopFrame(celebrating ? 'attack' : 'idle', now)} size={S(380)} />
       <Spacer />
@@ -74,6 +74,8 @@ function HeroStage(props: { id: HeroId; level: number }) {
           <Button label={`FIGHT WITH ${def.name.toUpperCase()}`} color={C.green} size={S(24)} disabled={profileState.status !== 'ready'} uiTransform={{ width: '100%', height: '100%' }} onClick={() => requestHeroSelect(props.id)} />
         )}
       </UiEntity>
+      {/* Frame drawn last so it sits over the picture and the dark band (same nine-slice as the window frame), non-interactive. */}
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.frame }, textureSlices: SLICE_128, color: C.paper }} />
     </UiEntity>
   )
 }
