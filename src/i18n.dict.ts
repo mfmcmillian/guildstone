@@ -737,6 +737,7 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Need {0} on your side or it is called off', 'Il faut {0} de ton côté sinon annulé', 'Hacen falta {0} de tu lado o se cancela', '你方需要 {0} 人，否则取消'],
   ['Click a building to gather points.', 'Clique un bâtiment pour gagner des points.', 'Haz clic en un edificio para ganar puntos.', '点击建筑以获取分数。'],
   ['Buildings give different points.', 'Les bâtiments rapportent des points différents.', 'Los edificios dan puntos distintos.', '不同建筑给的分数不同。'],
+  ['Team with the most points at the end of the timer wins.', "L'équipe avec le plus de points à la fin du chrono gagne.", 'Gana el equipo con más puntos al acabar el tiempo.', '计时结束时分数最高的队伍获胜。'],
   ['Both sides set. Watch it from here.', "Les deux camps sont prêts. Regarde d'ici.", 'Ambos bandos listos. Míralo desde aquí.', '双方已就位。在此观战。'],
   ['Your guild already has a raid going.', 'Ta guilde a déjà un raid en cours.', 'Tu gremio ya tiene una incursión en marcha.', '你的公会已有一场突袭进行中。'],
   ['Only your leader or royal guard can answer.', 'Seuls ton chef ou la garde royale peuvent répondre.', 'Solo tu líder o la guardia real pueden responder.', '只有会长或皇家卫士可以应战。'],

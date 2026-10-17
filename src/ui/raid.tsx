@@ -453,7 +453,7 @@ function LobbyCard(props: { v: RaidView }) {
   const short = v.mine && mineCount < v.rules.sideMin
   // Once you are in, the wait shows the rules in two lines; otherwise one line of status.
   const notes: string[] = short ? [`Need ${v.rules.sideMin} on your side or it is called off`]
-    : v.you ? ['Click a building to gather points.', 'Buildings give different points.']
+    : v.you ? ['Click a building to gather points.', 'Buildings give different points.', 'Team with the most points at the end of the timer wins.']
     : !v.mine && !canAnswer ? [v.sides.b ? 'Both sides set. Watch it from here.' : raid.officer ? 'Your guild already has a raid going.' : 'Only your leader or royal guard can answer.']
     : []
   const noteColor = short ? C.red : v.you ? C.green : Color4.create(0.85, 0.82, 0.95, 1)
