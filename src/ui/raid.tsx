@@ -444,29 +444,59 @@ function Field(props: { v: RaidView }) {
   )
 }
 
+// Gathering screen: dimmed field, big countdown, one column per side (who is in so far), JOIN / ANSWER underneath.
+function LobbyColumn(props: { key?: string; v: RaidView; side: SideId }) {
+  const { v, side } = props
+  const s = v.sides[side]
+  const tagColor = side === 'a' ? C.purple : C.gold
+  const muted = Color4.create(0.7, 0.66, 0.85, 1)
+  return (
+    <UiEntity uiTransform={{ width: S(RES_COL_W), minHeight: S(230), flexDirection: 'column', alignItems: 'center', margin: { left: S(10), right: S(10) }, padding: { top: S(16), bottom: S(16), left: S(16), right: S(16) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: RES_BG }}>
+      {s ? (
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
+          <Text value={s.wraith ? 'THE WRAITHS' : `[${s.tag}]  ${s.name}`} size={S(24)} color={tagColor} nowrap uiTransform={{ height: S(30) }} />
+          <OutlinedText value={`${s.fighters.length} / ${v.rules.sideMax}`} size={S(60)} color={C.white} />
+          {s.fighters.map((f) => (
+            <Text key={`lobby-${side}-${f.id}`} value={v.you === f.id ? `${f.name} (you)` : f.name} size={S(22)} color={v.you === f.id ? C.white : muted} nowrap uiTransform={{ height: S(30) }} />
+          ))}
+        </UiEntity>
+      ) : (
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
+          <Text value="NO ANSWER YET" size={S(24)} color={C.gold} nowrap uiTransform={{ height: S(30) }} />
+          <OutlinedText value="?" size={S(60)} color={muted} />
+          <Text value="If no guild answers, the Wraiths" size={S(22)} color={muted} nowrap uiTransform={{ height: S(30) }} />
+          <Text value="(a mirror of your side) take the field" size={S(22)} color={muted} nowrap uiTransform={{ height: S(30) }} />
+        </UiEntity>
+      )}
+    </UiEntity>
+  )
+}
+
 function LobbyCard(props: { v: RaidView }) {
   const v = props.v
-  const countA = v.sides.a.fighters.length
-  const countB = v.sides.b ? v.sides.b.fighters.length : 0
   const mineCount = v.mine ? v.sides[v.mine]!.fighters.length : 0
   const canJoin = !!v.mine && !v.you && mineCount < v.rules.sideMax && !raid.spectating
   const canAnswer = !v.mine && !v.sides.b && raid.officer && !(raid.summary?.activeId)
   const short = v.mine && mineCount < v.rules.sideMin
+  const note = short ? `Need ${v.rules.sideMin} on your side or it is called off`
+    : v.you ? 'You are in. Click a building when it starts.'
+    : !v.mine && !canAnswer ? (v.sides.b ? 'Both sides set. Watch it from here.' : raid.officer ? 'Your guild already has a raid going.' : 'Only your leader or royal guard can answer.')
+    : ''
+  const noteColor = short ? C.red : v.you ? C.green : Color4.create(0.85, 0.82, 0.95, 1)
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(ROSTER_TOP + 10), left: S(W / 2 - 450) }, width: S(900), flexDirection: 'column', alignItems: 'center' }}>
-      <Panel uiTransform={{ width: '100%', padding: S(24), alignItems: 'center' }}>
-        <OutlinedText value="RAID GATHERING" size={S(40)} color={C.purple} />
-        <Text value={`Starts in ${left(v.gatherUntil)}`} size={S(30)} color={C.text} nowrap uiTransform={{ height: S(38) }} />
-        <Text value={`${sideTag(v.sides.a)} ${countA}/${v.rules.sideMax}     ${v.sides.b ? `${sideTag(v.sides.b)} ${countB}/${v.rules.sideMax}` : 'no answer yet'}`} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
-        {short ? <Text value={`Need ${v.rules.sideMin} on your side or it is called off`} size={S(22)} color={C.red} nowrap uiTransform={{ height: S(30) }} /> : null}
-        {!v.sides.b ? <Text value="No answer by then: the Wraiths, a mirror of your side, fill in" size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} /> : null}
-        <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(14) } }}>
-          {canJoin ? <Button label="JOIN" color={C.green} disabled={raid.busy} size={S(28)} uiTransform={{ width: S(240), height: S(72), margin: { right: S(12) } }} onClick={() => requestJoinRaid()} /> : null}
-          {v.you ? <Text value="You are in. Click a building when it starts." size={S(24)} color={C.greenDark} nowrap uiTransform={{ width: 'auto', height: S(72) }} /> : null}
-          {canAnswer ? <Button label="ANSWER THE RAID" color={C.orange} disabled={raid.busy} size={S(28)} uiTransform={{ width: S(360), height: S(72) }} onClick={() => requestAnswerRaid(v.id)} /> : null}
-          {!v.mine && !canAnswer ? <Text value={v.sides.b ? 'Both sides set. Watch it from here.' : raid.officer ? 'Your guild already has a raid going.' : 'Only your leader or royal guard can answer.'} size={S(22)} color={C.textMuted} nowrap uiTransform={{ width: 'auto', height: S(72) }} /> : null}
-        </UiEntity>
-      </Panel>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.7) }}>
+      <OutlinedText value="RAID GATHERING" size={S(64)} color={C.purple} />
+      <Text value="Starts in" size={S(22)} color={Color4.create(0.85, 0.82, 0.95, 1)} nowrap uiTransform={{ height: S(28), margin: { top: -S(4) } }} />
+      <OutlinedText value={left(v.gatherUntil)} size={S(96)} color={C.white} />
+      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'flex-start', margin: { top: S(10) } }}>
+        <LobbyColumn v={v} side="a" />
+        <LobbyColumn v={v} side="b" />
+      </UiEntity>
+      {note ? <Text value={note} size={S(24)} color={noteColor} nowrap uiTransform={{ height: S(32), margin: { top: S(18) } }} /> : null}
+      <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(12) } }}>
+        {canJoin ? <Button label="JOIN" color={C.green} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => requestJoinRaid()} /> : null}
+        {canAnswer ? <Button label="ANSWER THE RAID" color={C.orange} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(400), height: S(84) }} onClick={() => requestAnswerRaid(v.id)} /> : null}
+      </UiEntity>
     </UiEntity>
   )
 }
