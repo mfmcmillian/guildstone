@@ -35,15 +35,15 @@ const ANIM: Record<Anim, { row: number; frames: number; ms: number }> = {
 }
 const HIT_FLASH_MS = 320
 const FLOAT_MS = 1300
-// The field fills the WAR window edge to edge (inside the frame's painted border), so its size is the frame minus
-// FRAME_EDGE on each side. Same aspect as the battlefield art (1280x685).
+// The field fills the WAR window edge to edge: the Modal draws a frame-only overlay on top (edgeToEdge), so the art
+// runs right under the painted border. Same aspect as the battlefield art (1280x685).
 const WAR_FRAME_W = 1850
-const FRAME_EDGE = 14
+const FRAME_EDGE = 0
 const W = WAR_FRAME_W - FRAME_EDGE * 2
-const H = 975
+const H = 990
 // Status strip under the field: you / feed / buttons. Its bottom padding clears the window's CLOSE tab.
 const BAR_H = 150
-const BAR_PAD_BOTTOM = 40
+const BAR_PAD_BOTTOM = 54
 const WAR_FRAME_H = H + BAR_H + FRAME_EDGE * 2
 const px = (x: number) => S((x / 100) * W)
 const py = (y: number) => S((y / 100) * H)
@@ -61,7 +61,7 @@ const CAMP: Record<SideId, [number, number]> = { a: [19, 52], b: [80, 52] }
 const ROSTER_W = 270
 const CARD_H = 160
 const CARD_GAP = 10
-const ROSTER_TOP = 122
+const ROSTER_TOP = 136
 // Cell size on screen. The character stands about 74% of its 144 px cell, so this matches the old 80 px tokens.
 const TOKEN = 108
 const TOKEN_GAP = 72
@@ -356,7 +356,7 @@ function Roster(props: { v: RaidView; side: SideId }) {
     slots.push(f ? <FighterCard key={`${side}-${f.id}`} v={v} side={side} f={f} /> : <OpenSlot key={`${side}-slot-${i}`} v={v} side={side} />)
   }
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: side === 'a' ? { left: S(24), top: S(ROSTER_TOP) } : { right: S(24), top: S(ROSTER_TOP) }, width: S(ROSTER_W), flexDirection: 'column' }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: side === 'a' ? { left: S(38), top: S(ROSTER_TOP) } : { right: S(38), top: S(ROSTER_TOP) }, width: S(ROSTER_W), flexDirection: 'column' }}>
       {!s ? (
         <UiEntity uiTransform={{ width: S(ROSTER_W), height: S(CARD_H), margin: { bottom: S(CARD_GAP) }, alignItems: 'center', justifyContent: 'center', padding: S(12) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: DARK }}>
           <Text value="NO ANSWER YET" size={S(22)} color={C.yellow} nowrap uiTransform={{ height: S(28) }} />
@@ -389,7 +389,7 @@ function Header(props: { v: RaidView }) {
     sub = `Fewer than ${v.rules.sideMin} fighters joined in time`
   }
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(32), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(46), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
         <OutlinedText value={`${sideTag(a)}  ${v.score.a}`} size={S(44)} color={PURPLE_LIGHT} align="middle-left" uiTransform={{ height: S(60) }} />
       </UiEntity>
@@ -417,7 +417,7 @@ function BottomBar(props: { v: RaidView }) {
     else if (me.state === 'in') statusColor = PURPLE_LIGHT
   } else if (v.mine) status = v.status === 'live' ? 'Your guild is raiding' : ''
   return (
-    <UiEntity uiTransform={{ width: '100%', height: S(BAR_H), flexDirection: 'row', alignItems: 'center', padding: { left: S(28), right: S(28), top: S(10), bottom: S(BAR_PAD_BOTTOM) } }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 1) }}>
+    <UiEntity uiTransform={{ width: '100%', height: S(BAR_H), flexDirection: 'row', alignItems: 'center', padding: { left: S(42), right: S(42), top: S(10), bottom: S(BAR_PAD_BOTTOM) } }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 1) }}>
       <UiEntity uiTransform={{ width: S(380), flexDirection: 'column', justifyContent: 'center' }}>
         <Text value={me ? `${me.name} (you)` : status} size={S(26)} color={C.white} nowrap align="middle-left" uiTransform={{ height: S(34) }} />
         {me ? <Text value={status} size={S(24)} color={statusColor} nowrap align="middle-left" uiTransform={{ height: S(32) }} /> : null}
@@ -624,13 +624,29 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
   const o = dragOffsetPx('war')
   const s = fit.scale
   return (
-    <Modal title={props.title} color={C.purple} width={WAR_FRAME_W} height={WAR_FRAME_H} scale={s} offsetX={fit.offsetX + o.dx} offsetY={o.dy} titleSize={52} titleWidth={Math.max(420, props.title.length * 40)} onTitleDown={() => startDrag('war')} onClose={props.onClose}>
-      {/* Modal lays content out 36 (padding) + 26 (title room) inside the frame; pull the field back out to the border. */}
+    <Modal
+      title={props.title}
+      color={C.purple}
+      width={WAR_FRAME_W}
+      height={WAR_FRAME_H}
+      scale={s}
+      offsetX={fit.offsetX + o.dx}
+      offsetY={o.dy}
+      titleSize={52}
+      titleWidth={Math.max(420, props.title.length * 40)}
+      onTitleDown={() => startDrag('war')}
+      onClose={props.onClose}
+      edgeToEdge
+      tabs={
+        // Bottom-left tab, positioned relative to the frame like the CLOSE tab, so it sits above the frame overlay.
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s, left: 24 * s }, width: 220 * s, height: 68 * s }}>
+          <Button label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onBack} />
+        </UiEntity>
+      }
+    >
+      {/* Modal lays content out 36 (padding) + 26 (title room) inside the frame; pull the field back out to the frame edge. */}
       <UiEntity uiTransform={{ positionType: 'absolute', position: { top: -(36 + 26 - FRAME_EDGE) * s, left: -(36 - FRAME_EDGE) * s }, width: S(W), height: S(H + BAR_H) }}>
         <WarTab height={H} />
-      </UiEntity>
-      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s - 36 * s, left: -(36 - FRAME_EDGE - 10) * s }, width: 220 * s, height: 68 * s }}>
-        <Button label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onBack} />
       </UiEntity>
     </Modal>
   )

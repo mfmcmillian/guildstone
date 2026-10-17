@@ -269,6 +269,10 @@ export function Modal(props: {
   scale?: number
   /** Mouse-down on the title tab (used to start a window drag). */
   onTitleDown?: Callback
+  /** Content runs under the frame border (e.g. the WAR field): draw a frame-only overlay on top so the border and tabs stay visible. */
+  edgeToEdge?: boolean
+  /** Extra tabs drawn above the frame overlay (positioned like the title/CLOSE tabs, relative to the frame). */
+  tabs?: Kids
   onClose: Callback
   children?: Kids
 }) {
@@ -278,6 +282,7 @@ export function Modal(props: {
   const titleWidth = (props.titleWidth ?? Math.max(260, t(props.title).length * 26)) * s
   const pad = 36 * s
   const contentTop = 26 * s
+  const contentHeight = height - pad * 2 - contentTop
   return (
     // No click-to-close on the backdrop: UI pointer events bubble to ancestors, so a handler here fires for every tap inside the frame too.
     <UiEntity
@@ -293,6 +298,14 @@ export function Modal(props: {
           padding: pad
         }}
       >
+        {/* Content first so the tabs below draw on top of it. It stops at the frame padding so the bottom CLOSE tab (which straddles the frame edge like the title tab) never covers it. */}
+        <UiEntity uiTransform={{ width: '100%', height: contentHeight, flexDirection: 'column', margin: { top: contentTop } }}>{props.children}</UiEntity>
+        {props.edgeToEdge ? (
+          <UiEntity
+            uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width, height, pointerFilter: 'none' }}
+            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.frame }, textureSlices: SLICE_128, color: C.paper }}
+          />
+        ) : null}
         {/* Title tab */}
         <UiEntity
           uiTransform={{
@@ -306,14 +319,13 @@ export function Modal(props: {
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: props.color }}
           onMouseDown={props.onTitleDown}
         >
-        <OutlinedText value={props.title} size={(props.titleSize ?? FONT.title) * s} uiTransform={{ margin: { bottom: 6 * s } }} />
+          <OutlinedText value={props.title} size={(props.titleSize ?? FONT.title) * s} uiTransform={{ margin: { bottom: 6 * s } }} />
         </UiEntity>
         <CloseButton onClick={props.onClose} scale={s} />
-        {/* Content stops at the frame padding so the bottom CLOSE tab (which straddles the frame edge like the title tab) never covers it. */}
-        <UiEntity uiTransform={{ width: '100%', height: height - pad * 2 - contentTop, flexDirection: 'column', margin: { top: contentTop } }}>{props.children}</UiEntity>
         <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s, left: (width - 320 * s) / 2 }, width: 320 * s, height: 68 * s }}>
           <Button label="CLOSE" color={C.red} sound="cancel" size={FONT.button * s} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onClose} />
         </UiEntity>
+        {props.tabs}
       </Panel>
     </UiEntity>
   )

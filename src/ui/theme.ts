@@ -26,6 +26,8 @@ export const C = {
 export const TEX = {
   panel: 'images/ui/panel.png',
   panelFlat: 'images/ui/panel_flat.png',
+  /** panel.png with a transparent centre: draw it over edge-to-edge content so the frame stays on top. */
+  frame: 'images/ui/frame.png',
   btn: 'images/ui/btn.png',
   btnFlat: 'images/ui/btn_flat.png',
   pill: 'images/ui/pill.png',
