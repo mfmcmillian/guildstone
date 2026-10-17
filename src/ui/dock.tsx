@@ -136,8 +136,6 @@ export function Dock() {
         ) : (
           <OutlinedText value={`Bank, craft, tools & shop: ${campHint()}`} size={S(20)} color={C.gray} uiTransform={{ height: S(28), margin: { top: S(8) } }} />
         )}
-        {/* Your Hold: buildings and troops (docs/HOLD_AND_WARBAND.md). Independent of the land-scene stations. */}
-        <Button label="HOLD" icon="images/icons/guild/hq.png" color={C.greenDark} size={S(20)} uiTransform={{ width: '100%', height: S(70), margin: { top: S(ringStationsEnabled() ? 0 : 10) } }} onClick={() => togglePanel('hold')} />
       </Panel>
     </UiEntity>
   )
