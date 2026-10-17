@@ -38,6 +38,8 @@ export const lobby = {
   loadedOnce: false,
   failed: false,
   draft: '',
+  /** Bumped whenever `draft` is reset in code: the SDK Input only reads `value` on mount, so the box is remounted to clear it. */
+  draftKey: 0,
   sending: false,
   /** Address whose mini card is open, if any. */
   selected: null as string | null,
@@ -108,7 +110,7 @@ export function sendChat() {
   const text = lobby.draft.trim().slice(0, CHAT_TEXT_MAX)
   if (!text || lobby.sending || profileState.status !== 'ready' || !profileState.walletAddress) return
   lobby.sending = true
-  lobby.draft = ''
+  setDraft('')
   executeTask(async () => {
     try {
       const response = await signedFetch({
@@ -120,7 +122,7 @@ export function sendChat() {
         try { message = (JSON.parse(response.body) as { error?: string }).error ?? message } catch { /* keep default */ }
         playErrorSound()
         flash(message.toUpperCase())
-        lobby.draft = text
+        setDraft(text)
         return
       }
       const body = JSON.parse(response.body) as { message?: ChatMessage }
@@ -130,11 +132,17 @@ export function sendChat() {
       }
     } catch (error) {
       console.error('[lobby] send failed:', error instanceof Error ? error.message : String(error))
-      lobby.draft = text
+      setDraft(text)
     } finally {
       lobby.sending = false
     }
   })
+}
+
+/** Set the composer text from code (clear after send, restore after a failure) and remount the box so it shows. */
+function setDraft(text: string) {
+  lobby.draft = text
+  lobby.draftKey++
 }
 
 /** Admin only (server enforces): remove one line, or block a wallet and purge its lines. */

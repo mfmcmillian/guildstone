@@ -146,6 +146,7 @@ function ChatColumn(props: { height: number }) {
 
       <UiEntity uiTransform={{ width: '100%', height: S(64), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
         <Input
+          key={`chat-input-${lobby.draftKey}`}
           value={lobby.draft}
           placeholder={lobby.sending ? 'Sending...' : 'Say something to everyone wearing the ring...'}
           fontSize={S(24)}
