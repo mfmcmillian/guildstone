@@ -740,6 +740,8 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Both sides set. Watch it from here.', "Les deux camps sont prêts. Regarde d'ici.", 'Ambos bandos listos. Míralo desde aquí.', '双方已就位。在此观战。'],
   ['Your guild already has a raid going.', 'Ta guilde a déjà un raid en cours.', 'Tu gremio ya tiene una incursión en marcha.', '你的公会已有一场突袭进行中。'],
   ['Only your leader or royal guard can answer.', 'Seuls ton chef ou la garde royale peuvent répondre.', 'Solo tu líder o la guardia real pueden responder.', '只有会长或皇家卫士可以应战。'],
+  ['BACK IN {0}s', 'RETOUR DANS {0}s', 'VUELVE EN {0}s', '{0}秒后归队'],
+  ["YOU'RE DOWN  •  BACK IN {0}s", 'TU ES À TERRE  •  RETOUR DANS {0}s', 'ESTÁS CAÍDO  •  VUELVES EN {0}s', '你被击倒  •  {0}秒后归队'],
   ['VICTORY', 'VICTOIRE', 'VICTORIA', '胜利'],
   ['DEFEAT', 'DÉFAITE', 'DERROTA', '失败'],
   ['DRAW', 'ÉGALITÉ', 'EMPATE', '平局'],

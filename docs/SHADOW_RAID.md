@@ -85,7 +85,7 @@ Players move by clicking a building (the building is the button; a gold ring and
 - Walk time scales with distance (2026-10-17). `walkMs` (7.5 s) is the time for your camp → Citadel; the near corner on your side is ~3 s (floor 3 s), the far corners ~12–14.5 s. `homeMs` (5 s) is the same reference for walking home. Each side's reference is its own camp → Citadel distance, so both sides reach the Citadel in `walkMs`. Server geometry: `STAND` / `CAMP` in `afkRaid.js` mirror the client's `FIELD[*].stand` / `CAMP`.
 - Walking fighters cannot be hit and cannot score. Re-clicking retargets from wherever you are on the path (the server stores `fromX/fromY/departAt` per leg; the client interpolates from them).
 - Arrive → you are **in** the building until you click elsewhere or your HP hits 0.
-- HP 0 → **knocked out**: dragged back to camp over **30 s**, revive at full HP on arrival, free to click again. Cost of a knockout ≈ 3 ticks; cost of a voluntary reposition ≈ 1 tick. Retreating to heal (10 s home + 15 s out) is a legitimate play and one tick cheaper than dying.
+- HP 0 → **knocked out**: carried from where you fell back to camp over **20 s** (÷ Recovery), revive at full HP on arrival and **walk straight back to the building you last picked** (a click meanwhile overrides it; going HOME by choice clears it). The body shows `BACK IN n s` and the header says `YOU'RE DOWN • BACK IN n s`. Retreating to heal is a legitimate play and cheaper than dying.
 - No HP regen anywhere except camp.
 
 Every 3 s (`tickMs`) the server runs a tick, in this order:
@@ -114,7 +114,7 @@ Officer = leader or royal guard. Officer-only on both sides.
 
 ## 7. Wraiths
 
-When no guild answers, the server builds a side of the same size as the caller's, each Wraith a copy of one caller fighter's HP/ATK (shuffled, named Wraith Blade / Shade / Howl / Fang). Wraith AI per tick: the first two go to the Citadel, the rest to the unheld corner with the fewest Wraiths; a knocked-out Wraith re-picks on revive, preferring an enemy-held point it can out-ATK, else the Citadel. Wraith raids score and pay Valor exactly like guild raids and count toward the record as `vs Wraiths`.
+When no guild answers, the server builds a side of the same size as the caller's, each Wraith a copy of one caller fighter's HP/ATK (shuffled, named Wraith Blade / Shade / Howl / Fang). Wraiths take their first orders at the end of tick 1 (one clash after the start), so a caller who clicks at once can hold the Citadel first. Wraith AI per tick: the first two go to the Citadel, the rest to the unheld corner with the fewest Wraiths; a knocked-out Wraith re-picks on revive, preferring an enemy-held point it can out-ATK, else the Citadel. Wraith raids score and pay Valor exactly like guild raids and count toward the record as `vs Wraiths`.
 
 ## 8. End, rewards, record
 
@@ -177,7 +177,7 @@ Design area 1720 × 920 inside the Guild panel. Background image fills it; every
 - Score pills top-left / top-right, timer centre, one-line rule hint under it.
 - Roster cards down each side: name, HP bar, `HP n/max · ATK n`, `Lv · Dagger · VIP · where`. Red card when knocked out. OPEN SLOT cards with JOIN when a slot is free.
 - Five point markers: name pill with pips, garrison line (`KOA 124 ATK vs ELF 230 ATK` when contested, `KOA · Kairos` when held, `empty`), status line (`−30% dmg inside · clash 0:07`, `you arrive in 0:09`).
-- Fighter tokens: sprite sheets `assassin_v2.png` / `assassin_enemy_v2.png`, 6×5 grid of 144 px cells, rows idle 4 / walk 4 / attack 6 / hit 2 / ko 4, drawn right-facing and flipped by `uvs`. Idle in camp or an uncontested building; attack loop (with a lunge) whenever both sides stand in the same building; hit pose + red flash and a floating `-N` when a poll lowers HP, `KO!` on a knock-out; the KO fall plays once and holds while the fighter is carried back. Name tag above, tiny HP bar below, grey when knocked out. Tokens and labels are non-interactive so clicks fall through to the building.
+- Fighter tokens: sprite sheets `assassin_v2.png` / `assassin_enemy_v2.png`, 6×5 grid of 144 px cells, rows idle 4 / walk 4 / attack 6 / hit 2 / ko 4, drawn right-facing and flipped by `uvs`. Idle in camp or an uncontested building; attack loop (with a lunge) whenever both sides stand in the same building; hit pose + red flash and a floating `-N` when a poll lowers HP, `KO!` on a knock-out; the KO fall plays once and holds while the fighter is carried back. Name tag above (`BACK IN n s` while knocked out), tiny HP bar below, grey when knocked out. When a poll shows the tick moved on, each building its holder stands in alone floats `+pips` in the holder's colour. Tokens and labels are non-interactive so clicks fall through to the building.
 - Each building: invisible hit area, gold ring + `GO` chip on hover, purple ring when you are inside.
 - No bottom bar or feed strip (removed 2026-10-17: the field fills the window; damage numbers, KO falls and the roster tell the story). Action buttons (BACK TO CAMP, LEAVE RAID, tester NEXT TICK / FINISH, STOP WATCHING) float over the bottom-right of the field.
 - Lobby view while gathering: countdown, both rosters, JOIN / ANSWER / START info. Board list of other guilds' raids under the RAID button when idle.
@@ -194,7 +194,7 @@ Clicks dip and play the button sound like every other control.
 
 ## 13. Numbers to tune (live, from the control dashboard)
 
-Defaults: `tickMs 3000`, `ticks 100` (was 15 s × 20; shortened 2026-10-17 so a clash lands every three seconds), `gatherMs 90000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 30000`, `sideMax 4`, `sideMin 2`, `raidsPerDay 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+Defaults: `tickMs 3000`, `ticks 80` (4 min; was 15 s × 20, then 100 × 3 s), `gatherMs 90000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 20000` (was 30000), `sideMax 4`, `sideMin 2`, `raidsPerDay 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
 
 Note: the dashboard stores the **full** config, so changing a default in code does not change a deployment that has already saved its config; patch the live value from the dashboard (or `POST /antrom-afk/admin/config`) as well.
 

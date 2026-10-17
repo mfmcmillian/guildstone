@@ -63,6 +63,8 @@ const GLOW_HEADING = Color4.create(1, 0.82, 0.25, 0.45)
 // glow_<point>_v1.png covers the hit box plus this margin on every side (design px), see mock/opt/glows.js.
 const GLOW_PAD = 40
 const sideColor = (side: SideId | null) => (side === 'a' ? PURPLE_LIGHT : side === 'b' ? C.yellow : C.gray)
+/** Seconds until a knocked-out fighter is back on his feet (server clock). */
+const backIn = (f: Fighter) => Math.max(0, Math.ceil((f.arriveAt - serverNow()) / 1000))
 const hpColor = (f: Fighter) => (f.hp <= 0 ? C.red : f.hp / f.hpMax < 0.3 ? C.red : f.hp / f.hpMax < 0.6 ? C.orange : C.green)
 const left = (until: number) => timerText(until - raid.clockOffset)
 
@@ -120,7 +122,7 @@ function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: 
 // Damage feedback. HP only changes when a poll lands, so the drop is turned into a floating number and a red flash.
 const lastHp: Record<string, number> = {}
 const hitAt: Record<string, number> = {}
-let floats: { id: string; text: string; color: Color4; x: number; y: number; at: number }[] = []
+let floats: { id: string; text: string; color: Color4; x: number; y: number; at: number; lift?: number; size?: number }[] = []
 function noteDamage(v: RaidView, f: Fighter, x: number, y: number) {
   const key = `${v.id}:${f.id}`
   const prev = lastHp[key]
@@ -132,6 +134,22 @@ function noteDamage(v: RaidView, f: Fighter, x: number, y: number) {
   if (f.hp <= 0) floats.push({ id: `${key}:ko:${now}`, text: 'KO!', color: C.yellow, x, y: y - 6, at: now + 200 })
   if (floats.length > 40) floats = floats.slice(-40)
 }
+// Scoring feedback: when a poll shows the tick moved on, every building its holder stands in alone floats its pips
+// in the holder's colour, so standing on a building visibly pays.
+const lastTickSeen: Record<string, number> = {}
+function noteScores(v: RaidView) {
+  const prev = lastTickSeen[v.id]
+  lastTickSeen[v.id] = v.tick
+  if (prev === undefined || v.tick <= prev || v.status !== 'live') return
+  const now = Date.now()
+  for (const point of POINT_IDS) {
+    const holder = v.held[point]
+    if (!holder || standingAt(v.sides[holder], point).length === 0 || standingAt(v.sides[holder === 'a' ? 'b' : 'a'], point).length > 0) continue
+    const [lx, ly] = FIELD[point].label
+    floats.push({ id: `score:${point}:${now}`, text: `+${v.points[point].pips}`, color: sideColor(holder), x: lx, y: ly, at: now, lift: 20, size: 34 })
+  }
+  if (floats.length > 40) floats = floats.slice(-40)
+}
 function Floats() {
   const now = Date.now()
   floats = floats.filter((d) => now - d.at < FLOAT_MS)
@@ -141,8 +159,8 @@ function Floats() {
         const t = (now - d.at) / FLOAT_MS
         const alpha = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4
         return (
-          <UiEntity key={d.id} uiTransform={{ positionType: 'absolute', position: { left: px(d.x) - S(60), top: py(d.y) - S(TOKEN + 40) - S(70) * t }, width: S(120), height: S(40), alignItems: 'center', justifyContent: 'center' }}>
-            <OutlinedText value={d.text} size={S(d.text === 'KO!' ? 34 : 28)} color={Color4.create(d.color.r, d.color.g, d.color.b, alpha)} />
+          <UiEntity key={d.id} uiTransform={{ positionType: 'absolute', position: { left: px(d.x) - S(60), top: py(d.y) - S(d.lift ?? TOKEN + 40) - S(70) * t }, width: S(120), height: S(40), alignItems: 'center', justifyContent: 'center' }}>
+            <OutlinedText value={d.text} size={S(d.size ?? (d.text === 'KO!' ? 34 : 28))} color={Color4.create(d.color.r, d.color.g, d.color.b, alpha)} />
           </UiEntity>
         )
       })}
@@ -171,7 +189,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           uiTransform={{ height: S(26), padding: { left: S(8), right: S(8) }, alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: you ? C.purple : DARK }}
         >
-          <Text value={you ? 'YOU' : f.name.toUpperCase().slice(0, 8)} size={S(20)} color={you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
+          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : you ? 'YOU' : f.name.toUpperCase().slice(0, 8)} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
       <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} color={tint} />
@@ -343,6 +361,8 @@ function Header(props: { v: RaidView }) {
   const v = props.v
   const a = v.sides.a
   const b = v.sides.b
+  const me = myFighter()
+  const down = v.status === 'live' && me !== null && me.state === 'ko'
   const big = v.status === 'gathering' ? `${v.rules.test ? 'TEST  •  ' : ''}GATHERING  •  ${left(v.gatherUntil)}`
     : v.status === 'live' ? `${left(v.endAt)} LEFT`
     : v.status === 'done' ? 'FINAL' : 'CALLED OFF'
@@ -353,6 +373,7 @@ function Header(props: { v: RaidView }) {
       </UiEntity>
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
         <OutlinedText value={big} size={S(38)} uiTransform={{ height: S(50) }} />
+        {down ? <OutlinedText value={`YOU'RE DOWN  •  BACK IN ${backIn(me!)}s`} size={S(26)} color={C.red} uiTransform={{ height: S(34) }} /> : null}
       </UiEntity>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { right: S(24) } }}>
         <OutlinedText value={`${v.score.b}  ${sideTag(b)}`} size={S(44)} color={C.yellow} align="middle-right" uiTransform={{ height: S(60) }} />
@@ -379,6 +400,7 @@ function ActionRow(props: { v: RaidView }) {
 
 function Field(props: { v: RaidView }) {
   const v = props.v
+  noteScores(v)
   const me = myFighter()
   const canMove = v.status === 'live' && me !== null && me.state !== 'ko' && !raid.spectating
   return (

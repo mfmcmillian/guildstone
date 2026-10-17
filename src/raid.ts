@@ -95,7 +95,7 @@ export interface MyRaid { valor: number; raids: number; wins: number; kos: numbe
 
 /** Balance numbers from the server. A raid view carries the snapshot it was called with; `raid.rules` is the current set. */
 export interface RaidRules { tickMs: number; ticks: number; walkMs: number; homeMs: number; koWalkMs: number; sideMax: number; sideMin: number; gatherMs: number; raidsPerDay: number; test?: boolean }
-const DEFAULT_RULES: RaidRules = { tickMs: 3000, ticks: 100, walkMs: 7500, homeMs: 5000, koWalkMs: 30000, sideMax: 4, sideMin: 2, gatherMs: 90000, raidsPerDay: 3 }
+const DEFAULT_RULES: RaidRules = { tickMs: 3000, ticks: 80, walkMs: 7500, homeMs: 5000, koWalkMs: 20000, sideMax: 4, sideMin: 2, gatherMs: 90000, raidsPerDay: 3 }
 
 export const raid = {
   view: null as RaidView | null,
