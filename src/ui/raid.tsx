@@ -5,7 +5,7 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, SLICE_PILL } from './theme'
 import { OutlinedText, Text, Panel, Button, Bar, Modal, timerText } from './components'
-import { S, fitModal, CONTENT_W } from './responsive'
+import { S, fitModal } from './responsive'
 import { dragOffsetPx, startDrag } from './drag'
 import { player } from '../state'
 import {
@@ -35,8 +35,13 @@ const ANIM: Record<Anim, { row: number; frames: number; ms: number }> = {
 }
 const HIT_FLASH_MS = 320
 const FLOAT_MS = 1300
-const W = CONTENT_W
-const H = 920
+// The field fills the WAR window edge to edge (inside the frame's painted border), so its size is the frame minus
+// FRAME_EDGE on each side. Same aspect as the battlefield art (1280x685).
+const WAR_FRAME_W = 1850
+const FRAME_EDGE = 14
+const W = WAR_FRAME_W - FRAME_EDGE * 2
+const H = 975
+const WAR_FRAME_H = H + FRAME_EDGE * 2
 const px = (x: number) => S((x / 100) * W)
 const py = (y: number) => S((y / 100) * H)
 
@@ -53,11 +58,12 @@ const CAMP: Record<SideId, [number, number]> = { a: [19, 52], b: [80, 52] }
 const ROSTER_W = 270
 const CARD_H = 160
 const CARD_GAP = 10
-const ROSTER_TOP = 100
+const ROSTER_TOP = 122
 // Cell size on screen. The character stands about 74% of its 144 px cell, so this matches the old 80 px tokens.
 const TOKEN = 108
 const TOKEN_GAP = 72
-const BAR_H = 90
+// Tall enough that the window's CLOSE tab (which straddles the frame's bottom edge) never covers the feed lines.
+const BAR_H = 112
 
 const PURPLE_LIGHT = Color4.fromHexString('#c9a3ffff')
 const DARK = Color4.create(0.106, 0.141, 0.212, 0.88)
@@ -382,7 +388,7 @@ function Header(props: { v: RaidView }) {
     sub = `Fewer than ${v.rules.sideMin} fighters joined in time`
   }
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(10), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(32), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
         <OutlinedText value={`${sideTag(a)}  ${v.score.a}`} size={S(44)} color={PURPLE_LIGHT} align="middle-left" uiTransform={{ height: S(60) }} />
       </UiEntity>
@@ -410,7 +416,7 @@ function BottomBar(props: { v: RaidView }) {
     else if (me.state === 'in') statusColor = PURPLE_LIGHT
   } else if (v.mine) status = v.status === 'live' ? 'Your guild is raiding' : ''
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: 0, left: 0 }, width: '100%', height: S(BAR_H), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24) } }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 0.94) }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: 0, left: 0 }, width: '100%', height: S(BAR_H), flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24), bottom: S(22) } }} uiBackground={{ color: Color4.create(0.106, 0.141, 0.212, 0.94) }}>
       <UiEntity uiTransform={{ width: S(400), flexDirection: 'column' }}>
         <Text value={me ? `${me.name} (you)` : status} size={S(22)} color={C.white} nowrap align="middle-left" uiTransform={{ height: S(28) }} />
         {me ? <Text value={status} size={S(22)} color={statusColor} nowrap align="middle-left" uiTransform={{ height: S(28) }} /> : null}
@@ -609,18 +615,19 @@ export function WarTab(props: { height: number }) {
  * The WAR tab as a full-screen view: the battlefield scales to fill the screen (letterboxed, never cropped so the
  * rosters stay on) under a slim bar with BACK (to the guild window), the title and CLOSE.
  */
-// Own window: the field fills the frame's content area (same width as the guild window, shorter), the title tab
-// drags it like the other windows (saved as uiLayout.war) and a GUILD tab at the bottom-left goes back.
-const WAR_FRAME_W = 1850
-const WAR_FRAME_H = H + 36 * 2 + 26
+// Own window: the field covers the whole frame up to its painted border (no paper margin), the title tab drags it
+// like the other windows (saved as uiLayout.war) and a GUILD tab at the bottom-left goes back.
 export function WarScreen(props: { title: string; onBack: () => void; onClose: () => void }) {
   const fit = fitModal(WAR_FRAME_W, WAR_FRAME_H)
   const o = dragOffsetPx('war')
   const s = fit.scale
   return (
     <Modal title={props.title} color={C.purple} width={WAR_FRAME_W} height={WAR_FRAME_H} scale={s} offsetX={fit.offsetX + o.dx} offsetY={o.dy} titleSize={52} titleWidth={Math.max(420, props.title.length * 40)} onTitleDown={() => startDrag('war')} onClose={props.onClose}>
-      <WarTab height={H} />
-      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s - 36 * s, left: 0 }, width: 220 * s, height: 68 * s }}>
+      {/* Modal lays content out 36 (padding) + 26 (title room) inside the frame; pull the field back out to the border. */}
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: -(36 + 26 - FRAME_EDGE) * s, left: -(36 - FRAME_EDGE) * s }, width: S(W), height: S(H) }}>
+        <WarTab height={H} />
+      </UiEntity>
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s - 36 * s, left: -(36 - FRAME_EDGE - 10) * s }, width: 220 * s, height: 68 * s }}>
         <Button label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onBack} />
       </UiEntity>
     </Modal>
