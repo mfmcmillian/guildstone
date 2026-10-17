@@ -1,7 +1,7 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, FONT, glow } from './theme'
-import { OutlinedText, Panel, Button } from './components'
+import { C, FONT, glow, TEX, SLICE_PILL } from './theme'
+import { OutlinedText, Panel, Button, Icon, IconButton } from './components'
 import { isMuted, setMuted, playButtonSound } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { togglePanel, ui } from './uiState'
@@ -10,7 +10,8 @@ import { S, setScale, hudScale, getCanvas } from './responsive'
 import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
 import { settings } from '../settings'
-import { setAlerts } from '../transactions'
+import { setAlerts, setLanguagePref } from '../transactions'
+import { LANGUAGES, getLanguage, languageInfo } from '../i18n'
 import { showShop, showToolBench, showWorkshop, stepTarget } from './guide'
 
 const skillColor = (s: (typeof SKILLS)[number]) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
@@ -41,6 +42,9 @@ export function ShowUiButton() {
  * zones become a profession picker. Hidden while a panel is open so modals get the full screen.
  */
 /** 'LUMBER CAMP' -> 'Lumber Camp' for sentence use. */
+/** Language picker row under the header; closes on pick or when the UI is hidden. */
+let languageOpen = false
+
 const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 
 export function Dock() {
@@ -69,31 +73,38 @@ export function Dock() {
       }}
     >
       <Panel flat color={C.navySoft} uiTransform={{ width: S(420), padding: S(18), flexDirection: 'column' }}>
-        {/* Header: title, then three small controls where the cog used to be (hide the Antrom UI; alerts; sounds).
-            pad 8: the default 22 px button padding would leave no room for the labels at these widths. */}
+        {/* Header: title, then four frameless controls: language flag, hide the Antrom UI (eye), alerts (bell), sounds (speaker).
+            The crossed-out glyph is the OFF state. Alerts and language are saved on the profile. */}
         <UiEntity uiTransform={{ width: '100%', height: S(44), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(8) } }}>
           <OutlinedText value="ANTROM AFK" size={S(FONT.body + 2)} color={C.yellow} align="middle-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
-          <Button label="HIDE" color={C.blue} size={S(15)} pad={8} uiTransform={{ width: S(62), height: S(40), minWidth: 0, margin: { right: S(6) } }} onClick={() => { ui.hidden = true }} />
-          {/* ALERTS: gather/find toasts, level-up and rare-find banners, lobby badge. QUIET hides them; saved on the profile. */}
-          <Button
-            label={settings.alerts ? 'ALERTS' : 'QUIET'}
-            color={settings.alerts ? C.green : C.gray}
-            textColor={settings.alerts ? C.white : C.textMuted}
-            size={S(15)}
-            pad={8}
-            uiTransform={{ width: S(86), height: S(40), minWidth: 0, margin: { right: S(6) } }}
-            onClick={() => setAlerts(!settings.alerts)}
-          />
-          <Button
-            label={isMuted() ? 'MUTED' : 'SOUND'}
-            color={isMuted() ? C.gray : C.green}
-            textColor={isMuted() ? C.textMuted : C.white}
-            size={S(15)}
-            pad={8}
-            uiTransform={{ width: S(80), height: S(40), minWidth: 0 }}
-            onClick={() => setMuted(!isMuted())}
-          />
+          <IconButton icon={languageInfo().flag} size={S(34)} aspect={1.375} uiTransform={{ margin: { right: S(10) } }} onClick={() => { languageOpen = !languageOpen }} />
+          <IconButton icon="images/ui/ic_eye.png" size={S(40)} uiTransform={{ margin: { right: S(6) } }} onClick={() => { languageOpen = false; ui.hidden = true }} />
+          <IconButton icon={settings.alerts ? 'images/ui/ic_bell.png' : 'images/ui/ic_bell_off.png'} size={S(40)} uiTransform={{ margin: { right: S(6) } }} onClick={() => setAlerts(!settings.alerts)} />
+          <IconButton icon={isMuted() ? 'images/ui/ic_sound_off.png' : 'images/ui/ic_sound.png'} size={S(40)} onClick={() => setMuted(!isMuted())} />
         </UiEntity>
+        {languageOpen ? (
+          // Language picker: one row of flags with native names; the current one sits on a purple pill.
+          <UiEntity uiTransform={{ width: '100%', height: S(74), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: { bottom: S(10) }, padding: { left: S(4), right: S(4) } }}>
+            {LANGUAGES.map((lang) => {
+              const active = lang.code === getLanguage()
+              return (
+                <UiEntity
+                  key={`lang-${lang.code}`}
+                  uiTransform={{ width: S(94), height: S(74), flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+                  uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: active ? C.purple : Color4.create(0, 0, 0, 0) }}
+                  onMouseDown={() => {
+                    playButtonSound()
+                    setLanguagePref(lang.code)
+                    languageOpen = false
+                  }}
+                >
+                  <Icon src={lang.flag} size={S(30)} uiTransform={{ width: S(41), height: S(30) }} />
+                  <OutlinedText value={lang.label} size={S(20)} color={active ? C.white : C.gray} uiTransform={{ height: S(26), margin: { top: S(2) } }} />
+                </UiEntity>
+              )
+            })}
+          </UiEntity>
+        ) : null}
         <OutlinedText
           value={connecting ? connectingText : working ? `${SKILL_INFO[working].verb} in the ${titleCase(SKILL_INFO[working].zoneName)}` : 'Pick a profession to enter its zone'}
           size={S(20)}
