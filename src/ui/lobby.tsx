@@ -2,6 +2,9 @@ import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
 import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Button, Icon } from './components'
 import { S } from './responsive'
+
+/** Shown next to the name of whoever forged the Guildstone Crown. */
+const CROWN_ICON = 'images/icons/guild/crown_small.png'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
@@ -16,6 +19,7 @@ import {
   joinGuildByTag,
   boardRows,
   myBoardRank,
+  isCrownHolder,
   BOARDS,
   BOARD_TITLE,
   CHAT_TEXT_MAX,
@@ -238,6 +242,7 @@ function BoardColumn(props: { id: BoardId; height: number }) {
               }}
             >
               <OutlinedText value={`#${i + 1}`} size={S(30)} color={i < 3 ? C.gold : C.textMuted} align="middle-left" uiTransform={{ width: S(90), height: S(40) }} />
+              {isCrownHolder(r.key) ? <Icon src={CROWN_ICON} size={S(34)} uiTransform={{ margin: { right: S(8) } }} /> : null}
               <Text value={`${r.name}${r.tag ? `  [${r.tag}]` : ''}`} size={S(30)} color={C.white} align="middle-left" nowrap uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
               <Text value={r.value} size={S(30)} color={r.mine ? C.white : C.yellow} align="middle-right" nowrap uiTransform={{ width: S(420), height: S(40) }} />
             </UiEntity>
@@ -272,7 +277,10 @@ function OnlineColumn(props: { height: number }) {
                 lobby.selected = p.address
               }}
             >
-              <Text value={`${p.name}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(36) }} />
+              <UiEntity uiTransform={{ width: '100%', height: S(36), flexDirection: 'row', alignItems: 'center' }}>
+                {isCrownHolder(p.address) ? <Icon src={CROWN_ICON} size={S(30)} uiTransform={{ margin: { right: S(6) } }} /> : null}
+                <Text value={`${p.name}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(36) }} />
+              </UiEntity>
               <Text value={statusLine(p)} size={S(23)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(30) }} />
             </UiEntity>
           ))}
@@ -301,7 +309,13 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
           <Text value={(p.suit[i] ?? 0) > 0 ? `Suit L${p.suit[i]}` : 'no suit'} size={S(20)} color={(p.suit[i] ?? 0) > 0 ? C.greenDark : C.textMuted} align="middle-left" nowrap uiTransform={{ flexGrow: 1, height: S(30) }} />
         </UiEntity>
       ))}
-      <Text value={`Suits crafted: ${p.crafted}`} size={S(20)} color={C.textMuted} uiTransform={{ width: '100%', height: S(28), margin: { top: S(4), bottom: S(12) } }} />
+      <Text value={`Suits crafted: ${p.crafted}${(p.relics?.length ?? 0) > 0 ? `  •  Relics: ${p.relics!.length} / 4` : ''}`} size={S(20)} color={C.textMuted} uiTransform={{ width: '100%', height: S(28), margin: { top: S(4), bottom: isCrownHolder(p.address) ? S(2) : S(12) } }} />
+      {isCrownHolder(p.address) ? (
+        <UiEntity uiTransform={{ width: '100%', height: S(32), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(10) } }}>
+          <Icon src={CROWN_ICON} size={S(28)} uiTransform={{ margin: { right: S(8) } }} />
+          <Text value="Forged the Guildstone Crown" size={S(20)} color={C.gold} align="middle-left" nowrap uiTransform={{ flexGrow: 1, height: S(30) }} />
+        </UiEntity>
+      ) : null}
 
       <UiEntity uiTransform={{ flexGrow: 1 }} />
       {props.canInvite && !p.guild ? (() => {

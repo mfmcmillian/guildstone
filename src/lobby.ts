@@ -22,6 +22,8 @@ export interface OnlinePlayer {
   level: number[]
   suit: number[]
   crafted: number
+  /** Relics this wallet forged (profession ids). */
+  relics?: string[]
   /** Skill being worked right now ('' when idle). */
   working: string
   active: number

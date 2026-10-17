@@ -78,7 +78,7 @@ import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
 import { canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
-import { crownHolder, refreshBoard } from '../lobby'
+import { crownHolder, isCrownHolder, refreshBoard } from '../lobby'
 import { stepTarget } from './guide'
 
 const skillColor = (s: Skill) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
@@ -1452,7 +1452,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
             const crownArmed = manageArmed('transfer', id)
             return (
               <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(100), flexDirection: 'row', alignItems: 'center', padding: { left: S(18), right: S(18) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
-                <Icon src={guildRoleIcon(role)} size={S(64)} uiTransform={{ margin: { right: S(8) } }} />
+                <Icon src={isCrownHolder(id) ? 'images/icons/guild/crown_small.png' : guildRoleIcon(role)} size={S(64)} uiTransform={{ margin: { right: S(8) } }} />
                 <UiEntity uiTransform={{ width: S(220), flexDirection: 'column' }}>
                   <Text value={guild.memberNames?.[id] || shortWallet(id)} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(34) }} />
                   <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(22)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(28) }} />
