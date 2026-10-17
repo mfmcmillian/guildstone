@@ -157,6 +157,13 @@ function SuitNftCard(props: { key?: string; skill: Skill; index: number }) {
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(2) } }}>
           <Text value={(piece.rarity ?? '').toUpperCase()} size={S(20)} color={owned ? C.text : C.textMuted} nowrap uiTransform={{ width: '100%', height: S(26) }} />
           <Text value={piece.usd != null ? assassinPriceLine(piece.usd) : ''} size={S(20)} color={owned ? C.text : C.textMuted} nowrap uiTransform={{ width: '100%', height: S(26) }} />
+          {/* Gloves only: Antrom (KoA) mints them for your first Dweller cave clear, so nobody has to buy in. */}
+          {index === 0 && !owned ? (
+            <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center', margin: { top: S(6) } }}>
+              <Text value="Also free in Antrom:" size={S(20)} color={C.greenDark} nowrap uiTransform={{ width: '100%', height: S(26) }} />
+              <Text value="beat the Dweller" size={S(20)} color={C.greenDark} nowrap uiTransform={{ width: '100%', height: S(26) }} />
+            </UiEntity>
+          ) : null}
         </UiEntity>
       ) : (
         <Text value={`Tier ${level} drops  •  +${SUIT_CAP[level]} bag`} size={S(20)} color={owned ? C.text : C.textMuted} nowrap uiTransform={{ width: '100%', height: S(30) }} />
