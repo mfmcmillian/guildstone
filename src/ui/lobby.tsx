@@ -24,6 +24,11 @@ import {
   BOARDS,
   BOARD_TITLE,
   CHAT_TEXT_MAX,
+  bug,
+  bugCooldownLeft,
+  sendBugReport,
+  settleBugCard,
+  BUG_TEXT_MAX,
   type BoardId,
   type OnlinePlayer
 } from '../lobby'
@@ -217,17 +222,78 @@ function BoardColumn(props: { id: BoardId; height: number }) {
 }
 
 // ---- Online list + player card ---------------------------------------------------------------------------------
+/** Bottom of the ONLINE column: one button that unfolds into a short form. Sends to /bug with client context attached. */
+function BugCard() {
+  settleBugCard()
+  const wait = bugCooldownLeft()
+  const ready = bug.draft.trim().length >= 10 && !bug.sending && wait === 0
+  if (!bug.open) {
+    return (
+      <Button
+        key="bug-open"
+        label={wait > 0 ? `REPORT BUG  •  ${Math.ceil(wait / 1000)}s` : 'REPORT BUG'}
+        color={C.navy}
+        textColor={C.textMuted}
+        disabled={wait > 0}
+        size={S(20)}
+        uiTransform={{ width: '100%', height: S(56), margin: { top: S(10) } }}
+        onClick={() => { bug.open = true; bug.error = '' }}
+      />
+    )
+  }
+  if (bug.thanksUntil > 0) {
+    return (
+      <UiEntity uiTransform={{ width: '100%', height: S(BUG_OPEN_H), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { top: S(10) } }}>
+        <OutlinedText value="THANKS  •  REPORT SENT" size={S(26)} color={C.green} uiTransform={{ width: '100%', height: S(40) }} />
+        <Text value="We read every one." size={S(22)} color={C.textMuted} uiTransform={{ width: '100%', height: S(30) }} />
+      </UiEntity>
+    )
+  }
+  return (
+    <UiEntity uiTransform={{ width: '100%', height: S(BUG_OPEN_H), flexDirection: 'column', margin: { top: S(10) } }}>
+      <Text value="What went wrong? Where were you?" size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(30) }} />
+      <Input
+        key="bug-input"
+        value={bug.draft}
+        placeholder="e.g. SELL ALL did nothing after banking"
+        fontSize={S(22)}
+        color={C.text}
+        placeholderColor={C.textMuted}
+        uiTransform={{ width: '100%', height: S(60), margin: { top: S(4) } }}
+        onChange={(value) => { bug.draft = value.slice(0, BUG_TEXT_MAX) }}
+        onSubmit={() => sendBugReport()}
+      />
+      <UiEntity uiTransform={{ width: '100%', height: S(56), flexDirection: 'row', alignItems: 'center', margin: { top: S(8) } }}>
+        <Button key="bug-cancel" label="CANCEL" color={C.navy} textColor={C.textMuted} size={S(20)} uiTransform={{ width: S(150), height: S(56), minWidth: 0, margin: { right: S(8) } }} onClick={() => { bug.open = false; bug.error = '' }} />
+        <Button key="bug-send" label={bug.sending ? 'SENDING...' : 'SEND'} color={C.green} disabled={!ready} size={S(22)} uiTransform={{ flexGrow: 1, height: S(56), minWidth: 0 }} onClick={() => sendBugReport()} />
+      </UiEntity>
+      <Text
+        value={bug.error ? bug.error : `${bug.draft.trim().length}/${BUG_TEXT_MAX}  •  level, zone and window attached`}
+        size={S(20)}
+        color={bug.error ? C.red : C.textMuted}
+        align="middle-left"
+        nowrap
+        uiTransform={{ width: '100%', height: S(28), margin: { top: S(4) } }}
+      />
+    </UiEntity>
+  )
+}
+/** Height of the unfolded bug card (label 30 + input 64 + buttons 64 + status 32). */
+const BUG_OPEN_H = 190
+const BUG_CLOSED_H = 66
+
 function OnlineColumn(props: { height: number }) {
   const rowH = 84
   const list = lobby.online
+  const bugH = bug.open ? BUG_OPEN_H + 10 : BUG_CLOSED_H
   return (
     <Panel flat color={C.navySoft} uiTransform={{ width: S(SIDE_W), height: S(props.height), padding: S(10), flexDirection: 'column' }}>
       <OutlinedText value={`ONLINE  •  ${lobby.online.length}`} size={S(28)} color={C.gold} uiTransform={{ width: '100%', height: S(40), margin: { bottom: S(10) } }} />
       {list.length === 0 ? (
-        <Text value={lobby.loadedOnce ? 'Nobody else is on right now.' : 'Looking around...'} size={S(24)} color={C.textMuted} uiTransform={{ width: '100%', height: S(36) }} />
+        <Text value={lobby.loadedOnce ? 'Nobody else is on right now.' : 'Looking around...'} size={S(24)} color={C.textMuted} uiTransform={{ width: '100%', height: S(36), flexGrow: 1 }} />
       ) : (
-        // Scrolls: everyone online, big rows.
-        <UiEntity uiTransform={{ width: '100%', height: S(props.height - 20 - 50), flexDirection: 'column', overflow: 'scroll' }}>
+        // Scrolls: everyone online, big rows. The REPORT BUG card below takes the rest.
+        <UiEntity uiTransform={{ width: '100%', height: S(props.height - 20 - 50 - bugH), flexDirection: 'column', overflow: 'scroll' }}>
           {list.map((p) => (
             <UiEntity
               key={`on-${p.address}`}
@@ -248,6 +314,7 @@ function OnlineColumn(props: { height: number }) {
           ))}
         </UiEntity>
       )}
+      <BugCard />
     </Panel>
   )
 }

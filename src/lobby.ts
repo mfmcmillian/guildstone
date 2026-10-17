@@ -1,9 +1,13 @@
 import { executeTask } from '@dcl/sdk/ecs'
 import { signedFetch } from '~system/SignedFetch'
 import { profileState } from './playerProfile'
-import { flash, player, SKILL_INFO, SKILLS, type Skill } from './state'
+import { backpackCount, flash, player, SKILL_INFO, SKILLS, type Skill } from './state'
 import { requestGuild } from './transactions'
-import { playErrorSound } from './uiSounds'
+import { playErrorSound, playSuccessSound } from './uiSounds'
+import { engine, RealmInfo, UiCanvasInformation } from '@dcl/sdk/ecs'
+import { ui } from './ui/uiState'
+import { activeSkill } from './work'
+import { settings } from './settings'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 /** Poll cadence while the LOBBY tab is on screen; nothing is fetched otherwise. */
@@ -237,6 +241,88 @@ export function refreshBoard() {
       lobby.board.loading = false
     }
   })
+}
+
+// ---- REPORT BUG --------------------------------------------------------------------------------------------------
+export const BUG_TEXT_MAX = 500
+/** Client-side pause between reports; the server also caps at 3 per wallet per day. */
+const BUG_COOLDOWN_MS = 60_000
+const BUG_THANKS_MS = 4000
+const CLIENT_VERSION = '0.2.0'
+
+export const bug = {
+  /** The card is collapsed to one button until tapped; collapsing unmounts the Input, which is how it gets cleared. */
+  open: false,
+  draft: '',
+  sending: false,
+  /** Set after a successful send; the card shows THANKS until it passes, then collapses. */
+  thanksUntil: 0,
+  /** Next time a report may be sent (0 = now). */
+  nextAt: 0,
+  error: ''
+}
+
+export const bugCooldownLeft = () => Math.max(0, bug.nextAt - Date.now())
+
+/** What the player sees and where they are, so a report can be read without asking them anything back. */
+function bugContext(): Record<string, string | number | boolean | number[]> {
+  const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
+  return {
+    version: CLIENT_VERSION,
+    realm: RealmInfo.getOrNull(engine.RootEntity)?.realmName ?? '',
+    open: ui.open ?? 'hud',
+    working: activeSkill() ?? '',
+    level: SKILLS.map((s) => player.skills[s].level),
+    suit: SKILLS.map((s) => player.skills[s].suit),
+    coins: player.coins,
+    berries: player.berries,
+    bag: backpackCount(),
+    queue: player.craftQueue.length,
+    pending: player.pendingCraft?.status ?? '',
+    guild: player.guild?.tag ?? '',
+    alerts: settings.alerts,
+    canvas: canvas ? `${Math.round(canvas.width)}x${Math.round(canvas.height)}@${canvas.devicePixelRatio}` : '',
+    hidden: ui.hidden
+  }
+}
+
+export function sendBugReport() {
+  const text = bug.draft.trim().slice(0, BUG_TEXT_MAX)
+  if (text.length < 10 || bug.sending || bugCooldownLeft() > 0 || profileState.status !== 'ready' || !profileState.walletAddress) return
+  bug.sending = true
+  bug.error = ''
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/bug`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, context: bugContext() }) }
+      })
+      if (!response.ok) {
+        let message = `Report failed (${response.status})`
+        try { message = (JSON.parse(response.body) as { error?: string }).error ?? message } catch { /* keep default */ }
+        bug.error = message
+        playErrorSound()
+        return
+      }
+      bug.draft = ''
+      bug.thanksUntil = Date.now() + BUG_THANKS_MS
+      bug.nextAt = Date.now() + BUG_COOLDOWN_MS
+      playSuccessSound()
+    } catch (error) {
+      bug.error = 'Report failed, try again'
+      console.error('[lobby] bug report failed:', error instanceof Error ? error.message : String(error))
+    } finally {
+      bug.sending = false
+    }
+  })
+}
+
+/** Called from the card render: once THANKS has shown long enough, fold the card back to its button. */
+export function settleBugCard() {
+  if (bug.thanksUntil > 0 && Date.now() >= bug.thanksUntil) {
+    bug.thanksUntil = 0
+    bug.open = false
+  }
 }
 
 // ---- Leaderboards ------------------------------------------------------------------------------------------------
