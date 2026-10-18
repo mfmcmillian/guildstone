@@ -368,7 +368,8 @@ function Header(props: { v: RaidView }) {
   const b = v.sides.b
   const me = myFighter()
   const down = v.status === 'live' && me !== null && me.state === 'ko'
-  const big = v.status === 'gathering' ? (v.mode === 'battle' && v.windowEnd && v.gatherUntil >= v.windowEnd ? `WAITING FOR ${v.rules.sideMin} A SIDE  •  ${leftLong(v.windowEnd)}` : `${v.rules.test ? 'TEST  •  ' : ''}GATHERING  •  ${left(v.gatherUntil)}`)
+  // While gathering the LobbyCard over the field already carries the title and the big countdown, so the centre stays empty.
+  const big = v.status === 'gathering' ? ''
     : v.status === 'live' ? `${left(v.endAt)} LEFT`
     : v.status === 'done' ? 'FINAL' : 'CALLED OFF'
   return (
@@ -377,7 +378,7 @@ function Header(props: { v: RaidView }) {
         <OutlinedText value={`${sideTag(a, v.mode)}  ${v.score.a}`} size={S(44)} color={PURPLE_LIGHT} align="middle-left" uiTransform={{ height: S(60) }} />
       </UiEntity>
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
-        <OutlinedText value={big} size={S(38)} uiTransform={{ height: S(50) }} />
+        {big ? <OutlinedText value={big} size={S(38)} uiTransform={{ height: S(50) }} /> : null}
         {down ? <OutlinedText value={`YOU'RE DOWN  •  BACK IN ${backIn(me!)}s`} size={S(26)} color={C.red} uiTransform={{ height: S(34) }} /> : null}
       </UiEntity>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { right: S(24) } }}>
