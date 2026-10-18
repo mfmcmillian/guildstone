@@ -1,4 +1,5 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
+import { Color4 } from '@dcl/sdk/math'
 import { t } from '../i18n'
 import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Button, Icon } from './components'
@@ -231,7 +232,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
       {sug.length > 0 ? (
         <UiEntity uiTransform={{ width: '100%', height: S(46), flexDirection: 'row', alignItems: 'center', margin: { top: S(8) } }}>
           {sug.map((p) => (
-            <Button key={`sug-${p.address}`} label={`@${p.name}`} color={C.orange} textColor={C.navy} size={S(20)} pad={10} uiTransform={{ width: S(280), height: S(46), minWidth: 0, margin: { right: S(8) } }} onClick={() => completeMention(channel, p.name)} />
+            <Button key={`sug-${p.address}`} label={`@${p.name}`} color={Color4.create(0.05, 0.05, 0.07, 0.95)} textColor={C.green} size={S(20)} pad={10} uiTransform={{ width: S(280), height: S(46), minWidth: 0, margin: { right: S(8) } }} onClick={() => completeMention(channel, p.name)} />
           ))}
         </UiEntity>
       ) : null}
