@@ -241,7 +241,10 @@ function setDraft(channel: Channel, text: string) {
   st.draft = text
   st.retiringKey = st.draftKey
   st.draftKey++
-  st.composerBlankAt = Date.now() + 150
+  // 1 s, not a few frames: in the world (Genesis City plus other scenes loaded) the renderer applies a scene's updates
+  // under a per-frame budget, so a short window let the old box's deletion land in the same pass as the new box's
+  // creation and the pooled, still-focused field was handed straight back. Local preview is one scene; it never showed.
+  st.composerBlankAt = Date.now() + 1000
 }
 
 /** Called from the chat render: once the hand-over window has passed, drop the retired Input. */
