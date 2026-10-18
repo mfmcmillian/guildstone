@@ -336,7 +336,8 @@ Design and numbers: [SHADOW_RAID.md](SHADOW_RAID.md). Five-minute 2v2–4v4 raid
 - [x] **Live controls (2026-10-17).** Control dashboard `guildstone-admin` (own repo + Vercel project, admin key `AFK_ADMIN_KEY`): WAR kill switch (`features.war`, ring hides the tab, server refuses raid actions), every raid number editable with clamps and a change log, tester wallets whose raids start solo vs the Wraiths and record nothing. Config doc `players/afk_v1_admin_config`; raids snapshot their rules. See SHADOW_RAID.md §13–14.
 - [ ] Valor spend (banner frames, titles) and a Valor leaderboard on guildstone.dev.
 - [ ] Focus-fire / target choice if spread damage feels flat.
-- [ ] Scheduled raids and best-of-three once two guilds are raiding regularly.
+- [x] **Two ways to fight (2026-10-17).** Everyday play is the **pickup raid**: any guild member hits JOIN A RAID, the first joiner opens a two-minute gather, everyone who joins is dealt at random into Team Dusk / Team Dawn at the bell (odd count padded with one Wraith; fewer than 4 → called off; 5 a day per player). Wednesdays 9 PM ET is the **Guild Battle**: leaders sign their guild up on the WAR tab until 21 h before (end of Tuesday), the server pairs guilds in sign-up order, everyone sees the matchups all Wednesday, match raids open at 9 PM and start when both guilds have 4; a two-hour window, a short side forfeits. Winners bank 300 wood / 300 rock / 150 meat / 150 bone each (losers half), guild points ×3. Replaced the leader-called guild-vs-guild raid with ANSWER. Server `api/afkBattle.js` (schedule in `Intl`, no library) + `afkRaid.js` modes `guild | pickup | battle`; all numbers in the control dashboard's Guild Battle card. See SHADOW_RAID.md §6–8.
+- [ ] Best-of-three battle nights once several guilds are signing up.
 
 ## Where guilds are today (prod, 2026-10-14)
 
