@@ -26,7 +26,7 @@ const STAGE_FOOT = Color4.create(0.04, 0.02, 0.09, 0.6)
 const BTN_H = 56
 
 const LINES = [
-  "Hi, I'm Matt. I run Knights of Antrom in Decentraland and built this ring to keep us connected, even when we're in different scenes. Gather, chat, and raid together through one wearable, wherever you are in Decentraland.",
+  "Hi, I'm Matt. I run Knights of Antrom in Decentraland and crafted this ring with the help of Alara's magic to keep us connected, even when we're in different scenes. Gather, chat, and raid together through one wearable, wherever you are in Decentraland.",
   'The goal is simple: bring our community together. The ring is FREE to anyone who wants to join us on this adventure.',
   'Know someone who should be here? Send them the link below, and the Rewards server will mint them a ring of their own.'
 ]
