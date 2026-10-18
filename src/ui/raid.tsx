@@ -395,7 +395,7 @@ function ActionRow(props: { v: RaidView }) {
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: S(26), right: S(30) }, flexDirection: 'row', alignItems: 'center' }}>
       {me && v.status === 'live' && me.state === 'in' ? <Button label="BACK TO CAMP" color={C.blue} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => requestHome()} /> : null}
-      {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE RAID" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(210), ...btn }} onClick={() => requestLeaveRaid()} /> : null}
+      {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(210), ...btn }} onClick={() => requestLeaveRaid()} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}
       {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(250), ...btn }} onClick={() => stopSpectating()} /> : null}
@@ -492,12 +492,12 @@ function LobbyCard(props: { v: RaidView }) {
   const bothReady = battle && SIDES_IDS.every((k) => (v.sides[k]?.fighters.length ?? 0) >= v.rules.sideMin)
   const rules = ['Click a building to take it; it pays your team every tick.', 'A building stays yours, even empty, until the enemy takes it.', 'Team with the most points at the end of the timer wins.']
   const notes: string[] = pickup
-    ? short ? [`Need ${v.rules.pickupMin} fighters or it is called off`, 'Teams are drawn when the timer ends.'] : v.you ? ['Teams are drawn when the timer ends.', ...rules] : ['Teams are drawn when the timer ends.']
+    ? short ? [`Need ${v.rules.pickupMin} fighters or it is called off`, 'Teams are drawn at the bell.'] : v.you ? ['Teams are drawn at the bell  •  alone you fight the comp  •  odd counts get a Wraith', ...rules] : ['Teams are drawn at the bell  •  alone you fight the comp  •  odd counts get a Wraith']
     : battle
       ? bothReady ? (v.you ? rules : ['Both guilds are ready.']) : [`Begins when both guilds have ${v.rules.sideMin} fighters`, `The window closes at ${raid.battle?.endWhen ?? ''}; a short side forfeits the night`]
       : short ? [`Need ${v.rules.sideMin} on your side or it is called off`] : v.you ? rules : !v.mine ? [v.sides.b ? 'Both sides set. Watch it from here.' : 'Waiting for an answer.'] : []
   const noteColor = short && !battle ? C.red : v.you ? C.green : PALE
-  const title = battle ? 'GUILD BATTLE' : `${v.rules.test ? 'TEST ' : ''}RAID GATHERING`
+  const title = battle ? 'GUILD WAR' : `${v.rules.test ? 'TEST ' : ''}STORM GATHERING`
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.7) }}>
       <OutlinedText value={title} size={S(64)} color={battle ? C.gold : C.purple} />
@@ -552,7 +552,7 @@ function ResultColumn(props: { key?: string; v: RaidView; side: SideId }) {
             {cell(String(f.dealt), RES_COLS.dealt, c)}
             {cell(String(f.taken), RES_COLS.taken, c)}
             {cell(String(f.kos), RES_COLS.kos, c)}
-            {cell(r && !s.wraith ? `+${r.valor[f.id] ?? 0}` : '', RES_COLS.valor, C.green)}
+            {cell(r && !s.wraith ? (f.ranked === false ? 'none' : `+${r.valor[f.id] ?? 0}`) : '', RES_COLS.valor, f.ranked === false ? C.textMuted : C.green)}
           </UiEntity>
         )
       })}
@@ -583,7 +583,7 @@ function ResultCard(props: { v: RaidView }) {
         </UiEntity>
       ) : null}
       <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(24) } }}>
-        {v.mode === 'pickup' && !raid.spectating && (raid.pickup?.leftToday ?? 0) > 0 ? <Button label="JOIN THE NEXT RAID" color={C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(400), height: S(84), margin: { right: S(16) } }} onClick={() => { dismissedResult = v.id; requestJoinRaid() }} /> : null}
+        {v.mode === 'pickup' && !raid.spectating ? <Button label="JOIN THE NEXT STORM" color={C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(400), height: S(84), margin: { right: S(16) } }} onClick={() => { dismissedResult = v.id; requestJoinRaid() }} /> : null}
         <Button label={raid.spectating ? 'STOP WATCHING' : 'DONE'} color={C.navySoft} sound="cancel" size={S(30)} uiTransform={{ width: S(280), height: S(84) }} onClick={() => { if (raid.spectating) stopSpectating(); else dismissedResult = v.id }} />
       </UiEntity>
     </UiEntity>
@@ -593,7 +593,7 @@ function ResultCard(props: { v: RaidView }) {
 function BoardRow(props: { key?: string; e: BoardEntry }) {
   const e = props.e
   const who = (x: BoardEntry['a']) => (x ? (x.wraith ? 'WRAITHS' : `[${x.tag}]`) : '?')
-  const label = e.mode === 'battle' ? 'GUILD BATTLE' : e.mode === 'pickup' ? (e.test ? 'Test raid' : 'Pickup raid') : `${who(e.a)} raid`
+  const label = e.mode === 'battle' ? 'GUILD WAR' : e.mode === 'pickup' ? (e.test ? 'Test Storm' : 'Antrom Storm') : `${who(e.a)} raid`
   const text = e.status === 'gathering'
     ? e.mode === 'battle' ? `${label}  •  ${who(e.a)} ${e.a?.count ?? 0}/${raid.rules.sideMax}  vs  ${who(e.b)} ${e.b?.count ?? 0}/${raid.rules.sideMax}  •  gathering`
       : `${label} gathering  •  ${e.a?.count ?? 0}/${e.mode === 'pickup' ? raid.rules.sideMax * 2 : raid.rules.sideMax}  •  starts in ${left(e.gatherUntil)}`
@@ -626,19 +626,19 @@ function BattleCard() {
   } else if (!live) {
     if (b.match) lines.push(row(`TONIGHT  •  ${vs(b.match)}`, C.gold, 26, 'bl-1'))
     else if (b.bye) lines.push(row('An odd number of guilds signed up; yours drew the bye this week.', PALE, 22, 'bl-1'))
-    else lines.push(row(`[${g?.tag ?? ''}] is not in this week's battle. Sign-ups for next week open after the event.`, PALE, 22, 'bl-1'))
+    else lines.push(row(`[${g?.tag ?? ''}] is not in this week's war. Sign-ups for next week open after the event.`, PALE, 22, 'bl-1'))
     if (!b.match && (b.matches?.length ?? 0) > 0) b.matches!.forEach((m, i) => lines.push(row(vs(m), MUTED, 20, `bl-m${i}`)))
     lines.push(row(`Be on the WAR tab at ${b.when}.`, MUTED, 20, 'bl-4'))
     lines.push(row(`The battle begins when both guilds have ${b.teamSize} fighters; the window closes at ${b.endWhen}.`, MUTED, 20, 'bl-5'))
   } else {
-    lines.push(row(`BATTLE NIGHT  •  until ${b.endWhen}`, C.gold, 26, 'bl-1'))
+    lines.push(row(`WAR NIGHT  •  until ${b.endWhen}`, C.gold, 26, 'bl-1'))
     if (b.match) lines.push(row(`${vs(b.match)}  •  JOIN above, your guild's match is open`, PALE, 22, 'bl-2'))
     else if ((b.matches?.length ?? 0) > 0) lines.push(row('Your guild is not matched tonight. Watch the matches below.', PALE, 22, 'bl-2'))
     else lines.push(row('No matches this week.', PALE, 22, 'bl-2'))
   }
   return (
     <UiEntity uiTransform={{ width: S(1100), flexDirection: 'column', alignItems: 'center', margin: { top: S(16) }, padding: { left: S(24), right: S(24), top: S(12), bottom: S(16) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.06, 0.05, 0.12, 0.8) }}>
-      <OutlinedText value={`GUILD BATTLE  •  ${b.when}`} size={S(30)} color={C.gold} />
+      <OutlinedText value={`GUILD WAR  •  ${b.when}`} size={S(30)} color={C.gold} />
       {lines}
       {signupOpen && b.leader ? (
         <Button label={b.signedUp ? 'WITHDRAW' : 'SIGN UP'} color={b.signedUp ? C.red : C.gold} sound={b.signedUp ? 'cancel' : undefined} disabled={raid.busy} size={S(26)} uiTransform={{ width: S(300), height: S(70), margin: { top: S(10) } }} onClick={() => requestBattleSignup(!b.signedUp)} />
@@ -647,7 +647,7 @@ function BattleCard() {
   )
 }
 
-// Intro screen: the battlefield dimmed under the ANTROM STORM logo, JOIN A RAID (the pickup queue), the Guild Battle
+// Intro screen: the battlefield dimmed under the ANTROM STORM logo, ENTER THE STORM (the pickup queue), the Guild War
 // card and whatever is going on right now (WATCH).
 const LOGO = `${ART}/antrom_storm_v1.png`
 const LOGO_W = 620
@@ -658,19 +658,20 @@ function IdleScreen() {
   const pk = raid.pickup
   const error = raid.error && Date.now() - raid.errorAt < 6000 ? raid.error : ''
   const liveNow = pk?.status === 'live'
-  const canJoin = !raid.busy && !liveNow && (pk?.leftToday ?? 1) > 0
+  const canJoin = !raid.busy && !liveNow
+  const gather = `${Math.round(raid.rules.gatherMs / 60000)} min to gather`
   const note = error
     ? error
-    : liveNow ? `A raid is on. The next queue opens in ${leftLong(pk!.nextAt)}`
-    : pk && pk.leftToday <= 0 ? `You have raided ${pk.perDay} times today. Back tomorrow.`
-    : raid.tester ? 'Tester: your raids start with one fighter and are not recorded'
-    : pk ? `Needs ${pk.minHumans} fighters  •  random teams  •  ${Math.round(raid.rules.gatherMs / 1000)} s to gather  •  ${pk.leftToday} of ${pk.perDay} left today` : ''
+    : liveNow ? `A Storm is on. The next one opens in ${leftLong(pk!.nextAt)}`
+    : raid.tester ? 'Tester: your Storms are not recorded'
+    : pk && pk.leftToday <= 0 ? `Alone, 1v1 or random teams  •  ${gather}  •  Valor used up for today, wins and KOs still count`
+    : pk ? `Alone, 1v1 or random teams  •  ${gather}  •  ${pk.leftToday} of ${pk.perDay} Valor Storms left today` : ''
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.66) }}>
       <UiEntity uiTransform={{ width: S(LOGO_W), height: S(LOGO_H) }} uiBackground={{ textureMode: 'stretch', texture: { src: LOGO } }} />
-      <Button label={pk?.status === 'gathering' ? 'JOIN THE RAID' : 'JOIN A RAID'} color={canJoin ? C.purple : C.gray} textColor={canJoin ? C.white : C.textMuted} disabled={!canJoin} size={S(36)} uiTransform={{ width: S(440), height: S(96), margin: { top: S(4) } }} onClick={() => requestJoinRaid()} />
+      <Button label={pk?.status === 'gathering' ? 'JOIN THE STORM' : 'ENTER THE STORM'} color={canJoin ? C.purple : C.gray} textColor={canJoin ? C.white : C.textMuted} disabled={!canJoin} size={S(36)} uiTransform={{ width: S(440), height: S(96), margin: { top: S(4) } }} onClick={() => requestJoinRaid()} />
       <Text value={note} size={S(22)} color={error ? C.red : PALE} nowrap uiTransform={{ height: S(32), margin: { top: S(12) } }} />
-      {sum ? <Text value={`${g ? `[${g.tag}]  ` : ''}BATTLES  •  WINS ${sum.wins}  •  LOSSES ${sum.losses}  •  DRAWS ${sum.draws}  •  GUILD VALOR ${sum.score}`} size={S(20)} color={MUTED} nowrap uiTransform={{ height: S(28), margin: { top: S(2) } }} /> : null}
+      {sum ? <Text value={`${g ? `[${g.tag}]  ` : ''}GUILD WAR RECORD  •  WINS ${sum.wins}  •  LOSSES ${sum.losses}  •  DRAWS ${sum.draws}  •  GUILD VALOR ${sum.score}`} size={S(20)} color={MUTED} nowrap uiTransform={{ height: S(28), margin: { top: S(2) } }} /> : null}
       <BattleCard />
       {raid.board.length > 0 ? (
         <UiEntity uiTransform={{ width: S(1100), flexDirection: 'column', margin: { top: S(14) }, padding: { left: S(24), right: S(24), top: S(10), bottom: S(14) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.06, 0.05, 0.12, 0.8) }}>

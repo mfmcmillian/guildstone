@@ -373,7 +373,7 @@ export const player = {
     hq: { coins: 0, wood: 0, rock: 0 },
     tech: { coins: 0 }
   } as GuildDailyProgress,
-  lastGain: null as { text: string; at: number } | null
+  lastGain: null as { text: string; at: number; ms?: number } | null
 }
 
 let backpackChangeHandler: (() => void) | null = null
@@ -649,14 +649,14 @@ export function sellCrafted(material: MaterialKey): { items: number; coins: numb
   return { items, coins }
 }
 
-export function flash(text: string) {
-  player.lastGain = { text, at: Date.now() }
+export function flash(text: string, ms = 1600) {
+  player.lastGain = { text, at: Date.now(), ms }
 }
 
 /** A toast for something that happened on its own (a gather, a find, mastery, bank ready). Hidden when ALERTS is OFF. */
-export function notify(text: string) {
+export function notify(text: string, ms = 1600) {
   if (!settings.alerts) return
-  flash(text)
+  flash(text, ms)
 }
 
 // --- Recipes ---------------------------------------------------------------

@@ -1,13 +1,13 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, FONT, TEX, SLICE_128, SLICE_PILL, glow } from './theme'
-import { lobbyUnread, tickLobbyBackground } from '../lobby'
+import { lobby, lobbyUnread, tickLobbyBackground, tickStorm } from '../lobby'
 import { OutlinedText, Pill, Icon, Bar, Button, Panel, timerText } from './components'
 import { player, backpackCount, backpackCap, backpackFull, RESOURCE_INFO, ZONE_SKILL, SKILL_INFO, SKILL_ICON, gatherMult, fmtRate, cycleXp, WORK_CYCLE_SECS, BASE_RESOURCES, nextRung } from '../state'
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
-import { bankBagNow, openRelicsTab, resetGuildTab } from './panels'
+import { bankBagNow, currentGuildTab, openRelicsTab, openWarTab, resetGuildTab } from './panels'
 import { openSite } from '../links'
 import { playButtonSound } from '../uiSounds'
 import { settings } from '../settings'
@@ -51,7 +51,7 @@ function unreadBadge(count: number) {
  * inside Hud, which paints first, so "INVITE SENT", "SLOW DOWN" and friends were invisible while a window was open.
  */
 export function Toast() {
-  const toast = player.lastGain && Date.now() - player.lastGain.at < 1600 ? player.lastGain.text : null
+  const toast = player.lastGain && Date.now() - player.lastGain.at < (player.lastGain.ms ?? 1600) ? player.lastGain.text : null
   if (!toast) return null
   const canvas = getCanvas()
   // Over the zone block on the HUD; a little lower over a window's title tab so it does not cover it.
@@ -59,6 +59,30 @@ export function Toast() {
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + top, left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
       <OutlinedText value={toast} size={S(FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(800) }} />
+    </UiEntity>
+  )
+}
+
+/**
+ * The Antrom Storm bell: while a Storm is gathering or live, one gold line under the zone block on every guild
+ * member's ring (above windows too), tapping it opens the WAR tab. Fed by the lobby poll (see tickStorm).
+ */
+export function StormBanner() {
+  const st = lobby.storm
+  if (!st || !player.guild || !settings.alerts) return null
+  if (ui.open === 'guild' && currentGuildTab() === 'war') return null
+  tickStorm()
+  const now = Date.now() + lobby.clockOffset
+  if (st.status === 'live' && now > st.endAt) return null
+  if (st.status === 'gathering' && now > st.gatherUntil + 20000) return null
+  const who = st.names.slice(0, 3).join(', ') + (st.count > 3 ? ` +${st.count - 3}` : '')
+  const text = st.status === 'gathering'
+    ? `⚔ ANTROM STORM  •  ${now < st.gatherUntil ? `BELL IN ${timerText(st.gatherUntil - lobby.clockOffset)}` : 'STARTING'}  •  ${st.count} IN  •  ${who}`
+    : `⚔ ANTROM STORM  •  LIVE  •  DUSK ${st.score.a} – ${st.score.b} DAWN  •  ${timerText(st.endAt - lobby.clockOffset)} LEFT  •  WATCH`
+  const canvas = getCanvas()
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(player.activeZone ? 150 : 40) + S(ui.open === null ? 52 : 0), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+      <Button label={text} color={st.status === 'gathering' ? C.purple : C.navySoft} textColor={C.yellow} size={S(22)} uiTransform={{ width: S(960), height: S(54), flexShrink: 0 }} onClick={() => openWarTab()} />
     </UiEntity>
   )
 }

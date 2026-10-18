@@ -25,6 +25,8 @@ export interface Fighter {
   name: string
   /** Guild tag; shown next to the name where teams are mixed (pickup). */
   tag?: string
+  /** False once the player's Valor Storms for the day are used: fights, earns no Valor. */
+  ranked?: boolean
   level: number
   set: number
   dagger: number
@@ -266,7 +268,7 @@ export function requestBattleSignup(on: boolean) {
 }
 export function requestLeaveRaid() {
   send('leave', {}, () => {
-    flash('YOU LEFT THE RAID')
+    flash(raid.view?.mode === 'battle' ? 'YOU LEFT THE GUILD WAR' : 'YOU LEFT THE STORM')
   })
 }
 export function requestGo(point: PointId) {

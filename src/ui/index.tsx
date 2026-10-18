@@ -1,5 +1,5 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
-import { Hud, Toast } from './hud'
+import { Hud, Toast, StormBanner } from './hud'
 import { Dock, ShowUiButton } from './dock'
 import { SkillsPanel, BankPanel, WorkshopPanel, ForgePanel, ShopPanel, GuildPanel, AwayPanel } from './panels'
 import { HeroPanel } from './hero'
@@ -25,7 +25,8 @@ function Root() {
       {shouldShowWelcome() ? <WelcomePanel /> : null}
       <LevelUpBanner />
       <RareFindBanner />
-      {/* Last so flash() toasts sit above every window. */}
+      {/* Last so flash() toasts and the Storm bell sit above every window. */}
+      <StormBanner />
       <Toast />
     </UiEntity>
   )

@@ -1194,6 +1194,13 @@ export function resetGuildTab() {
   guildTab = 'lobby'
   resetLobbyView()
 }
+export const currentGuildTab = () => guildTab
+/** The Storm bell on the HUD: straight to the WAR tab. */
+export function openWarTab() {
+  guildTab = 'war'
+  resetWarTab()
+  openPanel('guild')
+}
 function openGuildSub(sub: GuildSubId) {
   guildTab = 'guild'
   guildSub = sub

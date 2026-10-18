@@ -1,7 +1,8 @@
 import { executeTask } from '@dcl/sdk/ecs'
 import { signedFetch } from '~system/SignedFetch'
 import { profileState } from './playerProfile'
-import { backpackCount, flash, player, SKILL_INFO, SKILLS, type Skill } from './state'
+import { backpackCount, flash, notify, player, SKILL_INFO, SKILLS, type Skill } from './state'
+import { raid } from './raid'
 import { requestGuild } from './transactions'
 import { playErrorSound, playSuccessSound } from './uiSounds'
 import { engine, RealmInfo, UiCanvasInformation } from '@dcl/sdk/ecs'
@@ -66,7 +67,13 @@ export interface RaidTally { valor: number; raids: number; wins: number; kos: nu
 export interface CrownHolder { address: string; name: string; at: number }
 export interface BoardGuild { id: string; tag: string; name: string; hqLevel: number; points: number; weeklyPoints: number; memberCount: number; maxMembers: number }
 
+/** The Antrom Storm gathering or live right now (server board), for the HUD bell. */
+export interface StormInfo { id: string; status: 'gathering' | 'live'; gatherUntil: number; endAt: number; count: number; names: string[]; score: { a: number; b: number } }
+
 export const lobby = {
+  storm: null as StormInfo | null,
+  /** serverNow − Date.now() from the last poll, so the bell counts down on the server's clock. */
+  clockOffset: 0,
   /** Per-channel feed and composer. `ch.all` is the lobby everyone sees; `ch.guild` only fills while I'm in a guild. */
   ch: { all: channelState(), guild: channelState() } as Record<Channel, ChannelState>,
   /** Guild id the guild channel belongs to; cleared (with the feed) when the server stops sending it. */
@@ -85,6 +92,26 @@ export const lobby = {
   board: { players: [] as BoardPlayer[], guilds: [] as BoardGuild[], crown: null as CrownHolder | null, loadedAt: 0, loading: false },
   /** Channel whose feed is on screen right now ('' when the Lobby tab isn't showing); set each frame by the chat column. */
   showing: '' as Channel | ''
+}
+
+let stormOpened = ''
+let stormReminded = ''
+/** Am I already in it? Then the bell is for the others. */
+const inStorm = (id: string) => raid.view !== null && raid.view.id === id && raid.view.you !== null
+function noteStorm(storm: StormInfo | null) {
+  lobby.storm = storm
+  if (!storm || storm.status !== 'gathering' || stormOpened === storm.id) return
+  stormOpened = storm.id
+  if (!inStorm(storm.id) && player.guild) notify('⚔ ANTROM STORM IS GATHERING  •  JOIN ON THE WAR TAB', 4000)
+}
+/** Every frame from the Storm bell: a last call 30 s before the bell. */
+export function tickStorm() {
+  const st = lobby.storm
+  if (!st || st.status !== 'gathering' || stormReminded === st.id || inStorm(st.id)) return
+  const left = st.gatherUntil - (Date.now() + lobby.clockOffset)
+  if (left > 30000 || left < 5000) return
+  stormReminded = st.id
+  notify('⚔ STORM BELL IN 30 S  •  LAST CALL', 4000)
 }
 
 /** Unread lines across both channels, for the HUD badge. */
@@ -135,7 +162,9 @@ export function pollLobby() {
     try {
       const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/lobby?since=${lobby.ch.all.lastAt}&gsince=${lobby.ch.guild.lastAt}`, init: { method: 'GET', headers: {} } })
       if (!response.ok) throw new Error(`Lobby poll failed (${response.status})`)
-      const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; guild?: { id: string; messages: ChatMessage[] } | null; online: OnlinePlayer[]; invites: GuildInvite[]; admin: boolean }
+      const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; guild?: { id: string; messages: ChatMessage[] } | null; online: OnlinePlayer[]; invites: GuildInvite[]; storm?: StormInfo | null; admin: boolean }
+      if (typeof body.now === 'number') lobby.clockOffset = body.now - Date.now()
+      noteStorm(body.storm && typeof body.storm.id === 'string' && (body.storm.status === 'gathering' || body.storm.status === 'live') ? body.storm : null)
       if (Array.isArray(body.messages)) mergeChannel('all', body.messages, CHAT_KEEP)
       if (body.guild && typeof body.guild.id === 'string') {
         // Switched guilds (or first answer): the old channel's lines don't belong to the new one.
@@ -386,7 +415,7 @@ export const BOARDS: Array<{ id: BoardId; label: string }> = [
   { id: 'levels', label: 'LEVELS' },
   ...SKILLS.map((s) => ({ id: s as BoardId, label: SKILL_INFO[s].name.toUpperCase() })),
   { id: 'suits', label: 'SUITS' },
-  { id: 'raid', label: 'RAID' },
+  { id: 'raid', label: 'STORM' },
   { id: 'hq', label: 'GUILD HQ' },
   { id: 'points', label: 'GUILD PTS' },
   { id: 'weekly', label: 'THIS WEEK' }
@@ -398,7 +427,7 @@ export const BOARD_TITLE: Record<BoardId, string> = {
   butcher: 'BUTCHER  •  by XP',
   assassin: 'ASSASSIN  •  by XP',
   suits: 'SUITS CRAFTED',
-  raid: 'RAID VALOR  •  ticks fought, wins and knockouts',
+  raid: 'STORM VALOR  •  ticks fought, wins and knockouts',
   hq: 'GUILD HQ LEVEL',
   points: 'GUILD POINTS  •  all time',
   weekly: 'GUILD POINTS  •  this week (resets Monday 00:00 UTC)'
