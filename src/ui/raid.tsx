@@ -4,7 +4,7 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, SLICE_PILL } from './theme'
-import { OutlinedText, Text, Panel, Button, Bar, Modal, timerText } from './components'
+import { OutlinedText, Text, Panel, Button, Bar, Modal, Spacer, timerText } from './components'
 import { S, fitModal } from './responsive'
 import { dragOffsetPx, startDrag } from './drag'
 import { player } from '../state'
@@ -606,75 +606,111 @@ function BoardRow(props: { key?: string; e: BoardEntry }) {
   )
 }
 
-/** The Guild Battle card on the idle screen: sign-up, then the matchup, then battle night. */
-function BattleCard() {
-  const b = raid.battle
-  if (!b || !b.enabled || !b.startAt) return null
-  const now = serverNow()
-  const g = player.guild
-  const signupOpen = now < (b.signupCloseAt ?? 0)
-  const live = now >= b.startAt && now < (b.endAt ?? 0)
-  const tags = (b.signups ?? []).map((x) => `[${x.tag}]`).join('  ')
-  const vs = (m: NonNullable<typeof b.match>) => `[${m.a.tag}] ${m.a.name}  vs  [${m.b.tag}] ${m.b.name}`
-  const row = (text: string, color: Color4, size = 22, key?: string) => <Text key={key} value={text} size={S(size)} color={color} nowrap uiTransform={{ height: S(size + 10), margin: { top: S(4) } }} />
-  const lines: ReactEcs.JSX.Element[] = []
-  if (signupOpen) {
-    lines.push(row(`Guild vs guild, ${b.teamSize} a side, for a bank of ${rewardText(b.reward!.win)} each.`, PALE, 22, 'bl-1'))
-    lines.push(row(`Sign-ups close ${b.closeWhen}.`, PALE, 22, 'bl-1b'))
-    lines.push(row(b.signedUp ? `✓  [${g?.tag ?? ''}] is signed up` : b.leader ? 'Sign your guild up below' : 'Ask your leader to sign the guild up', b.signedUp ? C.green : PALE, 24, 'bl-2'))
-    lines.push(row((b.signups?.length ?? 0) > 0 ? `Signed up so far:  ${tags}` : 'No guild has signed up yet. Be the first.', MUTED, 20, 'bl-3'))
-  } else if (!live) {
-    if (b.match) lines.push(row(`TONIGHT  •  ${vs(b.match)}`, C.gold, 26, 'bl-1'))
-    else if (b.bye) lines.push(row('An odd number of guilds signed up; yours drew the bye this week.', PALE, 22, 'bl-1'))
-    else lines.push(row(`[${g?.tag ?? ''}] is not in this week's war. Sign-ups for next week open after the event.`, PALE, 22, 'bl-1'))
-    if (!b.match && (b.matches?.length ?? 0) > 0) b.matches!.forEach((m, i) => lines.push(row(vs(m), MUTED, 20, `bl-m${i}`)))
-    lines.push(row(`Be on the WAR tab at ${b.when}.`, MUTED, 20, 'bl-4'))
-    lines.push(row(`The battle begins when both guilds have ${b.teamSize} fighters; the window closes at ${b.endWhen}.`, MUTED, 20, 'bl-5'))
-  } else {
-    lines.push(row(`WAR NIGHT  •  until ${b.endWhen}`, C.gold, 26, 'bl-1'))
-    if (b.match) lines.push(row(`${vs(b.match)}  •  JOIN above, your guild's match is open`, PALE, 22, 'bl-2'))
-    else if ((b.matches?.length ?? 0) > 0) lines.push(row('Your guild is not matched tonight. Watch the matches below.', PALE, 22, 'bl-2'))
-    else lines.push(row('No matches this week.', PALE, 22, 'bl-2'))
-  }
+// Intro screen: the battlefield dimmed under the ANTROM STORM logo, then two cards side by side (the everyday Storm
+// and the Wednesday Guild War) and whatever is going on right now (WATCH).
+const LOGO = `${ART}/antrom_storm_v1.png`
+const LOGO_W = 460
+const LOGO_H = Math.round(LOGO_W * (538 / 867))
+const IDLE_W = 780
+const IDLE_H = 380
+const IDLE_GAP = 30
+const IDLE_BG = Color4.create(0.06, 0.05, 0.12, 0.82)
+
+/** One idle card: a title row, then whatever the caller stacks. */
+function IdleCard(props: { title: string; sub: string; color: Color4; children?: ReactEcs.JSX.Element | Array<ReactEcs.JSX.Element | ReactEcs.JSX.Element[] | null> }) {
   return (
-    <UiEntity uiTransform={{ width: S(1100), flexDirection: 'column', alignItems: 'center', margin: { top: S(16) }, padding: { left: S(24), right: S(24), top: S(12), bottom: S(16) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.06, 0.05, 0.12, 0.8) }}>
-      <OutlinedText value={`GUILD WAR  •  ${b.when}`} size={S(30)} color={C.gold} />
-      {lines}
-      {signupOpen && b.leader ? (
-        <Button label={b.signedUp ? 'WITHDRAW' : 'SIGN UP'} color={b.signedUp ? C.red : C.gold} sound={b.signedUp ? 'cancel' : undefined} disabled={raid.busy} size={S(26)} uiTransform={{ width: S(300), height: S(70), margin: { top: S(10) } }} onClick={() => requestBattleSignup(!b.signedUp)} />
-      ) : null}
+    <UiEntity uiTransform={{ width: S(IDLE_W), height: S(IDLE_H), flexDirection: 'column', alignItems: 'center', padding: { left: S(28), right: S(28), top: S(14), bottom: S(18) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: IDLE_BG }}>
+      <OutlinedText value={props.title} size={S(32)} color={props.color} uiTransform={{ height: S(40) }} />
+      <Text value={props.sub} size={S(21)} color={MUTED} nowrap uiTransform={{ height: S(28), margin: { bottom: S(6) } }} />
+      {props.children}
     </UiEntity>
   )
 }
+const line = (text: string, color: Color4, size = 22, key?: string) => <Text key={key} value={text} size={S(size)} color={color} nowrap uiTransform={{ height: S(size + 10), margin: { top: S(4) } }} />
 
-// Intro screen: the battlefield dimmed under the ANTROM STORM logo, ENTER THE STORM (the pickup queue), the Guild War
-// card and whatever is going on right now (WATCH).
-const LOGO = `${ART}/antrom_storm_v1.png`
-const LOGO_W = 620
-const LOGO_H = Math.round(LOGO_W * (538 / 867))
-function IdleScreen() {
-  const g = player.guild
-  const sum = raid.summary ?? g?.raid ?? null
+/** Everyday Storm: the button, what it is, and the day's Valor Storms as pips. */
+function StormCard() {
   const pk = raid.pickup
   const error = raid.error && Date.now() - raid.errorAt < 6000 ? raid.error : ''
   const liveNow = pk?.status === 'live'
   const canJoin = !raid.busy && !liveNow
-  const gather = `${Math.round(raid.rules.gatherMs / 60000)} min to gather`
-  const note = error
-    ? error
-    : liveNow ? `A Storm is on. The next one opens in ${leftLong(pk!.nextAt)}`
-    : raid.tester ? 'Tester: your Storms are not recorded'
-    : pk && pk.leftToday <= 0 ? `Alone, 1v1 or random teams  •  ${gather}  •  Valor used up for today, wins and KOs still count`
-    : pk ? `Alone, 1v1 or random teams  •  ${gather}  •  ${pk.leftToday} of ${pk.perDay} Valor Storms left today` : ''
+  const perDay = pk?.perDay ?? raid.rules.raidsPerDay
+  const leftToday = pk?.leftToday ?? perDay
+  return (
+    <IdleCard title="ANTROM STORM" sub="Every day  •  any headcount" color={PURPLE_LIGHT}>
+      <Button label={pk?.status === 'gathering' ? 'JOIN THE STORM' : 'ENTER THE STORM'} color={canJoin ? C.purple : C.gray} textColor={canJoin ? C.white : C.textMuted} disabled={!canJoin} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => requestJoinRaid()} />
+      {error
+        ? line(error, C.red, 22, 'st-err')
+        : liveNow ? line(`A Storm is on  •  next one opens in ${leftLong(pk!.nextAt)}`, PALE, 22, 'st-live')
+        : line(`Alone, 1v1 or random teams  •  ${Math.round(raid.rules.gatherMs / 60000)} min to gather`, PALE, 22, 'st-how')}
+      <Spacer />
+      {raid.tester ? line('Tester: your Storms are not recorded', MUTED, 20, 'st-test') : (
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(30) }}>
+          <Text value={`VALOR STORMS TODAY  ${leftToday} / ${perDay}`} size={S(20)} color={MUTED} nowrap uiTransform={{ height: S(30), margin: { right: S(12) } }} />
+          {Array.from({ length: Math.min(perDay, 10) }, (_, i) => (
+            <UiEntity key={`pip-${i}`} uiTransform={{ width: S(18), height: S(18), margin: { left: S(4) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_128, color: i < leftToday ? C.green : Color4.create(1, 1, 1, 0.15) }} />
+          ))}
+        </UiEntity>
+      )}
+      {!raid.tester && leftToday <= 0 ? line('Valor used up for today  •  wins and KOs still count', MUTED, 20, 'st-cap') : null}
+    </IdleCard>
+  )
+}
+
+/** The Guild War card: sign-up, then the matchup, then war night; the guild's record at the foot. */
+function WarCard() {
+  const b = raid.battle
+  const g = player.guild
+  const sum = raid.summary ?? g?.raid ?? null
+  const record = sum ? line(`${g ? `[${g.tag}]  ` : ''}${sum.wins} W · ${sum.losses} L · ${sum.draws} D  •  Guild Valor ${sum.score}`, MUTED, 20, 'wr-rec') : null
+  if (!b || !b.enabled || !b.startAt) {
+    return <IdleCard title="GUILD WAR" sub="Wednesdays" color={C.gold}>{line('Guild War is paused for now', PALE, 22, 'wr-off')}<Spacer />{record}</IdleCard>
+  }
+  const now = serverNow()
+  const signupOpen = now < (b.signupCloseAt ?? 0)
+  const live = now >= b.startAt && now < (b.endAt ?? 0)
+  const tags = (b.signups ?? []).map((x) => `[${x.tag}]`).join('   ')
+  const vs = (m: NonNullable<typeof b.match>) => `[${m.a.tag}] ${m.a.name}  vs  [${m.b.tag}] ${m.b.name}`
+  const rows: ReactEcs.JSX.Element[] = []
+  if (signupOpen) {
+    rows.push(line(`Sign-ups close ${b.closeWhen}`, PALE, 22, 'wr-1'))
+    rows.push(line((b.signups?.length ?? 0) > 0 ? `Signed up:   ${tags}` : 'No guild signed up yet. Be the first.', (b.signups?.length ?? 0) > 0 ? C.white : MUTED, 22, 'wr-2'))
+    if (b.leader) rows.push(<Button key="wr-btn" label={b.signedUp ? 'WITHDRAW' : 'SIGN UP'} color={b.signedUp ? C.red : C.gold} sound={b.signedUp ? 'cancel' : undefined} disabled={raid.busy} size={S(26)} uiTransform={{ width: S(300), height: S(70), margin: { top: S(10) } }} onClick={() => requestBattleSignup(!b.signedUp)} />)
+    else rows.push(line(b.signedUp ? `✓  [${g?.tag ?? ''}] is signed up` : 'Ask your leader to sign the guild up', b.signedUp ? C.green : PALE, 24, 'wr-3'))
+  } else if (!live) {
+    if (b.match) rows.push(line(`TONIGHT  •  ${vs(b.match)}`, C.gold, 26, 'wr-1'))
+    else if (b.bye) rows.push(line('An odd number of guilds signed up; yours drew the bye this week.', PALE, 22, 'wr-1'))
+    else { rows.push(line(`[${g?.tag ?? ''}] is not in this week's war.`, PALE, 22, 'wr-1')); rows.push(line('Sign-ups for next week open after the event.', MUTED, 20, 'wr-1b')) }
+    if (!b.match) (b.matches ?? []).slice(0, 3).forEach((m, i) => rows.push(line(vs(m), MUTED, 20, `wr-m${i}`)))
+    rows.push(line(`Be on WAR at ${b.when}`, MUTED, 20, 'wr-4'))
+    rows.push(line(`Starts when both guilds have ${b.teamSize}  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
+  } else {
+    rows.push(line(`WAR NIGHT  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
+    if (b.match) { rows.push(line(vs(b.match), PALE, 22, 'wr-2')); rows.push(line("JOIN on the left: your guild's match is open", C.green, 22, 'wr-3')) }
+    else if ((b.matches?.length ?? 0) > 0) rows.push(line('Your guild is not matched tonight. Watch the matches below.', PALE, 22, 'wr-2'))
+    else rows.push(line('No matches this week.', PALE, 22, 'wr-2'))
+  }
+  return (
+    <IdleCard title="GUILD WAR" sub={b.when ?? ''} color={C.gold}>
+      {rows}
+      <Spacer />
+      {line(`Winners bank ${rewardText(b.reward!.win)} each  •  ${b.teamSize} a side`, MUTED, 20, 'wr-prize')}
+      {record}
+    </IdleCard>
+  )
+}
+
+function IdleScreen() {
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.66) }}>
       <UiEntity uiTransform={{ width: S(LOGO_W), height: S(LOGO_H) }} uiBackground={{ textureMode: 'stretch', texture: { src: LOGO } }} />
-      <Button label={pk?.status === 'gathering' ? 'JOIN THE STORM' : 'ENTER THE STORM'} color={canJoin ? C.purple : C.gray} textColor={canJoin ? C.white : C.textMuted} disabled={!canJoin} size={S(36)} uiTransform={{ width: S(440), height: S(96), margin: { top: S(4) } }} onClick={() => requestJoinRaid()} />
-      <Text value={note} size={S(22)} color={error ? C.red : PALE} nowrap uiTransform={{ height: S(32), margin: { top: S(12) } }} />
-      {sum ? <Text value={`${g ? `[${g.tag}]  ` : ''}GUILD WAR RECORD  •  WINS ${sum.wins}  •  LOSSES ${sum.losses}  •  DRAWS ${sum.draws}  •  GUILD VALOR ${sum.score}`} size={S(20)} color={MUTED} nowrap uiTransform={{ height: S(28), margin: { top: S(2) } }} /> : null}
-      <BattleCard />
+      <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6) } }}>
+        <StormCard />
+        <UiEntity uiTransform={{ width: S(IDLE_GAP) }} />
+        <WarCard />
+      </UiEntity>
       {raid.board.length > 0 ? (
-        <UiEntity uiTransform={{ width: S(1100), flexDirection: 'column', margin: { top: S(14) }, padding: { left: S(24), right: S(24), top: S(10), bottom: S(14) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.06, 0.05, 0.12, 0.8) }}>
+        <UiEntity uiTransform={{ width: S(IDLE_W * 2 + IDLE_GAP), flexDirection: 'column', margin: { top: S(IDLE_GAP / 2) }, padding: { left: S(24), right: S(24), top: S(10), bottom: S(14) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: IDLE_BG }}>
           <Text value="GOING ON RIGHT NOW" size={S(20)} color={C.textMuted} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
           {raid.board.slice(0, 3).map((e) => <BoardRow key={`board-${e.id}`} e={e} />)}
         </UiEntity>
