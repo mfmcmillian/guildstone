@@ -646,7 +646,7 @@ function StormCard() {
       <Spacer />
       {raid.tester ? line('Tester: your Storms are not recorded', MUTED, 20, 'st-test') : (
         <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(30) }}>
-          <Text value={`VALOR STORMS TODAY  ${leftToday} / ${perDay}`} size={S(20)} color={MUTED} nowrap uiTransform={{ height: S(30), margin: { right: S(12) } }} />
+          <Text value={`VALOR STORMS TODAY  ${leftToday} / ${perDay}`} size={S(20)} color={MUTED} nowrap align="middle-left" uiTransform={{ width: S(300), height: S(30), margin: { right: S(12) } }} />
           {Array.from({ length: Math.min(perDay, 10) }, (_, i) => (
             <UiEntity key={`pip-${i}`} uiTransform={{ width: S(18), height: S(18), margin: { left: S(4) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_128, color: i < leftToday ? C.green : Color4.create(1, 1, 1, 0.15) }} />
           ))}
