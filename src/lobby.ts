@@ -180,10 +180,13 @@ export function mentionSuggestions(channel: Channel): OnlinePlayer[] {
   return lobby.online.filter((p) => p.address !== me && (channel !== 'guild' || p.guild === myGuildId) && p.name.toLowerCase().startsWith(q)).slice(0, 4)
 }
 
-/** Replace the unfinished "@xx" at the end of the composer with "@Name " (remounts the box, see setDraft). */
+/**
+ * Replace the unfinished "@xx" at the end of the composer with "@Name ". Written in place (no remount) so the box keeps
+ * keyboard focus: the renderer applies a changed non-empty `value`; only blanking needs the remount in setDraft.
+ */
 export function completeMention(channel: Channel, name: string) {
   const st = lobby.ch[channel]
-  setDraft(channel, `${st.draft.replace(/@[^\s@]{0,16}$/, '')}@${name} `.slice(0, CHAT_TEXT_MAX))
+  st.draft = `${st.draft.replace(/@[^\s@]{0,16}$/, '')}@${name} `.slice(0, CHAT_TEXT_MAX)
 }
 
 export function pollLobby() {

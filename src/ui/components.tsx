@@ -146,6 +146,10 @@ export function Button(props: Keyed & {
   // Keyed buttons dip by key (their colour may animate, e.g. glow()); unkeyed ones fall back to label + colour.
   const pressId = props.key ? `${props.key}:${props.label}` : `${props.label}:${color.r}:${color.g}:${color.b}`
   const pressed = !disabled && (pressedUntil[pressId] ?? 0) > Date.now()
+  // Dark label text (navy on a paper button) gets no visible outline: the navy outline around navy letters read as a
+  // blob, so the outline takes the button's own colour and disappears into it.
+  const textColor = props.textColor ?? C.white
+  const outline = textColor.r * 0.299 + textColor.g * 0.587 + textColor.b * 0.114 < 0.4 ? color : C.navy
   return (
     <UiEntity
       uiTransform={{ height: S(64), minWidth: S(140), ...props.uiTransform }}
@@ -177,7 +181,8 @@ export function Button(props: Keyed & {
         <OutlinedText
           value={props.label}
           size={props.size ?? S(FONT.button)}
-          color={props.textColor ?? C.white}
+          color={textColor}
+          outline={outline}
           uiTransform={{ width: props.icon ? '70%' : '100%', margin: { bottom: pressed ? 0 : S(6) } }}
         />
       </UiEntity>
