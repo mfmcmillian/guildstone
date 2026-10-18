@@ -3,7 +3,7 @@ import { signedFetch } from '~system/SignedFetch'
 import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
-import { HEROES, sanitizeHeroes, sanitizeHeroId, type HeroId } from './hero'
+import { HEROES, HERO_STAT_LABEL, heroLevel, sanitizeHeroes, sanitizeHeroId, type HeroId, type HeroStat } from './hero'
 import { settings } from './settings'
 import { setLanguage, t, type Language } from './i18n'
 import type { UiLayout } from './ui/drag'
@@ -658,14 +658,15 @@ export function requestHeroSelect(hero: HeroId) {
   })
 }
 
-export function requestHeroUpgrade(hero: HeroId) {
+/** Raise one stat of `hero` by a level (POST /hero { hero, stat }); the server pays from storage, then the backpack. */
+export function requestHeroUpgrade(hero: HeroId, stat: HeroStat) {
   if (profileState.status !== 'ready' || !profileState.walletAddress || upgradeRequestInFlight) return
   upgradeRequestInFlight = true
   executeTask(async () => {
     try {
       const response = await signedFetch({
         url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/hero`,
-        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hero }) }
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hero, stat }) }
       })
       if (!response.ok) {
         let message = `Hero upgrade failed (${response.status})`
@@ -687,7 +688,7 @@ export function requestHeroUpgrade(hero: HeroId) {
         player.backpack = result.backpack
       }
       heroLevelUpAt = Date.now()
-      flash(`${HEROES[hero].name.toUpperCase()} LEVEL ${player.heroes[hero].level}`)
+      flash(`${HEROES[hero].name.toUpperCase()} ${HERO_STAT_LABEL[stat]} LEVEL ${player.heroes[hero][stat]}  •  HERO LEVEL ${heroLevel(player.heroes[hero])}`)
       playSuccessSound()
       if (hero === player.hero) requestHeroRefresh()
     } catch (error) {
