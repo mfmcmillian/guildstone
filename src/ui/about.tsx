@@ -61,7 +61,7 @@ export function AboutPanel() {
         <Panel flat color={C.paper2} uiTransform={{ width: S(TEXT_W), height: S(BODY_H), flexDirection: 'column', padding: S(PAD), margin: { left: S(GAP) } }}>
           <OutlinedText value="KNIGHTS OF ANTROM" size={S(34)} color={C.gold} uiTransform={{ height: S(42), margin: { bottom: S(10) } }} align="middle-left" />
           {LINES.map((line, i) => (
-            <Text key={`about-line-${i}`} value={line} raw size={S(21)} color={C.text} align="top-left" uiTransform={{ width: '100%', height: S(i === 2 ? 56 : 84), margin: { bottom: S(8) } }} />
+            <Text key={`about-line-${i}`} value={line} size={S(21)} color={C.text} align="top-left" uiTransform={{ width: '100%', height: S(i === 2 ? 56 : 84), margin: { bottom: S(8) } }} />
           ))}
           <Spacer />
           <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>

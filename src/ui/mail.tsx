@@ -4,6 +4,7 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C } from './theme'
+import { t } from '../i18n'
 import { OutlinedText, Text, Panel, Button, Modal, Spacer, Icon } from './components'
 import { S, fitModal } from './responsive'
 import { closePanel } from './uiState'
@@ -39,7 +40,7 @@ function Row(props: { key?: string; m: Letter; now: number }) {
     >
       <UiEntity uiTransform={{ width: '100%', height: S(34), flexDirection: 'row', alignItems: 'center' }}>
         {!m.read ? <UiEntity uiTransform={{ width: S(14), height: S(14), margin: { right: S(10) } }} uiBackground={{ color: C.red }} /> : null}
-        <Text value={m.subject || '(no subject)'} raw nowrap size={S(24)} color={m.read ? C.textMuted : C.text} align="middle-left" uiTransform={{ width: S(prize ? 330 : 440), height: S(34) }} />
+        <Text value={m.subject || '(no subject)'} raw={m.subject !== ''} nowrap size={S(24)} color={m.read ? C.textMuted : C.text} align="middle-left" uiTransform={{ width: S(prize ? 330 : 440), height: S(34) }} />
         <Spacer />
         {prize ? (
           <UiEntity uiTransform={{ height: S(28), padding: { left: S(10), right: S(10) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: CHIP_GOLD }}>
@@ -47,7 +48,7 @@ function Row(props: { key?: string; m: Letter; now: number }) {
           </UiEntity>
         ) : null}
       </UiEntity>
-      <Text value={`${m.from.toUpperCase()}  •  ${mailAge(m.at, now)}`} raw nowrap size={S(18)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(26) }} />
+      <Text value={`${t(m.from.toUpperCase())}  •  ${t(mailAge(m.at, now))}`} raw nowrap size={S(18)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(26) }} />
     </UiEntity>
   )
 }
@@ -66,7 +67,7 @@ function Reader(props: { m: Letter | null }) {
   return (
     <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column' }}>
       <OutlinedText value={m.subject.toUpperCase() || '(NO SUBJECT)'} size={S(32)} color={C.gold} align="middle-left" uiTransform={{ width: '100%', height: S(40) }} />
-      <Text value={`FROM ${m.from.toUpperCase()}  •  ${mailAge(m.at)}`} raw nowrap size={S(18)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(26), margin: { bottom: S(14) } }} />
+      <Text value={`FROM ${m.from.toUpperCase()}  •  ${mailAge(m.at)}`} nowrap size={S(18)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(26), margin: { bottom: S(14) } }} />
       <Text value={m.body} raw size={S(22)} color={C.text} align="top-left" uiTransform={{ width: '100%', height: S(BODY_H - 2 * PAD - 40 - 40 - (keys.length ? 120 : 0) - 76) }} />
       {keys.length > 0 ? (
         <UiEntity uiTransform={{ width: '100%', height: S(104), flexDirection: 'row', alignItems: 'center', padding: { left: S(12), right: S(12) }, margin: { bottom: S(16) } }} uiBackground={{ color: prize ? Color4.create(1, 0.82, 0.25, 0.25) : Color4.create(0, 0, 0, 0.08) }}>
@@ -74,11 +75,11 @@ function Reader(props: { m: Letter | null }) {
             <UiEntity key={`att-${k}`} uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { right: S(24) } }}>
               <Icon src={ICON_OF[k]} size={S(56)} />
               <OutlinedText value={`${m.attach?.[k] ?? 0}`} size={S(28)} uiTransform={{ margin: { left: S(8) } }} />
-              <Text value={ATTACH_LABEL[k]} raw nowrap size={S(16)} color={C.textMuted} uiTransform={{ width: S(90), height: S(22), margin: { left: S(6) } }} align="middle-left" />
+              <Text value={ATTACH_LABEL[k]} nowrap size={S(16)} color={C.textMuted} uiTransform={{ width: S(90), height: S(22), margin: { left: S(6) } }} align="middle-left" />
             </UiEntity>
           ))}
           <Spacer />
-          {!prize ? <Text value="CLAIMED" raw nowrap size={S(20)} color={C.textMuted} uiTransform={{ width: S(120), height: S(28) }} /> : null}
+          {!prize ? <Text value="CLAIMED" nowrap size={S(20)} color={C.textMuted} uiTransform={{ width: S(120), height: S(28) }} /> : null}
         </UiEntity>
       ) : null}
       <UiEntity uiTransform={{ width: '100%', height: S(60), flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
