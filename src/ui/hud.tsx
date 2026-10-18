@@ -55,7 +55,8 @@ export function Toast() {
   if (!toast) return null
   const canvas = getCanvas()
   // Over the zone block on the HUD; a little lower over a window's title tab so it does not cover it.
-  const top = ui.open !== null ? S(150) : S(player.activeZone ? 204 : 96)
+  // When the Storm bell is up it moves below the banner so the two never overlap.
+  const top = stormBannerShown() ? stormBannerTop() + S(54 + 12) : ui.open !== null ? S(150) : S(player.activeZone ? 204 : 96)
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + top, left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
       <OutlinedText value={toast} size={S(toast.length > 34 ? FONT.hero - 16 : FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(toast.length > 34 ? 1100 : 800) }} />
@@ -67,21 +68,33 @@ export function Toast() {
  * The Antrom Storm bell: while a Storm is gathering or live, one gold line under the zone block on every guild
  * member's ring (above windows too), tapping it opens the WAR tab. Fed by the lobby poll (see tickStorm).
  */
+function stormBannerShown(): boolean {
+  const st = lobby.storm
+  if (!st || !player.guild || !settings.alerts) return false
+  if (ui.open === 'guild' && currentGuildTab() === 'war') return false
+  const now = Date.now() + lobby.clockOffset
+  if (st.status === 'live' && now > st.endAt) return false
+  if (st.status === 'gathering' && now > st.gatherUntil + 20000) return false
+  return true
+}
+
+/** Top of the Storm banner, below the canvas inset: under the zone block on the HUD, over a window's title tab. */
+function stormBannerTop(): number {
+  return S(player.activeZone ? 150 : 40) + S(ui.open === null ? 52 : 0)
+}
+
 export function StormBanner() {
   const st = lobby.storm
-  if (!st || !player.guild || !settings.alerts) return null
-  if (ui.open === 'guild' && currentGuildTab() === 'war') return null
+  if (!st || !stormBannerShown()) return null
   tickStorm()
   const now = Date.now() + lobby.clockOffset
-  if (st.status === 'live' && now > st.endAt) return null
-  if (st.status === 'gathering' && now > st.gatherUntil + 20000) return null
   const who = st.names.slice(0, 3).join(', ') + (st.count > 3 ? ` +${st.count - 3}` : '')
   const text = st.status === 'gathering'
     ? `⚔ ANTROM STORM  •  ${now < st.gatherUntil ? `BELL IN ${timerText(st.gatherUntil - lobby.clockOffset)}` : 'STARTING'}  •  ${st.count} IN  •  ${who}`
     : `⚔ ANTROM STORM  •  LIVE  •  DUSK ${st.score.a} – ${st.score.b} DAWN  •  ${timerText(st.endAt - lobby.clockOffset)} LEFT  •  WATCH`
   const canvas = getCanvas()
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(player.activeZone ? 150 : 40) + S(ui.open === null ? 52 : 0), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + stormBannerTop(), left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
       <Button label={text} color={st.status === 'gathering' ? C.purple : C.navySoft} textColor={C.yellow} size={S(22)} uiTransform={{ width: S(960), height: S(54), flexShrink: 0 }} onClick={() => openWarTab()} />
     </UiEntity>
   )
