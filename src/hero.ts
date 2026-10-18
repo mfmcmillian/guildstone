@@ -1,7 +1,7 @@
 // Heroes: a base-resource sink that feeds your raid fighter. The server owns the upgrade and the pick (POST /hero)
 // and the numbers; this table mirrors dcl-firebase-backend/api/afkHero.js for display only. Keep the two in step.
 // Three heroes, four stats each (hp, atk, speed, recovery), every stat on its own level and the same curve; the
-// hero's overall level is 1 + every stat step bought. The player fights with one (player.hero). They counter in a
+// hero's overall level is the four stat levels added up (4..120). The player fights with one (player.hero). They counter in a
 // triangle: a hero hits the one it `beats` for COUNTER_MULT x damage.
 import type { BaseResource } from './state'
 
@@ -42,10 +42,10 @@ export type HeroState = Record<HeroId, HeroLevels>
 const freshLevels = (): HeroLevels => ({ hp: 1, atk: 1, speed: 1, recovery: 1 })
 export const emptyHeroes = (): HeroState => ({ assassin: freshLevels(), knight: freshLevels(), warlock: freshLevels() })
 
-/** Overall level: 1 plus every stat step bought. */
-export const heroLevel = (h: HeroLevels): number => 1 + HERO_STATS.reduce((sum, s) => sum + h[s] - 1, 0)
-/** Highest overall level a hero can reach (117 with four stats to 30). */
-export const heroMaxLevel = (id: HeroId): number => 1 + HERO_STATS.length * (HEROES[id].maxLevel - 1)
+/** Overall level: the four stat levels added up (a fresh hero is 4). */
+export const heroLevel = (h: HeroLevels): number => HERO_STATS.reduce((sum, s) => sum + h[s], 0)
+/** Highest overall level a hero can reach (120 with four stats to 30). */
+export const heroMaxLevel = (id: HeroId): number => HERO_STATS.length * HEROES[id].maxLevel
 
 export const isHeroId = (v: unknown): v is HeroId => typeof v === 'string' && (HERO_IDS as string[]).includes(v)
 export const sanitizeHeroId = (v: unknown): HeroId => (isHeroId(v) ? v : DEFAULT_HERO)
