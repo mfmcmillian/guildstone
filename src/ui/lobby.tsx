@@ -23,6 +23,7 @@ import {
   inviteToGuild,
   acceptInvite,
   joinGuildByTag,
+  boardEmptyText,
   boardRows,
   myBoardRank,
   isCrownHolder,
@@ -257,7 +258,7 @@ function BoardColumn(props: { id: BoardId; height: number }) {
     <Panel flat color={C.navySoft} uiTransform={{ width: S(CHAT_W), height: S(props.height), padding: S(14), flexDirection: 'column' }}>
       <OutlinedText value={BOARD_TITLE[id]} size={S(28)} color={C.gold} uiTransform={{ width: '100%', height: S(40), margin: { bottom: S(10) } }} />
       {rows.length === 0 ? (
-        <Text value={lobby.board.loading && lobby.board.loadedAt === 0 ? 'Loading...' : 'Nothing here yet.'} size={S(26)} color={C.textMuted} uiTransform={{ width: '100%', height: S(40) }} />
+        <Text value={lobby.board.loading && lobby.board.loadedAt === 0 ? 'Loading...' : boardEmptyText(id)} size={S(26)} color={C.textMuted} uiTransform={{ width: '100%', height: S(40) }} />
       ) : (
         // Scrolls: top 50, big rows.
         <UiEntity uiTransform={{ width: '100%', height: S(listH), flexDirection: 'column', overflow: 'scroll' }}>

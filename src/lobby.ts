@@ -406,15 +406,23 @@ export const BOARD_TITLE: Record<BoardId, string> = {
 
 export interface BoardRow { key: string; name: string; tag: string; value: string; mine: boolean }
 
+/** What an empty board says. Player boards hide zero rows, so RAID is empty until the first recorded raid ends. */
+export function boardEmptyText(id: BoardId): string {
+  if (id === 'raid') return 'No raids fought yet. Ring the bell in WAR to start one.'
+  if (id === 'hq' || id === 'points' || id === 'weekly') return 'No guilds founded yet.'
+  return 'Nothing here yet.'
+}
+
 export function boardRows(id: BoardId, limit = 15): BoardRow[] {
   const me = profileState.walletAddress ?? ''
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.id, g.tag]))
   const myGuild = player.guild?.id ?? ''
   if (id === 'hq' || id === 'points' || id === 'weekly') {
     const value = (g: BoardGuild) => (id === 'hq' ? g.hqLevel : id === 'points' ? g.points : g.weeklyPoints)
+    // Every guild stays on the board, so a guild founded today is visible before its first donation: scored guilds
+    // first by value, then the zero rows by member count and name.
     return [...lobby.board.guilds]
-      .filter((g) => value(g) > 0)
-      .sort((a, b) => value(b) - value(a))
+      .sort((a, b) => value(b) - value(a) || b.memberCount - a.memberCount || a.name.localeCompare(b.name))
       .slice(0, limit)
       .map((g) => ({ key: g.id, name: g.name, tag: g.tag, value: id === 'hq' ? `HQ ${g.hqLevel}` : `${value(g).toLocaleString()} pts`, mine: g.id === myGuild }))
   }
