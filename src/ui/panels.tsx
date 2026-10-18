@@ -957,17 +957,27 @@ export function WorkshopPanel() {
             <OutlinedText value="SPECIAL FINDS" size={S(34)} color={C.yellow} align="middle-left" />
             <Text value="Not refined here: they drop in the zones when you wear the right suits, and go straight into suit recipes." size={S(23)} color={C.gray} align="middle-left" uiTransform={{ height: S(130) }} />
           </UiEntity>
-          {/* Two columns: the longest gate line ("Wear Lumberjack L3 + Assassin L3") doesn't fit three across at this size. */}
-          <UiEntity uiTransform={{ flexDirection: 'row', flexWrap: 'wrap', width: S(1336) }}>
-            {(Object.entries(COMBOS) as Array<[RareRaw, RareDropDef]>).map(([id, def]) => (
-              <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '49.6%', height: S(76), margin: { bottom: S(2) } }}>
-                <Icon src={RESOURCE_INFO[id].icon} size={S(60)} uiTransform={{ flexShrink: 0 }} />
-                <UiEntity uiTransform={{ flexDirection: 'column', width: S(590), margin: { left: S(8) } }}>
-                  <Text value={def.name} size={S(32)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(38) }} />
-                  <Text value={`Wear ${gateText(def.gate)}`} size={S(26)} color={C.gray} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
+          {/* Two columns in fixed rows (the longest gate line doesn't fit three across). Not a wrapping row: an
+              exact-fit wrap can tip to one item per line from sub-pixel rounding at some window sizes. */}
+          <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1 }}>
+            {(() => {
+              const items = Object.entries(COMBOS) as Array<[RareRaw, RareDropDef]>
+              const rows: Array<typeof items> = []
+              for (let i = 0; i < items.length; i += 2) rows.push(items.slice(i, i + 2))
+              return rows.map((row, r) => (
+                <UiEntity key={`finds-row-${r}`} uiTransform={{ width: '100%', height: S(76), flexDirection: 'row', margin: { bottom: S(2) } }}>
+                  {row.map(([id, def]) => (
+                    <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '50%', height: '100%' }}>
+                      <Icon src={RESOURCE_INFO[id].icon} size={S(60)} uiTransform={{ flexShrink: 0 }} />
+                      <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, margin: { left: S(8) }, overflow: 'hidden' }}>
+                        <Text value={def.name} size={S(32)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(38) }} />
+                        <Text value={`Wear ${gateText(def.gate)}`} size={S(26)} color={C.gray} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
+                      </UiEntity>
+                    </UiEntity>
+                  ))}
                 </UiEntity>
-              </UiEntity>
-            ))}
+              ))
+            })()}
           </UiEntity>
         </Panel>
       </UiEntity>
