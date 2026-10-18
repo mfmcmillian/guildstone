@@ -1,5 +1,4 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
-import { Color4 } from '@dcl/sdk/math'
 import { t } from '../i18n'
 import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Button, Icon } from './components'
@@ -19,7 +18,9 @@ import {
   settleComposer,
   mentionsMe,
   mentionPlayer,
+  mentioning,
   mentionSuggestions,
+  whisperPlayer,
   adminChat,
   canModerate,
   hasGuildChat,
@@ -81,7 +82,7 @@ function SideColumn(props: { height: number; guildOnly: boolean; chat?: Channel 
   const myGuild = player.guild
   const canInvite = !!myGuild && (myGuild.leaderId === me || myGuild.royalGuardIds?.includes(me))
   const selected = lobby.selected ? lobby.online.find((p) => p.address === lobby.selected) ?? null : null
-  return selected ? <PlayerCard p={selected} height={props.height} canInvite={canInvite} chat={props.chat} /> : <OnlineColumn height={props.height} guildOnly={props.guildOnly} />
+  return selected ? <PlayerCard p={selected} height={props.height} canInvite={canInvite} chat={props.chat} /> : <OnlineColumn height={props.height} guildOnly={props.guildOnly} chat={props.chat} />
 }
 
 /** LOBBY tab: chat. ALL / [TAG] toggle above the feed while in a guild; without one the feed takes the full height. */
@@ -169,10 +170,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   // Invites only matter on the lobby feed; the guild channel is members-only.
   const invites = guildChannel ? [] : lobby.invites.filter((i) => !dismissedInvites.has(i.guildId))
   const inviteH = invites.length > 0 ? 66 : 0
-  // Preview of who an unfinished @name will tag on send. Not tappable: a click would drop the Input's cursor.
-  const sug = mentionSuggestions(channel)
-  const sugH = sug.length > 0 ? 46 + 8 : 0
-  const feedH = props.height - 20 - inviteH - 64 - 10 - sugH
+  const feedH = props.height - 20 - inviteH - 64 - 10
   // Newest at the bottom; walk back until the feed is full. Two lines for long messages, one otherwise.
   settleComposer(channel)
   const visible = st.messages.filter((m) => !lobby.muted.has(m.from))
@@ -222,8 +220,8 @@ function ChatColumn(props: { channel: Channel; height: number }) {
                 lobby.selected = r.from
               }}
             >
-              <Text value={r.stamp} size={S(20)} color={C.textMuted} nowrap align="top-left" uiTransform={{ width: S(190), height: S(r.h), margin: { right: S(10) } }} />
-              <Text value={r.line} size={S(22)} color={r.system ? C.textMuted : r.me ? C.orange : nameColor(r.from, r.guild)} align="top-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
+              <Text value={r.stamp} size={S(20)} color={C.textMuted} nowrap raw align="top-left" uiTransform={{ width: S(190), height: S(r.h), margin: { right: S(10) } }} />
+              <Text value={r.line} size={S(22)} color={r.system ? C.textMuted : r.me ? C.orange : nameColor(r.from, r.guild)} align="top-left" raw={!r.system} uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
               {moderator && !r.system ? (
                 <UiEntity
                   uiTransform={{ width: S(30), height: S(26), alignItems: 'center', justifyContent: 'center', margin: { left: S(6) } }}
@@ -238,15 +236,6 @@ function ChatColumn(props: { channel: Channel; height: number }) {
         )}
       </UiEntity>
 
-      {sug.length > 0 ? (
-        <UiEntity uiTransform={{ width: '100%', height: S(46), flexDirection: 'row', alignItems: 'center', margin: { top: S(8) } }}>
-          {sug.map((p) => (
-            <UiEntity key={`sug-${p.address}`} uiTransform={{ width: S(280), height: S(46), minWidth: 0, margin: { right: S(8) }, alignItems: 'center', justifyContent: 'center', padding: { left: S(10), right: S(10) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.05, 0.05, 0.07, 0.95) }}>
-              <Text value={`@${p.name}`} size={S(20)} color={C.green} nowrap uiTransform={{ width: '100%', height: S(30) }} />
-            </UiEntity>
-          ))}
-        </UiEntity>
-      ) : null}
       <UiEntity uiTransform={{ width: '100%', height: S(64), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
         <Input
           key={`chat-input-${channel}-${st.draftKey}`}
@@ -374,11 +363,15 @@ function BugCard() {
 const BUG_OPEN_H = 190
 const BUG_CLOSED_H = 66
 
-function OnlineColumn(props: { height: number; guildOnly: boolean }) {
+function OnlineColumn(props: { height: number; guildOnly: boolean; chat?: Channel }) {
   const rowH = 84
   // On the guild board only guildmates are listed (I'm always first, so the list is never empty while I'm in one).
+  // Typing @ in the composer turns this list into the name picker: it narrows as they type, tap inserts @Name.
   const myGuildId = player.guild?.id ?? ''
-  const list = props.guildOnly && myGuildId ? lobby.online.filter((p) => p.guild === myGuildId) : lobby.online
+  const picking = !!(props.chat && mentioning(props.chat))
+  const list = picking && props.chat
+    ? mentionSuggestions(props.chat)
+    : props.guildOnly && myGuildId ? lobby.online.filter((p) => p.guild === myGuildId) : lobby.online
   const title = props.guildOnly ? `[${player.guild?.tag ?? 'GUILD'}] ONLINE  •  ${list.length}` : `ONLINE  •  ${list.length}`
   const bugH = bug.open ? BUG_OPEN_H + 10 : BUG_CLOSED_H
   return (
@@ -397,12 +390,13 @@ function OnlineColumn(props: { height: number; guildOnly: boolean }) {
               onMouseDown={() => {
                 if (p.address === me()) return
                 playButtonSound()
-                lobby.selected = p.address
+                if (picking && props.chat) mentionPlayer(props.chat, p.name)
+                else lobby.selected = p.address
               }}
             >
               <UiEntity uiTransform={{ width: '100%', height: S(36), flexDirection: 'row', alignItems: 'center' }}>
                 {isCrownHolder(p.address) ? <Icon src={CROWN_ICON} size={S(30)} uiTransform={{ margin: { right: S(6) } }} /> : null}
-                <Text value={`${withVip(p.name, p.vip)}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(36) }} />
+                <Text value={`${withVip(p.name, p.vip)}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap raw uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(36) }} />
               </UiEntity>
               <Text value={statusLine(p)} size={S(23)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(30) }} />
             </UiEntity>
@@ -422,8 +416,8 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
   const btn = { width: '100%' as const, height: S(56), margin: { bottom: S(8) } }
   return (
     <Panel flat color={C.paper2} uiTransform={{ width: S(SIDE_W), height: S(props.height), padding: S(16), flexDirection: 'column' }}>
-      <OutlinedText value={p.name} size={S(32)} uiTransform={{ width: '100%', height: S(40) }} />
-      <Text value={p.tag ? `[${p.tag}]  ${guildInfo?.name ?? ''}` : 'No guild'} size={S(22)} color={p.tag ? C.purple : C.textMuted} uiTransform={{ width: '100%', height: S(30) }} />
+      <OutlinedText value={p.name} size={S(32)} raw uiTransform={{ width: '100%', height: S(40) }} />
+      <Text value={p.tag ? `[${p.tag}]  ${guildInfo?.name ?? ''}` : 'No guild'} size={S(22)} color={p.tag ? C.purple : C.textMuted} raw={!!p.tag} uiTransform={{ width: '100%', height: S(30) }} />
       <Text value={statusLine(p)} size={S(20)} color={C.textMuted} uiTransform={{ width: '100%', height: S(28), margin: { bottom: S(10) } }} />
       {SKILLS.map((s, i) => (
         <UiEntity key={`sk-${s}`} uiTransform={{ width: '100%', height: S(40), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(4) } }}>
@@ -443,6 +437,7 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
 
       <UiEntity uiTransform={{ flexGrow: 1 }} />
       {props.chat ? <Button key="card-mention" label={`@ ${p.name.toUpperCase()}`} color={C.orange} textColor={C.navy} size={S(22)} uiTransform={btn} onClick={() => mentionPlayer(props.chat!, p.name)} /> : null}
+      {props.chat ? <Button key="card-whisper" label="WHISPER" color={C.navySoft} size={S(22)} uiTransform={btn} onClick={() => whisperPlayer(props.chat!, p.name)} /> : null}
       {props.canInvite && !p.guild ? (() => {
         const status = lobby.invited[p.address]
         const label = status === 'sending' ? 'SENDING…' : status === 'sent' ? 'INVITED' : `INVITE TO [${player.guild?.tag}]`

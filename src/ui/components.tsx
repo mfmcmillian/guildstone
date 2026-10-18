@@ -40,12 +40,14 @@ export function OutlinedText(props: Keyed & {
   align?: Align
   uiTransform?: UiTransformProps
   thickness?: number
+  /** Player-entered text (names, chat). Skip the dictionary so "Storm" stays Storm. */
+  raw?: boolean
 }) {
   const size = props.size ?? S(FONT.body)
   const th = props.thickness ?? Math.max(1.5, size / 14)
   const outline = props.outline ?? C.navy
   const align = props.align ?? 'middle-center'
-  const value = t(props.value)
+  const value = props.raw ? props.value : t(props.value)
   const offsets: [number, number][] = [[-th, 0], [th, 0], [0, -th], [0, th], [-th, -th], [th, -th], [-th, th], [th, th]]
   return (
     <UiEntity uiTransform={{ width: '100%', height: size * 1.3, ...props.uiTransform }}>
@@ -64,13 +66,13 @@ export function OutlinedText(props: Keyed & {
   )
 }
 
-export function Text(props: Keyed & { value: string; size?: number; color?: Color4; align?: Align; nowrap?: boolean; uiTransform?: UiTransformProps }) {
+export function Text(props: Keyed & { value: string; size?: number; color?: Color4; align?: Align; nowrap?: boolean; raw?: boolean; uiTransform?: UiTransformProps }) {
   const size = props.size ?? S(FONT.body)
   return (
     <UiEntity
       uiTransform={{ width: '100%', height: size * 1.3, ...props.uiTransform }}
       uiText={{
-        value: t(props.value),
+        value: props.raw ? props.value : t(props.value),
         fontSize: size,
         color: props.color ?? C.text,
         textAlign: props.align ?? 'middle-center',

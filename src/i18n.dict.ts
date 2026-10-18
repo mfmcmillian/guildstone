@@ -630,6 +630,7 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Suits crafted: {0}', 'Tenues fabriquées : {0}', 'Trajes fabricados: {0}', '已制作套装：{0}'],
   ['Suits crafted: {0}  •  Relics: {1} / 4', 'Tenues fabriquées : {0}  •  Reliques : {1} / 4', 'Trajes fabricados: {0}  •  Reliquias: {1} / 4', '已制作套装：{0}  •  圣物：{1} / 4'],
   ['MUTE', 'MUET', 'SILENCIAR', '静音'],
+  ['WHISPER', 'CHUCHOTER', 'SUSURRAR', '私聊'],
   ['UNMUTE', 'SON', 'ACTIVAR', '取消静音'],
   ['BLOCK (ADMIN)', 'BLOQUER (ADMIN)', 'BLOQUEAR (ADMIN)', '封禁（管理员）'],
   ['delete', 'supprimer', 'borrar', '删除'],

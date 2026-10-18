@@ -170,32 +170,25 @@ export function mentionPlayer(channel: Channel, name: string) {
   lobby.selected = null
 }
 
-/** Online names matching an unfinished "@xx" at the end of the composer (up to 4) for the suggestion strip. */
+/** True while the composer ends in an unfinished @name — the online list is the picker. */
+export function mentioning(channel: Channel): boolean {
+  return /(?:^|\s)@[^\s@]{0,16}$/.test(lobby.ch[channel].draft)
+}
+
+/** Online names matching an unfinished "@xx" at the end of the composer. */
 export function mentionSuggestions(channel: Channel): OnlinePlayer[] {
   const m = lobby.ch[channel].draft.match(/(?:^|\s)@([^\s@]{0,16})$/)
   if (!m) return []
   const q = m[1].toLowerCase()
   const me = (profileState.walletAddress || '').toLowerCase()
   const myGuildId = player.guild?.id ?? ''
-  return lobby.online.filter((p) => p.address !== me && (channel !== 'guild' || p.guild === myGuildId) && p.name.toLowerCase().startsWith(q)).slice(0, 4)
+  return lobby.online.filter((p) => p.address !== me && (channel !== 'guild' || p.guild === myGuildId) && p.name.toLowerCase().startsWith(q))
 }
 
-/**
- * Turn unique "@xx" tokens into "@Name" using the online list (exact, then unique prefix). The SDK Input has no focus
- * API, so a tap on a suggestion would drop the cursor; we expand on send instead and leave the box alone.
- */
-export function expandMentions(channel: Channel, text: string): string {
-  const me = (profileState.walletAddress || '').toLowerCase()
-  const myGuildId = player.guild?.id ?? ''
-  const pool = lobby.online.filter((p) => p.address !== me && (channel !== 'guild' || p.guild === myGuildId))
-  return text.replace(/(^|\s)@([^\s@]{1,24})/g, (all, pre: string, q: string) => {
-    const ql = q.toLowerCase()
-    const exact = pool.find((p) => p.name.toLowerCase() === ql)
-    if (exact) return `${pre}@${exact.name}`
-    const prefix = pool.filter((p) => p.name.toLowerCase().startsWith(ql))
-    if (prefix.length === 1) return `${pre}@${prefix[0].name}`
-    return all
-  })
+/** Start a whisper from a player's card: `/w Name ` in the composer of the channel on screen. */
+export function whisperPlayer(channel: Channel, name: string) {
+  setDraft(channel, `/w ${name} `.slice(0, CHAT_TEXT_MAX))
+  lobby.selected = null
 }
 
 export function pollLobby() {
@@ -235,7 +228,7 @@ export function pollLobby() {
 
 export function sendChat(channel: Channel) {
   const st = lobby.ch[channel]
-  const text = expandMentions(channel, st.draft).trim().slice(0, CHAT_TEXT_MAX)
+  const text = st.draft.trim().slice(0, CHAT_TEXT_MAX)
   if (!text || st.sending || profileState.status !== 'ready' || !profileState.walletAddress) return
   if (channel === 'guild' && !hasGuildChat()) return
   st.sending = true
