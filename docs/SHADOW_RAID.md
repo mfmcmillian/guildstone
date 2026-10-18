@@ -99,22 +99,38 @@ So the side that drops the last defender scores the point from the *next* tick.
 
 Ticks are processed lazily by whichever request touches the raid next (players poll every 3 s, spectators too; there are no background workers on Vercel). A raid nobody looks at for a minute catches up four ticks at once, deterministically.
 
-## 6. Starting, joining, watching
+## 6. Two ways to fight
 
-Officer = leader or royal guard. Officer-only on both sides.
+Both run on the same field, ticks and stats. A raid carries `mode: 'pickup' | 'battle'`. Guild membership is required for both (a perk of being in a guild); the dock and window layout do not change.
 
-1. Officer taps **RAID** in the WAR tab. The raid is *gathering* for **90 s**. System line in guild chat: "⚔ [KOA] is calling a raid. Join from the WAR tab." Members tap **JOIN** (max 4).
-2. The gathering raid appears on every other guild's WAR tab: "[KOA] is calling a raid · 3/4 · 0:52 · ANSWER". An officer there taps ANSWER; their members JOIN the same way. First guild to answer gets it.
-3. At 0:00: both sides 2+ → **live**. No answer (or the answering guild has < 2) → the **Wraiths** fill the other side. Caller side < 2 → cancelled, nothing counted.
-4. One raid per guild at a time. **3 raids per guild per UTC day** (Wraith raids count).
+### 6a. Pickup raids (every day)
 
-**Mid-battle joins:** yes, for your own guild, while a slot is free (< 4). Spawn at camp. LEAVE RAID frees the slot. Valor is per tick present, so late joiners earn less with no extra rule. Leaving forfeits the Valor of that raid.
+The everyday mode: whoever shows up fights, in random teams.
 
-**Watching:** your own guild's WAR tab *is* the live field during a raid (JOIN shown if a slot is free). Other guilds see a list of live and gathering raids on their WAR tab and can open any of them read-only. Spectators see everything players see.
+1. Any guild member taps **JOIN A RAID** on the WAR screen. If no pickup raid is gathering, this opens one (`gatherMs`, default 120 s); otherwise it adds them to the one that is. One pickup raid at a time, server-wide (pointer doc `afk_v1_raid_queue`). While one is live, the screen shows it (watch) and says when the next queue opens.
+2. During gathering there is one list, FIGHTERS n / 8 (`2 × sideMax`), each name with their guild tag. LEAVE frees the spot. Joins are gathering-only: teams are drawn at the bell, so nobody can pick a side.
+3. At the bell: fewer than `pickupMin` humans (default 4, so at least 2v2) → **called off**, nothing recorded. Otherwise the server shuffles the list (seeded RNG) and deals alternately into **Team Dusk** (side a, purple) and **Team Dawn** (side b, gold). An odd count pads the short side with **one Wraith** copying a fighter from the other side, so sides are always even. Wraiths never bring a raid up to the minimum.
+4. Valor, the profile tally and the RAID leaderboard work as in §8. Teams are not guilds, so pickup raids write **no** guild record, no guild points and no guild chat lines.
+5. Fairness cap: `raidsPerDay` is per **player** per UTC day for pickup (profile `raid.day / count`); the join is refused after that.
+
+### 6b. Guild Battle (Wednesdays 9 PM ET)
+
+The weekly event: guild vs guild, 4 a side, for bragging rights and a resource payout.
+
+- **Schedule** (config `battle`): `weekday 3` (Wednesday), `hour 21`, `tz America/New_York` (so it is 9 PM local through DST), `windowMs 2 h` (21:00–23:00). All the week's times are derived from that.
+- **Sign-up**: the guild **leader** taps SIGN UP on the Guild Battle card any time from the previous Wednesday 23:00 until **Tuesday 23:59:59 ET** (`signupCloseAt = startAt − 21 h`). WITHDRAW until then. The card lists who has signed up so far.
+- **Pairing**: on the first request after sign-up closes (there are no cron jobs; everything is settled lazily), guilds are paired **in sign-up order**: 1v2, 3v4, … An odd guild out gets a bye and a system line. From then until the event the card shows **your matchup** ("Wednesday 9 PM ET: [KOA] vs [RAVN]").
+- **Event**: on the first request at or after 21:00 ET, every match gets a raid `mode 'battle'`, both guild sides set, no fighters, `gatherUntil = 23:00` (the window), rules `sideMin = sideMax = battle.teamSize (4)`. Members tap JOIN like any raid. **The moment both sides have 4** the start is pulled in to `now + battle.readyMs` (default 60 s) so the field gets a countdown; a LEAVE before then pushes it back to the window end. At 23:00 with either side short → **called off** ("[RAVN] fielded 3 of 4"), no winner, nothing paid. No Wraiths in a battle.
+- **Payout** (`battle.reward`, in `storage`): every fighter on the winning side gets `win` (default 300 wood / 300 rock / 150 meat / 150 bone), every fighter on the losing side `lose` (half). Draw → everyone gets `lose`. Guild points for the match are Valor `× battle.pointsMult` (default 3). History entries carry `battle: true`.
+- Battles ignore `raidsPerDay`.
+
+**Mid-battle joins:** battle raids only, for your own guild, while a slot is free (< 4). Spawn at camp. LEAVE RAID frees the slot. Valor is per tick present, so late joiners earn less with no extra rule. Leaving forfeits the Valor of that raid.
+
+**Watching:** the WAR screen always shows the raid you are in, else the pickup raid gathering or live, else the idle screen with JOIN A RAID and the Guild Battle card. The board lists other live raids (battle matches on Wednesday night) with WATCH, read-only.
 
 ## 7. Wraiths
 
-When no guild answers, the server builds a side of the same size as the caller's, each Wraith a copy of one caller fighter's HP/ATK (shuffled, named Wraith Blade / Shade / Howl / Fang). Wraiths take their first orders at the end of tick 1 (one clash after the start), so a caller who clicks at once can hold the Citadel first. Wraith AI per tick: the first two go to the Citadel, the rest to the unheld corner with the fewest Wraiths; a knocked-out Wraith re-picks on revive, preferring an enemy-held point it can out-ATK, else the Citadel. Wraith raids score and pay Valor exactly like guild raids and count toward the record as `vs Wraiths`.
+Wraiths only appear in pickup raids, and only to even out an odd count (one Wraith on the short side, a copy of one fighter's stats from the other side, named Wraith Blade / Shade / Howl / Fang). Test raids (§14) are the exception: a tester alone gets a full mirror side. Wraiths take their first orders at the end of tick 1 (one clash after the start), so a caller who clicks at once can hold the Citadel first. Wraith AI per tick: the first two go to the Citadel, the rest to the unheld corner with the fewest Wraiths; a knocked-out Wraith re-picks on revive, preferring an enemy-held point it can out-ATK, else the Citadel. A Wraith scores and pays Valor for its side like any fighter; it earns none itself.
 
 ## 8. End, rewards, record
 
@@ -122,8 +138,8 @@ At the last tick (80 by default):
 
 - Higher score wins. Tie → draw.
 - **Valor** per fighter = `valorPerTick × ticks present` (capped at the raid length), `× valorWinMult` for the winning side, `+ valorPerKo` per knockout dealt (live config; defaults 1 / ×1.5 / 5). Draw → base only. The lifetime tally (`raid.valor / raids / wins / kos` on the profile) feeds the **RAID** leaderboard under RANKINGS, ranked by valor with the active hero and its level on the row.
-- Guild `raid` record: `wins / losses / draws / score (Valor total) / history (last 5)`; a system line in both guild chats with the final score.
-- Profile `raid`: `{ valor, raids, wins, kos }`.
+- Guild `raid` record (battle raids only): `wins / losses / draws / score (Valor total × pointsMult) / history (last 5, `battle: true`)`; a system line in both guild chats with the final score and the payout.
+- Profile `raid`: `{ valor, raids, wins, kos, day, count }` (`day / count` is the pickup cap).
 - The field freezes on a result card (score, per-fighter dealt/taken/KOs, Valor earned) until the officer starts the next raid or 2 minutes pass.
 
 Valor has no spend in MVP1. Candidates: banner frames, titles, a Valor leaderboard on guildstone.dev.
@@ -188,13 +204,15 @@ Clicks dip and play the button sound like every other control.
 
 - Valor spend, leaderboard, seasons.
 - Focus-fire / target choice (damage is spread evenly).
-- Scheduled raids, challenges by tag, best-of-three.
+- Challenges by tag, best-of-three, more than one match per guild on battle night.
 - Hiding enemy HP from spectators.
 - Chat during a raid (guild chat already exists one tab over).
 
 ## 13. Numbers to tune (live, from the control dashboard)
 
-Defaults: `tickMs 3000`, `ticks 80` (4 min; was 15 s × 20, then 100 × 3 s), `gatherMs 90000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 20000` (was 30000), `sideMax 4`, `sideMin 2`, `raidsPerDay 3`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+Defaults: `tickMs 3000`, `ticks 80` (4 min; was 15 s × 20, then 100 × 3 s), `gatherMs 120000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 20000` (was 30000), `sideMax 4`, `sideMin 2`, `pickupMin 4`, `raidsPerDay 5` (per player, pickup), armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+
+Guild Battle (`battle`): `enabled true`, `weekday 3`, `hour 21`, `minute 0`, `tz America/New_York`, `windowMs 7200000`, `readyMs 60000`, `teamSize 4`, `pointsMult 3`, `reward.win { wood 300, rock 300, meat 150, bone 150 }`, `reward.lose { 150, 150, 75, 75 }`.
 
 Note: the dashboard stores the **full** config, so changing a default in code does not change a deployment that has already saved its config; patch the live value from the dashboard (or `POST /antrom-afk/admin/config`) as well.
 
@@ -203,4 +221,4 @@ They live in `api/afkAdminConfig.js` (defaults + clamps) and are overridden by t
 ## 14. Kill switch and testing
 
 - **`features.war`** (dashboard switch): off → `/antrom-afk/config` and every raid poll return `features.war=false`, the ring hides the WAR tab (anyone on it lands on HOME) and the server answers `start / answer / join / go / home` with "Raids are paused for now". `view` and `leave` still work; raids already live finish on their own.
-- **Testers** (dashboard list of wallets): a raid called by a tester has `rules.test=true` and `sideMin=1`, so it starts with one fighter against a mirror Wraith, ignores the daily cap and is never recorded (no guild record, no Valor, no history, no system line other than "test raid is over"). The board shows it as a *test raid*; another guild can still answer it (also unrecorded). Use with the dashboard timers (e.g. `tickMs 5000`, `walkMs 5000`, `gatherMs 15000`) to run a whole raid in under two minutes.
+- **Testers** (dashboard list of wallets): a pickup raid *opened* by a tester has `rules.test=true` and `pickupMin=1`, so it starts with one fighter against a mirror Wraith side, ignores the daily cap and is never recorded (no guild record, no Valor, no history, no system line other than "test raid is over"). The board shows it as a *test raid*; another guild can still answer it (also unrecorded). Use with the dashboard timers (e.g. `tickMs 5000`, `walkMs 5000`, `gatherMs 15000`) to run a whole raid in under two minutes.
