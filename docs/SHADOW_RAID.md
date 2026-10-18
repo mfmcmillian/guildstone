@@ -103,19 +103,20 @@ Ticks are processed lazily by whichever request touches the raid next (players p
 
 ## 6. Two ways to fight
 
-Both run on the same field, ticks and stats. A raid carries `mode: 'pickup' | 'battle'`. Guild membership is required for both (a perk of being in a guild); the dock and window layout do not change.
+Both run on the same field, ticks and stats. A raid carries `mode: 'pickup' | 'battle'`. In the game they are the **Antrom Storm** (every day, `pickup`) and the **Antrom Storm Guild War** (Wednesdays, `battle`). Guild membership is required for both (a perk of being in a guild); the dock and window layout do not change.
 
-### 6a. Pickup raids (every day)
+### 6a. Antrom Storm (every day)
 
-The everyday mode: whoever shows up fights, in random teams.
+The everyday mode: whoever shows up fights, any headcount, in random teams.
 
-1. Any guild member taps **JOIN A RAID** on the WAR screen. If no pickup raid is gathering, this opens one (`gatherMs`, default 120 s); otherwise it adds them to the one that is. One pickup raid at a time, server-wide (pointer doc `afk_v1_raid_queue`). While one is live, the screen shows it (watch) and says when the next queue opens.
-2. During gathering there is one list, FIGHTERS n / 8 (`2 × sideMax`), each name with their guild tag. LEAVE frees the spot. Joins are gathering-only: teams are drawn at the bell, so nobody can pick a side.
-3. At the bell: fewer than `pickupMin` humans (default 4, so at least 2v2) → **called off**, nothing recorded. Otherwise the server shuffles the list (seeded RNG) and deals alternately into **Team Dusk** (side a, purple) and **Team Dawn** (side b, gold). An odd count pads the short side with **one Wraith** copying a fighter from the other side, so sides are always even. Wraiths never bring a raid up to the minimum.
-4. Valor, the profile tally and the RAID leaderboard work as in §8. Teams are not guilds, so pickup raids write **no** guild record, no guild points and no guild chat lines.
-5. Fairness cap: `raidsPerDay` is per **player** per UTC day for pickup (profile `raid.day / count`); the join is refused after that.
+1. Any guild member taps **ENTER THE STORM** on the WAR screen. If no Storm is gathering, this opens one (`gatherMs`, default 120 s); otherwise it adds them to the one that is (**JOIN THE STORM**). One Storm at a time, server-wide (pointer doc `afk_v1_raid_queue`). While one is live, the screen shows it (watch) and says when the next one opens.
+2. During gathering there is one list, FIGHTERS n / 8 (`2 × sideMax`), each name with their guild tag. LEAVE frees the spot; if the last fighter leaves, the Storm closes at once. Joins are gathering-only: teams are drawn at the bell, so nobody can pick a side.
+3. At the bell the server shuffles the list (seeded RNG) and deals alternately into **Team Dusk** (side a, purple) and **Team Dawn** (side b, gold). **One** fighter faces the comp: a Wraith mirror of themselves. **Two** go 1v1. An **odd** count pads the short side with **one Wraith** copying a fighter from the other side (3 → 2v2, 5 → 3v3), so sides are always even. `pickupMin` (default 1) is the floor below which it is called off; with nobody left at the bell it is called off ("nobody stayed").
+4. Valor, the profile tally and the STORM leaderboard work as in §8. Teams are not guilds, so Storms write **no** guild record, no guild points and no guild chat lines.
+5. **Valor cap, not a play cap.** You can fight all day. The first `raidsPerDay` (5) Storms you join per UTC day are *ranked* (`fighter.ranked = true`, from profile `raid.day / count`, which still counts every join and is refunded on LEAVE / call-off); after that you still fight and your wins, raids and KOs tally, but you earn **no Valor** (the result sheet shows "none"). Testers are never ranked.
+6. **The bell for everyone.** When a Storm opens the server writes one system line to the ALL lobby chat ("⚔ Matt [KOA] opened an Antrom Storm battle. JOIN on the WAR tab: 2 min to the bell") and the lobby poll (`/player/:address/lobby`, 30 s in the background, 4 s with the Lobby open) returns `storm` from the raid board: `{ id, status, gatherUntil, endAt, count, names, score }`. On every guild member's ring that is a gold bar under the zone block, above any window: "⚔ ANTROM STORM • BELL IN 1:42 • 3 IN • Matt, Kai, Rae" (live: "LIVE • DUSK 12 – 9 DAWN • 2:31 LEFT • WATCH"); tapping it opens the WAR tab. Two toasts, both hidden when ALERTS is off and when you are already in it: when it opens ("ANTROM STORM IS GATHERING • JOIN ON THE WAR TAB") and 30 s before the bell ("STORM BELL IN 30 S • LAST CALL").
 
-### 6b. Guild Battle (Wednesdays 9 PM ET)
+### 6b. Antrom Storm Guild War (Wednesdays 9 PM ET)
 
 The weekly event: guild vs guild, 4 a side, for bragging rights and a resource payout.
 
@@ -124,7 +125,7 @@ The weekly event: guild vs guild, 4 a side, for bragging rights and a resource p
 - **Pairing**: on the first request after sign-up closes (there are no cron jobs; everything is settled lazily), guilds are paired **in sign-up order**: 1v2, 3v4, … An odd guild out gets a bye and a system line. From then until the event the card shows **your matchup** ("Wednesday 9 PM ET: [KOA] vs [RAVN]").
 - **Event**: on the first request at or after 21:00 ET, every match gets a raid `mode 'battle'`, both guild sides set, no fighters, `gatherUntil = 23:00` (the window), rules `sideMin = sideMax = battle.teamSize (4)`. Members tap JOIN like any raid. **The moment both sides have 4** the start is pulled in to `now + battle.readyMs` (default 60 s) so the field gets a countdown; a LEAVE before then pushes it back to the window end. At 23:00 with either side short → **called off** ("[RAVN] fielded 3 of 4"), no winner, nothing paid. No Wraiths in a battle.
 - **Payout** (`battle.reward`, in `storage`): every fighter on the winning side gets `win` (default 300 wood / 300 rock / 150 meat / 150 bone), every fighter on the losing side `lose` (half). Draw → everyone gets `lose`. Guild points for the match are Valor `× battle.pointsMult` (default 3). History entries carry `battle: true`.
-- Battles ignore `raidsPerDay`.
+- Guild War raids ignore `raidsPerDay` and are always ranked.
 
 **Mid-battle joins:** battle raids only, for your own guild, while a slot is free (< 4). Spawn at camp. LEAVE RAID frees the slot. Valor is per tick present, so late joiners earn less with no extra rule. Leaving forfeits the Valor of that raid.
 
@@ -213,7 +214,7 @@ Clicks dip and play the button sound like every other control.
 
 ## 13. Numbers to tune (live, from the control dashboard)
 
-Defaults: `tickMs 3000`, `ticks 80` (4 min; was 15 s × 20, then 100 × 3 s), `gatherMs 120000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 20000` (was 30000), `sideMax 4`, `sideMin 2`, `pickupMin 4`, `raidsPerDay 5` (per player, pickup), `captureTicks 2`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+Defaults: `tickMs 3000`, `ticks 80` (4 min; was 15 s × 20, then 100 × 3 s), `gatherMs 120000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 20000` (was 30000), `sideMax 4`, `sideMin 2`, `pickupMin 1`, `raidsPerDay 5` (Valor Storms per player per day; play is unlimited), `captureTicks 2`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
 
 Guild Battle (`battle`): `enabled true`, `weekday 3`, `hour 21`, `minute 0`, `tz America/New_York`, `windowMs 7200000`, `readyMs 60000`, `teamSize 4`, `pointsMult 3`, `reward.win { wood 300, rock 300, meat 150, bone 150 }`, `reward.lose { 150, 150, 75, 75 }`.
 
@@ -224,4 +225,4 @@ They live in `api/afkAdminConfig.js` (defaults + clamps) and are overridden by t
 ## 14. Kill switch and testing
 
 - **`features.war`** (dashboard switch): off → `/antrom-afk/config` and every raid poll return `features.war=false`, the ring hides the WAR tab (anyone on it lands on HOME) and the server answers `start / answer / join / go / home` with "Raids are paused for now". `view` and `leave` still work; raids already live finish on their own.
-- **Testers** (dashboard list of wallets): a pickup raid *opened* by a tester has `rules.test=true` and `pickupMin=1`, so it starts with one fighter against a mirror Wraith side, ignores the daily cap and is never recorded (no guild record, no Valor, no history, no system line other than "test raid is over"). The board shows it as a *test raid*; another guild can still answer it (also unrecorded). Use with the dashboard timers (e.g. `tickMs 5000`, `walkMs 5000`, `gatherMs 15000`) to run a whole raid in under two minutes.
+- **Testers** (dashboard list of wallets): a Storm *opened* by a tester has `rules.test=true`: it is never recorded (no Valor, no tally, no history, no lobby bell, no banner) and never counts toward the day. The board shows it as a *test Storm*. Anyone can fight alone now, so the flag is only about recording. Use with the dashboard timers (e.g. `tickMs 5000`, `walkMs 5000`, `gatherMs 15000`) to run a whole raid in under two minutes.
