@@ -18,9 +18,6 @@ import {
   sendChat,
   composerHidden,
   mentionsMe,
-  mentionPlayer,
-  mentioning,
-  mentionSuggestions,
   openWhisper,
   closeWhisper,
   sendWhisper,
@@ -392,12 +389,8 @@ const BUG_CLOSED_H = 66
 function OnlineColumn(props: { height: number; guildOnly: boolean; chat?: Channel }) {
   const rowH = 84
   // On the guild board only guildmates are listed (I'm always first, so the list is never empty while I'm in one).
-  // Typing @ in the composer turns this list into the name picker: it narrows as they type, tap inserts @Name.
   const myGuildId = player.guild?.id ?? ''
-  const picking = !!(props.chat && mentioning(props.chat))
-  const list = picking && props.chat
-    ? mentionSuggestions(props.chat)
-    : props.guildOnly && myGuildId ? lobby.online.filter((p) => p.guild === myGuildId) : lobby.online
+  const list = props.guildOnly && myGuildId ? lobby.online.filter((p) => p.guild === myGuildId) : lobby.online
   const title = props.guildOnly ? `[${player.guild?.tag ?? 'GUILD'}] ONLINE  •  ${list.length}` : `ONLINE  •  ${list.length}`
   const bugH = bug.open ? BUG_OPEN_H + 10 : BUG_CLOSED_H
   // Whispers waiting for me (from anyone, online or not): one button that opens the newest unread thread.
@@ -435,8 +428,7 @@ function OnlineColumn(props: { height: number; guildOnly: boolean; chat?: Channe
               onMouseDown={() => {
                 if (p.address === me()) return
                 playButtonSound()
-                if (picking && props.chat) mentionPlayer(props.chat, p.name)
-                else lobby.selected = p.address
+                lobby.selected = p.address
               }}
             >
               <UiEntity uiTransform={{ width: '100%', height: S(36), flexDirection: 'row', alignItems: 'center' }}>
@@ -526,7 +518,6 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
       ) : null}
 
       <UiEntity uiTransform={{ flexGrow: 1 }} />
-      {props.chat ? <Button key="card-mention" label={`@ ${p.name.toUpperCase()}`} color={C.orange} textColor={C.navy} size={S(22)} uiTransform={btn} onClick={() => mentionPlayer(props.chat!, p.name)} /> : null}
       {(() => {
         const n = lobby.dm.threads[p.address.toLowerCase()]?.unread ?? 0
         return <Button key="card-whisper" label={n > 0 ? `WHISPER  •  ${n} NEW` : 'WHISPER'} color={n > 0 ? C.green : C.navySoft} size={S(22)} uiTransform={btn} onClick={() => openWhisper(p.address, p.name)} />

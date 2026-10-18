@@ -290,30 +290,6 @@ export function sendWhisper(address: string) {
 /** True when this line @-names me. */
 export const mentionsMe = (m: ChatMessage): boolean => Array.isArray(m.mentions) && m.mentions.includes((profileState.walletAddress || '').toLowerCase())
 
-/** Put "@Name " at the end of the composer (from a player's card) and close the card. */
-export function mentionPlayer(channel: Channel, name: string) {
-  const st = lobby.ch[channel]
-  const head = st.draft.trim().length > 0 ? `${st.draft.trimEnd()} ` : ''
-  setDraft(st, `${head}@${name} `.slice(0, CHAT_TEXT_MAX))
-  lobby.selected = null
-}
-
-/** True while the composer ends in an unfinished @name — the online list is the picker. */
-export function mentioning(channel: Channel): boolean {
-  return /(?:^|\s)@[^\s@]{0,16}$/.test(lobby.ch[channel].draft)
-}
-
-/** Online names matching an unfinished "@xx" at the end of the composer. */
-export function mentionSuggestions(channel: Channel): OnlinePlayer[] {
-  const m = lobby.ch[channel].draft.match(/(?:^|\s)@([^\s@]{0,16})$/)
-  if (!m) return []
-  const q = m[1].toLowerCase()
-  const me = (profileState.walletAddress || '').toLowerCase()
-  const myGuildId = player.guild?.id ?? ''
-  return lobby.online.filter((p) => p.address !== me && (channel !== 'guild' || p.guild === myGuildId) && p.name.toLowerCase().startsWith(q))
-}
-
-
 export function pollLobby() {
   if (pollInFlight || profileState.status !== 'ready' || !profileState.walletAddress) return
   pollInFlight = true
