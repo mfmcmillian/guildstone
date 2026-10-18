@@ -470,7 +470,7 @@ function WhisperPanel(props: { th: WhisperThread; height: number }) {
   }
   return (
     <Panel flat color={C.navySoft} uiTransform={{ width: S(SIDE_W), height: S(props.height), padding: S(10), flexDirection: 'column' }}>
-      <OutlinedText value={`WHISPER  •  ${th.name.toUpperCase()}`} size={S(28)} color={C.green} raw uiTransform={{ width: '100%', height: S(40) }} />
+      <OutlinedText value={`${t('WHISPER')}  •  ${th.name.toUpperCase()}`} size={S(28)} color={C.green} raw uiTransform={{ width: '100%', height: S(40) }} />
       <Text value={online ? 'Only the two of you see this.' : 'They are not wearing the ring right now; they will see it when they are back.'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ width: '100%', height: S(30) }} />
       <UiEntity uiTransform={{ width: '100%', height: S(feedH), flexDirection: 'column', justifyContent: 'flex-end' }}>
         {rows.length === 0 ? (
