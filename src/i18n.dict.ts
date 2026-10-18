@@ -819,6 +819,8 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Winners bank {0} each  •  {1} a side', 'Les vainqueurs engrangent {0} chacun  •  {1} par camp', 'Los ganadores guardan {0} cada uno  •  {1} por bando', '胜者每人获得 {0}  •  每方 {1} 人'],
   ['[{0}]  {1} W · {2} L · {3} D  •  Guild Valor {4}', '[{0}]  {1} V · {2} D · {3} N  •  Valeur de guilde {4}', '[{0}]  {1} V · {2} D · {3} E  •  Valor del gremio {4}', '[{0}]  {1} 胜 · {2} 负 · {3} 平  •  公会勇气 {4}'],
   ['{0} W · {1} L · {2} D  •  Guild Valor {3}', '{0} V · {1} D · {2} N  •  Valeur de guilde {3}', '{0} V · {1} D · {2} E  •  Valor del gremio {3}', '{0} 胜 · {1} 负 · {2} 平  •  公会勇气 {3}'],
+  ['{0} MENTIONED YOU IN THE LOBBY', '{0} T’A MENTIONNÉ DANS LE SALON', '{0} TE MENCIONÓ EN EL VESTÍBULO', '{0} 在大厅提到了你'],
+  ['{0} MENTIONED YOU IN GUILD CHAT', '{0} T’A MENTIONNÉ DANS LE CHAT DE GUILDE', '{0} TE MENCIONÓ EN EL CHAT DEL GREMIO', '{0} 在公会聊天提到了你'],
   ['STORM', 'TEMPÊTE', 'TORMENTA', '风暴'],
   ['STORM VALOR  •  ticks fought, wins and knockouts', 'VALEUR DE TEMPÊTE  •  ticks combattus, victoires et KO', 'VALOR DE TORMENTA  •  ticks luchados, victorias y KO', '风暴勇气  •  参战回合、胜场与击倒']
 ]

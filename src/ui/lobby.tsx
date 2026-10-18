@@ -16,6 +16,8 @@ import {
   refreshBoard,
   sendChat,
   settleComposer,
+  mentionsMe,
+  mentionPlayer,
   adminChat,
   canModerate,
   hasGuildChat,
@@ -63,12 +65,12 @@ function statusLine(p: OnlinePlayer): string {
 }
 
 /** Who's online / the tapped player's card; shared by both tabs. */
-function SideColumn(props: { height: number; guildOnly: boolean }) {
+function SideColumn(props: { height: number; guildOnly: boolean; chat?: Channel }) {
   const me = profileState.walletAddress ?? ''
   const myGuild = player.guild
   const canInvite = !!myGuild && (myGuild.leaderId === me || myGuild.royalGuardIds?.includes(me))
   const selected = lobby.selected ? lobby.online.find((p) => p.address === lobby.selected) ?? null : null
-  return selected ? <PlayerCard p={selected} height={props.height} canInvite={canInvite} /> : <OnlineColumn height={props.height} guildOnly={props.guildOnly} />
+  return selected ? <PlayerCard p={selected} height={props.height} canInvite={canInvite} chat={props.chat} /> : <OnlineColumn height={props.height} guildOnly={props.guildOnly} />
 }
 
 /** LOBBY tab: chat. ALL / [TAG] toggle above the feed while in a guild; without one the feed takes the full height. */
@@ -108,7 +110,7 @@ export function LobbyTab(props: { height: number }) {
       <UiEntity uiTransform={{ width: '100%', height: S(colH), flexDirection: 'row' }}>
         <ChatColumn channel={chatChannel} height={colH} />
         <UiEntity uiTransform={{ width: S(GAP) }} />
-        <SideColumn height={colH} guildOnly={chatChannel === 'guild'} />
+        <SideColumn height={colH} guildOnly={chatChannel === 'guild'} chat={chatChannel} />
       </UiEntity>
     </UiEntity>
   )
@@ -160,7 +162,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   // Newest at the bottom; walk back until the feed is full. Two lines for long messages, one otherwise.
   settleComposer(channel)
   const visible = st.messages.filter((m) => !lobby.muted.has(m.from))
-  const rows: Array<{ id: string; from: string; guild: string; line: string; h: number; system: boolean }> = []
+  const rows: Array<{ id: string; from: string; guild: string; line: string; h: number; system: boolean; me: boolean }> = []
   let used = 0
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.tag, g.id]))
   for (let i = visible.length - 1; i >= 0; i--) {
@@ -170,7 +172,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
     const h = line.length > 92 ? 56 : 30
     if (used + h > feedH) break
     used += h
-    rows.unshift({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', line, h, system: m.system === true })
+    rows.unshift({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', line, h, system: m.system === true, me: mentionsMe(m) })
   }
   const moderator = canModerate(channel)
   const emptyText = !lobby.loadedOnce
@@ -206,7 +208,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
                 lobby.selected = r.from
               }}
             >
-              <Text value={r.line} size={S(22)} color={r.system ? C.textMuted : nameColor(r.from, r.guild)} align="top-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
+              <Text value={r.line} size={S(22)} color={r.system ? C.textMuted : r.me ? C.orange : nameColor(r.from, r.guild)} align="top-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
               {moderator && !r.system ? (
                 <UiEntity
                   uiTransform={{ width: S(30), height: S(26), alignItems: 'center', justifyContent: 'center', margin: { left: S(6) } }}
@@ -388,7 +390,7 @@ function OnlineColumn(props: { height: number; guildOnly: boolean }) {
   )
 }
 
-function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean }) {
+function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean; chat?: Channel }) {
   const { p } = props
   const guildInfo = p.guild ? lobby.board.guilds.find((g) => g.id === p.guild) : undefined
   const iAmGuildless = !player.guild
@@ -416,6 +418,7 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
       ) : null}
 
       <UiEntity uiTransform={{ flexGrow: 1 }} />
+      {props.chat ? <Button key="card-mention" label={`@ ${p.name.toUpperCase()}`} color={C.orange} textColor={C.navy} size={S(22)} uiTransform={btn} onClick={() => mentionPlayer(props.chat!, p.name)} /> : null}
       {props.canInvite && !p.guild ? (() => {
         const status = lobby.invited[p.address]
         const label = status === 'sending' ? 'SENDING…' : status === 'sent' ? 'INVITED' : `INVITE TO [${player.guild?.tag}]`

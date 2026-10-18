@@ -4,7 +4,7 @@ import { profileState } from './playerProfile'
 import { backpackCount, flash, notify, player, SKILL_INFO, SKILLS, type Skill } from './state'
 import { raid } from './raid'
 import { requestGuild } from './transactions'
-import { playErrorSound, playSuccessSound } from './uiSounds'
+import { playErrorSound, playRareFindSound, playSuccessSound } from './uiSounds'
 import { engine, RealmInfo, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { ui } from './ui/uiState'
 import { activeSkill } from './work'
@@ -22,7 +22,7 @@ export const CHAT_TEXT_MAX = 200
 const CHAT_KEEP = 500
 const GUILD_CHAT_KEEP = 200
 
-export interface ChatMessage { id: string; at: number; from: string; name: string; tag: string; text: string; /** Poster's KoA VIP tier 0..5 (src/vip.ts). */ vip?: number; /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean }
+export interface ChatMessage { id: string; at: number; from: string; name: string; tag: string; text: string; /** Poster's KoA VIP tier 0..5 (src/vip.ts). */ vip?: number; /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean; /** Wallets named with @Name in the text (server-resolved). */ mentions?: string[] }
 /** 'all' is the global lobby; 'guild' is my guild's private channel (members only, 200 lines, see the server). */
 export type Channel = 'all' | 'guild'
 export const CHANNELS: Channel[] = ['all', 'guild']
@@ -146,12 +146,28 @@ function mergeChannel(channel: Channel, incoming: ChatMessage[], keep: number) {
   const seen = new Set(st.messages.map((m) => m.id))
   const fresh = incoming.filter((m) => !seen.has(m.id))
   // First load is history, not news; after that count what others said while this channel wasn't showing.
-  if (lobby.loadedOnce && lobby.showing !== channel) {
-    const me = (profileState.walletAddress || '').toLowerCase()
-    st.unread = Math.min(99, st.unread + fresh.filter((m) => !m.system && m.from.toLowerCase() !== me && !lobby.muted.has(m.from)).length)
+  const me = (profileState.walletAddress || '').toLowerCase()
+  const news = lobby.loadedOnce ? fresh.filter((m) => !m.system && m.from.toLowerCase() !== me && !lobby.muted.has(m.from)) : []
+  if (lobby.showing !== channel) st.unread = Math.min(99, st.unread + news.length)
+  // Someone @-named me: a chime, and a toast when the line is not already in front of me. Quiet when alerts are off.
+  const called = news.find((m) => mentionsMe(m))
+  if (called && settings.alerts) {
+    playRareFindSound()
+    if (lobby.showing !== channel) notify(`${called.name.toUpperCase()} MENTIONED YOU IN ${channel === 'guild' ? 'GUILD CHAT' : 'THE LOBBY'}`, 4000)
   }
   st.messages = [...st.messages, ...fresh].slice(-keep)
   st.lastAt = Math.max(st.lastAt, ...incoming.map((m) => m.at))
+}
+
+/** True when this line @-names me. */
+export const mentionsMe = (m: ChatMessage): boolean => Array.isArray(m.mentions) && m.mentions.includes((profileState.walletAddress || '').toLowerCase())
+
+/** Put "@Name " at the end of the composer (from a player's card) and close the card. */
+export function mentionPlayer(channel: Channel, name: string) {
+  const st = lobby.ch[channel]
+  const head = st.draft.trim().length > 0 ? `${st.draft.trimEnd()} ` : ''
+  setDraft(channel, `${head}@${name} `.slice(0, CHAT_TEXT_MAX))
+  lobby.selected = null
 }
 
 export function pollLobby() {
