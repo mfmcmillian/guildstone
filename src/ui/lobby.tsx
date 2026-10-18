@@ -52,6 +52,15 @@ const SIDE_W = 516
 const GAP = 14
 
 /** Who the player is to me, for colouring names in the feed. */
+/** Local date + time in front of a chat name. Own Text so i18n does not treat the stamp as a sentence. */
+function chatStamp(at: number): string {
+  const d = new Date(at)
+  const h24 = d.getHours()
+  const h = h24 % 12 || 12
+  const min = `${d.getMinutes()}`.padStart(2, '0')
+  return `${d.getMonth() + 1}/${d.getDate()}  ${h}:${min} ${h24 >= 12 ? 'PM' : 'AM'}`
+}
+
 function nameColor(address: string, guild: string) {
   if (address === profileState.walletAddress) return C.yellow
   if (guild && guild === player.guild?.id) return C.green
@@ -167,17 +176,17 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   // Newest at the bottom; walk back until the feed is full. Two lines for long messages, one otherwise.
   settleComposer(channel)
   const visible = st.messages.filter((m) => !lobby.muted.has(m.from))
-  const rows: Array<{ id: string; from: string; guild: string; line: string; h: number; system: boolean; me: boolean }> = []
+  const rows: Array<{ id: string; from: string; guild: string; stamp: string; line: string; h: number; system: boolean; me: boolean }> = []
   let used = 0
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.tag, g.id]))
   for (let i = visible.length - 1; i >= 0; i--) {
     const m = visible[i]
     // Guild channel: everyone shares the tag, so skip it. System lines read as "— X joined the guild".
     const line = m.system ? `—  ${m.text}` : `${m.tag && !guildChannel ? `[${m.tag}] ` : ''}${withVip(m.name, m.vip)}:  ${m.text}`
-    const h = line.length > 92 ? 56 : 30
+    const h = line.length > 80 ? 56 : 30
     if (used + h > feedH) break
     used += h
-    rows.unshift({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', line, h, system: m.system === true, me: mentionsMe(m) })
+    rows.unshift({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', stamp: chatStamp(m.at), line, h, system: m.system === true, me: mentionsMe(m) })
   }
   const moderator = canModerate(channel)
   const emptyText = !lobby.loadedOnce
@@ -213,6 +222,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
                 lobby.selected = r.from
               }}
             >
+              <Text value={r.stamp} size={S(20)} color={C.textMuted} nowrap align="top-left" uiTransform={{ width: S(190), height: S(r.h), margin: { right: S(10) } }} />
               <Text value={r.line} size={S(22)} color={r.system ? C.textMuted : r.me ? C.orange : nameColor(r.from, r.guild)} align="top-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
               {moderator && !r.system ? (
                 <UiEntity
