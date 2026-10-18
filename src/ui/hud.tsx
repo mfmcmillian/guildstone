@@ -9,6 +9,7 @@ import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { bankBagNow, currentGuildTab, openRelicsTab, openWarTab, resetGuildTab } from './panels'
 import { openSite } from '../links'
+import { mailUnread } from '../mail'
 import { playButtonSound } from '../uiSounds'
 import { settings } from '../settings'
 import { nextStep, showGuild, stepTarget } from './guide'
@@ -110,9 +111,9 @@ const DOCK_FONT = FONT.button + 2
 export function Hud() {
   // HUD sizes are relative to the real canvas; positions sit inside the explorer's own HUD insets.
   setScale(hudScale())
-  // Keep the lobby badge fresh while the GUILD button is on screen and the Lobby tab itself isn't.
-  // ALERTS OFF: no badge, so no background poll either.
-  if (showGuild() && (ui.open !== 'guild' || currentGuildTab() !== 'lobby') && settings.alerts) tickLobbyBackground()
+  // Keep the lobby and MAIL badges fresh while the Lobby tab itself isn't showing (mail rides the same poll, so this
+  // runs from the first minute, before GUILD appears). ALERTS OFF: no badges, so no background poll either.
+  if ((ui.open !== 'guild' || currentGuildTab() !== 'lobby') && settings.alerts) tickLobbyBackground()
   const canvas = getCanvas()
   const edgeX = S(18)
   const edgeY = S(18)
@@ -233,6 +234,11 @@ export function Hud() {
               </UiEntity>
             </UiEntity>
           </Panel>
+          {/* Mail: letters from the game with prizes (ui/mail.tsx). Green with a badge while something is unread. */}
+          <UiEntity uiTransform={{ width: S(200), height: S(38), margin: { top: S(4) } }}>
+            <Button key="hud-mail" label={mailUnread() > 0 ? 'NEW MAIL' : 'MAIL'} color={ui.open === 'mail' ? C.blue : mailUnread() > 0 ? C.green : C.navySoft} textColor={ui.open === 'mail' || mailUnread() > 0 ? C.white : C.yellow} size={S(18)} uiTransform={{ width: '100%', height: '100%', minWidth: 0 }} onClick={() => togglePanel('mail')} />
+            {unreadBadge(settings.alerts ? mailUnread() : 0)}
+          </UiEntity>
           {/* Wiki: guildstone.dev explains suits, materials and guilds (the client asks before opening the link). About: who made the ring, how friends get one. */}
           <UiEntity uiTransform={{ width: S(200), height: S(38), flexDirection: 'row', justifyContent: 'space-between', margin: { top: S(4) } }}>
             <Button key="hud-wiki" label="WIKI" color={C.navySoft} textColor={C.yellow} size={S(18)} uiTransform={{ width: S(96), height: '100%', minWidth: 0 }} onClick={() => openSite()} />

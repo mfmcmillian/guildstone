@@ -8,8 +8,8 @@ import { engine, InputAction, PrimaryPointerInfo, UiCanvasInformation, inputSyst
  * the same place on a laptop. They are saved on the profile (`uiLayout`) one second after a drag ends; see
  * `onLayoutChanged` and `saveLayout` in transactions.ts.
  */
-export type DragId = 'guild' | 'bank' | 'workshop' | 'forge' | 'shop' | 'skills' | 'away' | 'show' | 'war' | 'hero' | 'about'
-export const DRAG_IDS: DragId[] = ['guild', 'bank', 'workshop', 'forge', 'shop', 'skills', 'away', 'show', 'war', 'hero', 'about']
+export type DragId = 'guild' | 'bank' | 'workshop' | 'forge' | 'shop' | 'skills' | 'away' | 'show' | 'war' | 'hero' | 'about' | 'mail'
+export const DRAG_IDS: DragId[] = ['guild', 'bank', 'workshop', 'forge', 'shop', 'skills', 'away', 'show', 'war', 'hero', 'about', 'mail']
 
 /** Offset as a fraction of the canvas, each axis clamped to ±LIMIT so a window can't be thrown fully off screen. */
 export type LayoutOffset = { x: number; y: number }
@@ -17,7 +17,7 @@ export type UiLayout = Record<DragId, LayoutOffset>
 const LIMIT = 0.45
 
 const zero = (): LayoutOffset => ({ x: 0, y: 0 })
-export const layout: UiLayout = { guild: zero(), bank: zero(), workshop: zero(), forge: zero(), shop: zero(), skills: zero(), away: zero(), show: zero(), war: zero(), hero: zero(), about: zero() }
+export const layout: UiLayout = { guild: zero(), bank: zero(), workshop: zero(), forge: zero(), shop: zero(), skills: zero(), away: zero(), show: zero(), war: zero(), hero: zero(), about: zero(), mail: zero() }
 
 const clamp = (v: number) => (Number.isFinite(v) ? Math.max(-LIMIT, Math.min(LIMIT, v)) : 0)
 

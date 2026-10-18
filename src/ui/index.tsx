@@ -4,6 +4,7 @@ import { Dock, ShowUiButton } from './dock'
 import { SkillsPanel, BankPanel, WorkshopPanel, ForgePanel, ShopPanel, GuildPanel, AwayPanel } from './panels'
 import { HeroPanel } from './hero'
 import { AboutPanel } from './about'
+import { MailPanel } from './mail'
 import { LevelUpBanner } from './levelUp'
 import { RareFindBanner } from './rareFind'
 import { WelcomePanel, shouldShowWelcome } from './guide'
@@ -24,6 +25,7 @@ function Root() {
       {ui.open === 'away' ? <AwayPanel /> : null}
       {ui.open === 'hero' ? <HeroPanel /> : null}
       {ui.open === 'about' ? <AboutPanel /> : null}
+      {ui.open === 'mail' ? <MailPanel /> : null}
       {shouldShowWelcome() ? <WelcomePanel /> : null}
       <LevelUpBanner />
       <RareFindBanner />

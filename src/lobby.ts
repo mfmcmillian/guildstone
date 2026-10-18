@@ -10,6 +10,7 @@ import { ui } from './ui/uiState'
 import { activeSkill } from './work'
 import { withVip } from './vip'
 import { HEROES, sanitizeHeroId } from './hero'
+import { noteMailSummary } from './mail'
 import { t } from './i18n'
 import { settings } from './settings'
 
@@ -298,7 +299,7 @@ export function pollLobby() {
     try {
       const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/lobby?since=${lobby.ch.all.lastAt}&gsince=${lobby.ch.guild.lastAt}`, init: { method: 'GET', headers: {} } })
       if (!response.ok) throw new Error(`Lobby poll failed (${response.status})`)
-      const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; guild?: { id: string; messages: ChatMessage[] } | null; online: OnlinePlayer[]; invites: GuildInvite[]; storm?: StormInfo | null; admin: boolean }
+      const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; guild?: { id: string; messages: ChatMessage[] } | null; online: OnlinePlayer[]; invites: GuildInvite[]; storm?: StormInfo | null; mail?: unknown; admin: boolean }
       if (typeof body.now === 'number') lobby.clockOffset = body.now - Date.now()
       noteStorm(body.storm && typeof body.storm.id === 'string' && (body.storm.status === 'gathering' || body.storm.status === 'live') ? body.storm : null)
       if (Array.isArray(body.messages)) {
@@ -319,6 +320,8 @@ export function pollLobby() {
       lobby.online = Array.isArray(body.online) ? body.online : []
       lobby.invites = Array.isArray(body.invites) ? body.invites : []
       lobby.admin = body.admin === true
+      // Mail rides this poll: unread count for the MAIL badge, newest arrival for the chime.
+      noteMailSummary(body.mail)
       lobby.failed = false
       lobby.loadedOnce = true
     } catch (error) {
