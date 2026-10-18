@@ -136,8 +136,8 @@ function noteDamage(v: RaidView, f: Fighter, x: number, y: number) {
   if (f.hp <= 0) floats.push({ id: `${key}:ko:${now}`, text: 'KO!', color: C.yellow, x, y: y - 6, at: now + 200 })
   if (floats.length > 40) floats = floats.slice(-40)
 }
-// Scoring feedback: when a poll shows the tick moved on, every building its holder stands in alone floats its pips
-// in the holder's colour, so standing on a building visibly pays.
+// Scoring feedback: when a poll shows the tick moved on, every building that paid its holder (not contested, not
+// being taken) floats its pips in the holder's colour.
 const lastTickSeen: Record<string, number> = {}
 function noteScores(v: RaidView) {
   const prev = lastTickSeen[v.id]
@@ -146,7 +146,7 @@ function noteScores(v: RaidView) {
   const now = Date.now()
   for (const point of POINT_IDS) {
     const holder = v.held[point]
-    if (!holder || standingAt(v.sides[holder], point).length === 0 || standingAt(v.sides[holder === 'a' ? 'b' : 'a'], point).length > 0) continue
+    if (!holder || standingAt(v.sides[holder === 'a' ? 'b' : 'a'], point).length > 0) continue
     const [lx, ly] = FIELD[point].label
     floats.push({ id: `score:${point}:${now}`, text: `+${v.points[point].pips}`, color: sideColor(holder), x: lx, y: ly, at: now, lift: 20, size: 34 })
   }
@@ -241,7 +241,10 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
     const side: SideId = a.length > 0 ? 'a' : 'b'
     const list = side === 'a' ? a : b
     const names = list.slice(0, 2).map((f) => f.name.split(' ')[0]).join(', ') + (list.length > 2 ? ` +${list.length - 2}` : '')
-    line2 = <Text value={`${sideTag(v.sides[side], v.mode)} · ${names}`} size={S(22)} color={sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+    const taking = holder !== side ? `  ·  taking ${v.cap[point]?.side === side ? v.cap[point]!.n : 0}/${v.rules.captureTicks}` : ''
+    line2 = <Text value={`${sideTag(v.sides[side], v.mode)} · ${names}${taking}`} size={S(22)} color={sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+  } else if (holder) {
+    line2 = <Text value={`${sideTag(v.sides[holder], v.mode)} · held`} size={S(22)} color={sideColor(holder)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   } else {
     line2 = <Text value="empty" size={S(22)} color={C.gray} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   }
@@ -487,7 +490,7 @@ function LobbyCard(props: { v: RaidView }) {
   // Battle: the clock only counts down once both sides are full; until then the window end is the deadline.
   const waiting = battle && v.windowEnd > 0 && v.gatherUntil >= v.windowEnd
   const bothReady = battle && SIDES_IDS.every((k) => (v.sides[k]?.fighters.length ?? 0) >= v.rules.sideMin)
-  const rules = ['Click a building to gather points.', 'Buildings give different points.', 'Team with the most points at the end of the timer wins.']
+  const rules = ['Click a building to take it; it pays your team every tick.', 'A building stays yours, even empty, until the enemy takes it.', 'Team with the most points at the end of the timer wins.']
   const notes: string[] = pickup
     ? short ? [`Need ${v.rules.pickupMin} fighters or it is called off`, 'Teams are drawn when the timer ends.'] : v.you ? ['Teams are drawn when the timer ends.', ...rules] : ['Teams are drawn when the timer ends.']
     : battle
