@@ -58,7 +58,7 @@ export function Toast() {
   const top = ui.open !== null ? S(150) : S(player.activeZone ? 204 : 96)
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + top, left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
-      <OutlinedText value={toast} size={S(FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(800) }} />
+      <OutlinedText value={toast} size={S(toast.length > 34 ? FONT.hero - 16 : FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(toast.length > 34 ? 1100 : 800) }} />
     </UiEntity>
   )
 }
@@ -97,7 +97,7 @@ export function Hud() {
   setScale(hudScale())
   // Keep the lobby badge fresh while the GUILD button is on screen and the Lobby tab itself isn't.
   // ALERTS OFF: no badge, so no background poll either.
-  if (showGuild() && ui.open !== 'guild' && settings.alerts) tickLobbyBackground()
+  if (showGuild() && (ui.open !== 'guild' || currentGuildTab() !== 'lobby') && settings.alerts) tickLobbyBackground()
   const canvas = getCanvas()
   const edgeX = S(18)
   const edgeY = S(18)
