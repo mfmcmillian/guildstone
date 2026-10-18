@@ -1,5 +1,6 @@
-// Shadow Raid: five-minute guild combat on one battlefield (the WAR tab). The server owns every number, the clock and
-// the fight; this file keeps the latest view, sends actions and syncs the clock. Design: docs/SHADOW_RAID.md.
+// Shadow Raid: four-minute combat on one battlefield (the WAR tab), as everyday pickup raids (random teams) or the
+// weekly Guild Battle. The server owns every number, the clock and the fight; this file keeps the latest view, sends
+// actions and syncs the clock. Design: docs/SHADOW_RAID.md.
 import { executeTask } from '@dcl/sdk/ecs'
 import { signedFetch } from '~system/SignedFetch'
 import { isServer } from '@dcl/sdk/network'
@@ -15,11 +16,15 @@ export type PointId = 'watchtower' | 'sawmill' | 'citadel' | 'quarry' | 'shrine'
 export const POINT_IDS: PointId[] = ['watchtower', 'sawmill', 'citadel', 'quarry', 'shrine']
 export type SideId = 'a' | 'b'
 export type RaidStatus = 'gathering' | 'live' | 'done' | 'cancelled'
+/** 'pickup': whoever joins is dealt into Team Dusk / Team Dawn at the bell. 'battle': guild vs guild on battle night. 'guild': the old call-and-answer raids. */
+export type RaidMode = 'guild' | 'pickup' | 'battle'
 export type FighterState = 'camp' | 'walk' | 'in' | 'ko'
 
 export interface Fighter {
   id: string
   name: string
+  /** Guild tag; shown next to the name where teams are mixed (pickup). */
+  tag?: string
   level: number
   set: number
   dagger: number
@@ -48,11 +53,16 @@ export interface Fighter {
 }
 export interface Side { guildId: string; tag: string; name: string; wraith: boolean; fighters: Fighter[] }
 export interface PointDef { name: string; pips: number; armour: number; x: number; y: number }
+export type Reward = { wood: number; rock: number; meat: number; bone: number }
 export interface RaidView {
   id: string
+  mode: RaidMode
   status: RaidStatus
   createdAt: number
   gatherUntil: number
+  /** Battle: end of the two-hour window (gatherUntil moves ahead of it once both sides are full). */
+  windowEnd: number
+  battle: { week: string; pointsMult: number; reward: { win: Reward; lose: Reward } } | null
   startAt: number
   endAt: number
   tick: number
@@ -71,6 +81,7 @@ export interface RaidView {
 }
 export interface BoardEntry {
   id: string
+  mode?: RaidMode
   status: 'gathering' | 'live'
   test?: boolean
   a: { tag: string; name: string; count: number; wraith: boolean } | null
@@ -89,19 +100,45 @@ export interface GuildRaidSummary {
   score: number
   day: string
   count: number
-  history: { id: string; vsTag: string; vsName: string; wraith: boolean; mine: number; theirs: number; outcome: 'win' | 'loss' | 'draw'; at: number }[]
+  history: { id: string; vsTag: string; vsName: string; wraith: boolean; battle?: boolean; mine: number; theirs: number; outcome: 'win' | 'loss' | 'draw'; at: number }[]
 }
-export interface MyRaid { valor: number; raids: number; wins: number; kos: number; stats: { hp: number; atk: number; level: number; dagger: number; set: number; vip: number } | null }
+export interface MyRaid { valor: number; raids: number; wins: number; kos: number; day?: string; count?: number; stats: { hp: number; atk: number; level: number; dagger: number; set: number; vip: number } | null }
+/** The pickup queue as seen from the idle screen. */
+export interface PickupInfo { status: 'idle' | 'gathering' | 'live'; activeId: string | null; nextAt: number; minHumans: number; maxHumans: number; perDay: number; leftToday: number }
+export interface BattleMatch { id: string; a: { tag: string; name: string }; b: { tag: string; name: string }; mine?: SideId; raidId: string; status: string; winner: string; score: { a: number; b: number } }
+/** The Guild Battle card: this week's times (server zone, preformatted), sign-ups, my matchup. */
+export interface BattleInfo {
+  enabled: boolean
+  week?: string
+  startAt?: number
+  endAt?: number
+  signupCloseAt?: number
+  when?: string
+  closeWhen?: string
+  endWhen?: string
+  tz?: string
+  teamSize?: number
+  reward?: { win: Reward; lose: Reward }
+  leader?: boolean
+  signedUp?: boolean
+  signups?: { tag: string; name: string }[]
+  paired?: boolean
+  bye?: boolean
+  match?: BattleMatch | null
+  matches?: BattleMatch[]
+}
 
 /** Balance numbers from the server. A raid view carries the snapshot it was called with; `raid.rules` is the current set. */
-export interface RaidRules { tickMs: number; ticks: number; walkMs: number; homeMs: number; koWalkMs: number; sideMax: number; sideMin: number; gatherMs: number; raidsPerDay: number; test?: boolean }
-const DEFAULT_RULES: RaidRules = { tickMs: 3000, ticks: 80, walkMs: 7500, homeMs: 5000, koWalkMs: 20000, sideMax: 4, sideMin: 2, gatherMs: 90000, raidsPerDay: 3 }
+export interface RaidRules { tickMs: number; ticks: number; walkMs: number; homeMs: number; koWalkMs: number; sideMax: number; sideMin: number; pickupMin: number; gatherMs: number; raidsPerDay: number; test?: boolean }
+const DEFAULT_RULES: RaidRules = { tickMs: 3000, ticks: 80, walkMs: 7500, homeMs: 5000, koWalkMs: 20000, sideMax: 4, sideMin: 2, pickupMin: 4, gatherMs: 120000, raidsPerDay: 5 }
 
 export const raid = {
   view: null as RaidView | null,
   board: [] as BoardEntry[],
   summary: null as GuildRaidSummary | null,
   me: null as MyRaid | null,
+  pickup: null as PickupInfo | null,
+  battle: null as BattleInfo | null,
   officer: false,
   /** Dashboard tester: raids start with one fighter and are not recorded. */
   tester: false,
@@ -123,8 +160,8 @@ export const raid = {
 /** Server time right now, as the client best knows it. */
 export const serverNow = () => Date.now() + raid.clockOffset
 
-type RaidAction = 'view' | 'start' | 'answer' | 'join' | 'leave' | 'go' | 'home' | 'skip'
-interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; tester?: boolean; features?: unknown; rules?: Partial<RaidRules>; me: MyRaid; serverNow: number; updatedAt: number }
+type RaidAction = 'view' | 'join' | 'leave' | 'go' | 'home' | 'skip' | 'signup' | 'withdraw'
+interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; tester?: boolean; features?: unknown; rules?: Partial<RaidRules>; pickup?: PickupInfo; battle?: BattleInfo; me: MyRaid; serverNow: number; updatedAt: number }
 
 function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: (result: RaidResponse) => void) {
   if (isServer() || profileState.status !== 'ready' || !profileState.walletAddress || !player.guild) return
@@ -162,6 +199,8 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
       raid.board = result.board ?? []
       raid.summary = result.guildRaid
       raid.me = result.me
+      raid.pickup = result.pickup ?? null
+      raid.battle = result.battle ?? null
       raid.officer = result.officer
       raid.tester = result.tester === true
       if (result.rules && typeof result.rules === 'object') raid.rules = { ...DEFAULT_RULES, ...result.rules }
@@ -207,22 +246,18 @@ export function stopSpectating() {
   refreshRaid()
 }
 
-export function requestStartRaid() {
-  send('start', {}, () => {
-    flash('RAID CALLED  •  90 SECONDS TO GATHER')
-    playSuccessSound()
-  })
-}
-export function requestAnswerRaid(raidId: string) {
-  raid.spectating = ''
-  send('answer', { raidId }, () => {
-    flash('RAID ANSWERED  •  TELL YOUR GUILD TO JOIN')
-    playSuccessSound()
-  })
-}
+/** JOIN: your guild's battle raid when there is one, else the pickup queue (opening it if nobody is waiting). */
 export function requestJoinRaid() {
-  send('join', {}, () => {
-    flash('YOU ARE IN  •  CLICK A BUILDING WHEN IT STARTS')
+  raid.spectating = ''
+  send('join', {}, (r) => {
+    flash(r.raid?.mode === 'pickup' && r.raid.status === 'gathering' ? 'YOU ARE IN  •  TEAMS ARE DRAWN AT THE BELL' : 'YOU ARE IN  •  CLICK A BUILDING WHEN IT STARTS')
+    playSuccessSound()
+  })
+}
+/** Leader only: sign the guild up for (or withdraw it from) this week's Guild Battle. */
+export function requestBattleSignup(on: boolean) {
+  send(on ? 'signup' : 'withdraw', {}, () => {
+    flash(on ? 'SIGNED UP  •  SEE YOU WEDNESDAY' : 'WITHDRAWN FROM THE BATTLE')
     playSuccessSound()
   })
 }
@@ -252,8 +287,10 @@ export function myFighter(): Fighter | null {
   return v.sides[v.mine]?.fighters.find((f) => f.id === v.you) ?? null
 }
 
-/** Side label as shown on screen: [TAG] or WRAITHS. */
-export const sideTag = (s: Side | null) => (s ? (s.wraith ? 'WRAITHS' : `[${s.tag}]`) : '?')
+/** Side label as shown on screen: [TAG], TEAM DUSK / TEAM DAWN on a pickup raid, or WRAITHS. */
+export const sideTag = (s: Side | null, mode: RaidMode = 'guild') => (s ? (s.wraith ? 'WRAITHS' : mode === 'pickup' ? s.name.toUpperCase() : `[${s.tag}]`) : '?')
+/** A fighter's name with the guild tag where teams are mixed. */
+export const fighterName = (v: RaidView, f: Fighter) => (v.mode === 'pickup' && f.tag && f.id.startsWith('0x') ? `${f.name} [${f.tag}]` : f.name)
 
 /** Fighters standing in a building (hp > 0). */
 export const standingAt = (s: Side | null, point: PointId) => (s ? s.fighters.filter((f) => f.state === 'in' && f.at === point && f.hp > 0) : [])
