@@ -53,6 +53,8 @@ function unreadBadge(count: number) {
 export function Toast() {
   const toast = player.lastGain && Date.now() - player.lastGain.at < (player.lastGain.ms ?? 1600) ? player.lastGain.text : null
   if (!toast) return null
+  // Routine gather gains ("+4 Wood") stay off the screen while a window is open; they would sit over its contents.
+  if (player.lastGain?.quiet && ui.open !== null) return null
   const canvas = getCanvas()
   // Over the zone block on the HUD; a little lower over a window's title tab so it does not cover it.
   // When the Storm bell is up it moves below the banner so the two never overlap.

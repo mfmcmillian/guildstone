@@ -373,7 +373,8 @@ export const player = {
     hq: { coins: 0, wood: 0, rock: 0 },
     tech: { coins: 0 }
   } as GuildDailyProgress,
-  lastGain: null as { text: string; at: number; ms?: number } | null
+  /** The toast on screen. `quiet` marks a routine gather gain, which the HUD skips while a window is open. */
+  lastGain: null as { text: string; at: number; ms?: number; quiet?: boolean } | null
 }
 
 let backpackChangeHandler: (() => void) | null = null
@@ -580,7 +581,7 @@ export function gather(skill: Skill, amount: number): number {
   if (got > 0) {
     backpackChanged()
     addXp(skill, 10 * got)
-    notify(`+${got} ${RESOURCE_INFO[res].name}`)
+    gainToast(`+${got} ${RESOURCE_INFO[res].name}`)
   } else {
     flash('BACKPACK FULL - go DEPOT!')
   }
@@ -653,10 +654,16 @@ export function flash(text: string, ms = 1600) {
   player.lastGain = { text, at: Date.now(), ms }
 }
 
-/** A toast for something that happened on its own (a gather, a find, mastery, bank ready). Hidden when ALERTS is OFF. */
+/** A toast for something that happened on its own (a find, mastery, bank ready, a whisper). Hidden when ALERTS is OFF. */
 export function notify(text: string, ms = 1600) {
   if (!settings.alerts) return
   flash(text, ms)
+}
+
+/** The per-tick gather toast ("+4 Wood", "FOUND 2 BERRIES"). Like notify, but not drawn while a window is open. */
+export function gainToast(text: string) {
+  if (!settings.alerts) return
+  player.lastGain = { text, at: Date.now(), ms: 1600, quiet: true }
 }
 
 // --- Recipes ---------------------------------------------------------------

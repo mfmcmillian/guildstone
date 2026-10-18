@@ -13,6 +13,7 @@ import {
   Boost,
   flash,
   notify,
+  gainToast,
   GuildInfo,
   GuildTechKey,
   ItemId,
@@ -62,7 +63,7 @@ function applyRareFields(result: RareFields) {
     player.coins = result.currency.coins
     player.berries = result.currency.berries
   }
-  if ((result.berries ?? 0) > 0) notify(`FOUND ${result.berries} ${result.berries === 1 ? 'BERRY' : 'BERRIES'}!`)
+  if ((result.berries ?? 0) > 0) gainToast(`FOUND ${result.berries} ${result.berries === 1 ? 'BERRY' : 'BERRIES'}!`)
   const drops = Object.entries(result.rareDrops ?? {}) as Array<[RareRaw, number]>
   if (drops.length > 0) {
     // The banner is the moment; no HUD flash on top of it.
@@ -240,7 +241,7 @@ export function requestGather(
       const got = Math.max(0, Math.floor(result.got))
       if (got > 0) {
         const name = target === 'berry' ? RESOURCE_INFO.berry.name : RESOURCE_INFO[SKILL_INFO[target].resource].name
-        notify(result.doubled ? `DOUBLE! +${got} ${name}` : `+${got} ${name}`)
+        gainToast(result.doubled ? `DOUBLE! +${got} ${name}` : `+${got} ${name}`)
       } else if (target !== 'berry') {
         flash('BACKPACK FULL - tap the bag to BANK IT!')
       }
