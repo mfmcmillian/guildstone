@@ -960,7 +960,7 @@ export function WorkshopPanel() {
           {/* Two columns: the longest gate line ("Wear Lumberjack L3 + Assassin L3") doesn't fit three across at this size. */}
           <UiEntity uiTransform={{ flexDirection: 'row', flexWrap: 'wrap', width: S(1336) }}>
             {(Object.entries(COMBOS) as Array<[RareRaw, RareDropDef]>).map(([id, def]) => (
-              <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: S(664), height: S(76), margin: { right: S(4), bottom: S(2) } }}>
+              <UiEntity key={id} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '49.6%', height: S(76), margin: { bottom: S(2) } }}>
                 <Icon src={RESOURCE_INFO[id].icon} size={S(60)} uiTransform={{ flexShrink: 0 }} />
                 <UiEntity uiTransform={{ flexDirection: 'column', width: S(590), margin: { left: S(8) } }}>
                   <Text value={def.name} size={S(32)} color={gateMet(def.gate, player.skills) ? C.green : C.white} align="middle-left" nowrap uiTransform={{ height: S(38) }} />

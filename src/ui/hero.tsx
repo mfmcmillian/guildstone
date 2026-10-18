@@ -35,7 +35,6 @@ const STAGE_W = 560
 const GAP = 24
 const STATS_W = W - 72 - STAGE_W - GAP
 const PAD = 28
-const CARD_W = (STATS_W - PAD * 2 - GAP) / 2
 const CARD_H = 150
 /** Per-hero backdrop (guildstone.dev, 560x700 like the stage); the hero's feet land on its floor. */
 const STAGE_BG: Record<HeroId, string> = { assassin: `${ART}/hero_stage_assassin_v1.jpg`, knight: `${ART}/hero_stage_knight_v1.jpg`, warlock: `${ART}/hero_stage_warlock_v1.jpg` }
@@ -96,10 +95,10 @@ function CounterRow(props: { id: HeroId }) {
 }
 
 /** One stat: label and what the next level adds on top, the current bonus big, a one-line hint. */
-function StatCard(props: { key?: string; stat: HeroStat; now: number; next: number | null; right: boolean; bottom: boolean }) {
+function StatCard(props: { key?: string; stat: HeroStat; now: number; next: number | null }) {
   const { stat, now, next } = props
   return (
-    <UiEntity uiTransform={{ width: S(CARD_W), height: S(CARD_H), flexDirection: 'column', padding: { left: S(20), right: S(20), top: S(14), bottom: S(12) }, margin: { left: props.right ? S(GAP) : 0, bottom: props.bottom ? 0 : S(GAP) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: CARD_BG }}>
+    <UiEntity uiTransform={{ width: '48.5%', height: S(CARD_H), flexDirection: 'column', padding: { left: S(20), right: S(20), top: S(14), bottom: S(12) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: CARD_BG }}>
       <UiEntity uiTransform={{ width: '100%', height: S(32), flexDirection: 'row', alignItems: 'center' }}>
         <Text value={HERO_STAT_LABEL[stat]} size={S(24)} color={C.textMuted} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(32) }} />
         {next !== null ? <Text value={`NEXT  ${heroStatText(stat, next - now)}`} size={S(22)} color={C.greenDark} nowrap align="middle-right" uiTransform={{ height: S(32) }} /> : null}
@@ -132,9 +131,13 @@ export function HeroPanel() {
           <HeroStage id={id} level={level} />
           <Panel flat color={C.paper2} uiTransform={{ width: S(STATS_W), height: S(BODY_H), flexDirection: 'column', padding: S(PAD), margin: { left: S(GAP) } }}>
             <CounterRow id={id} />
-            <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap' }}>
-              {HERO_STATS.map((stat, i) => <StatCard key={`stat-${stat}`} stat={stat} now={bonusNow[stat]} next={bonusNext ? bonusNext[stat] : null} right={i % 2 === 1} bottom={i >= 2} />)}
-            </UiEntity>
+            {/* Two fixed rows of two (percent widths, space-between): a wrapping row can tip to one card per line
+                from sub-pixel rounding at some window sizes and overflow the panel. */}
+            {[HERO_STATS.slice(0, 2), HERO_STATS.slice(2)].map((pair, row) => (
+              <UiEntity key={`stat-row-${row}`} uiTransform={{ width: '100%', height: S(CARD_H), flexDirection: 'row', justifyContent: 'space-between', margin: { bottom: row === 0 ? S(GAP) : 0 } }}>
+                {pair.map((stat) => <StatCard key={`stat-${stat}`} stat={stat} now={bonusNow[stat]} next={bonusNext ? bonusNext[stat] : null} />)}
+              </UiEntity>
+            ))}
             {cost ? (
               <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', margin: { top: S(GAP) } }}>
                 <Text value="NEEDS" size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(110), height: S(50) }} />
