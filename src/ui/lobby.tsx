@@ -1,4 +1,5 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
+import type { Color4 } from '@dcl/sdk/math'
 import { t } from '../i18n'
 import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Text, Panel, Button, Icon } from './components'
@@ -15,12 +16,16 @@ import {
   tickLobby,
   refreshBoard,
   sendChat,
-  settleComposer,
+  composerHidden,
   mentionsMe,
   mentionPlayer,
   mentioning,
   mentionSuggestions,
-  whisperPlayer,
+  openWhisper,
+  closeWhisper,
+  sendWhisper,
+  whisperThreads,
+  whisperUnread,
   adminChat,
   canModerate,
   hasGuildChat,
@@ -41,7 +46,9 @@ import {
   settleBugCard,
   BUG_TEXT_MAX,
   type BoardId,
-  type OnlinePlayer
+  type Composer,
+  type OnlinePlayer,
+  type WhisperThread
 } from '../lobby'
 
 /** Remembered across opens: the chat channel on LOBBY and the board on RANKINGS. */
@@ -76,13 +83,46 @@ function statusLine(p: OnlinePlayer): string {
   return `Idle  •  Lv ${p.level.reduce((a, b) => a + b, 0)} total`
 }
 
-/** Who's online / the tapped player's card; shared by both tabs. */
+/** Who's online / the tapped player's card / an open whisper window; shared by both tabs. */
 function SideColumn(props: { height: number; guildOnly: boolean; chat?: Channel }) {
   const me = profileState.walletAddress ?? ''
   const myGuild = player.guild
   const canInvite = !!myGuild && (myGuild.leaderId === me || myGuild.royalGuardIds?.includes(me))
+  const thread = lobby.dm.open ? lobby.dm.threads[lobby.dm.open] ?? null : null
+  if (thread) return <WhisperPanel th={thread} height={props.height} />
   const selected = lobby.selected ? lobby.online.find((p) => p.address === lobby.selected) ?? null : null
   return selected ? <PlayerCard p={selected} height={props.height} canInvite={canInvite} chat={props.chat} /> : <OnlineColumn height={props.height} guildOnly={props.guildOnly} chat={props.chat} />
+}
+
+/**
+ * Text box + SEND. After a send (or any reset from code) the Input is left out for a beat so the renderer releases
+ * the old text field before a fresh one is mounted; a blank bar holds the spot. See setDraft in lobby.ts.
+ */
+function ChatComposer(props: { c: Composer; id: string; placeholder: string; color: Color4; fontSize?: number; onSend: () => void }) {
+  const { c } = props
+  const fontSize = props.fontSize ?? S(24)
+  return (
+    <UiEntity uiTransform={{ width: '100%', height: S(64), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
+      {composerHidden(c) ? (
+        <UiEntity uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(60), margin: { right: S(10) } }} uiBackground={{ color: C.navy }} />
+      ) : (
+        <Input
+          key={`${props.id}-${c.draftKey}`}
+          value={c.draft}
+          placeholder={props.placeholder}
+          fontSize={fontSize}
+          color={C.text}
+          placeholderColor={C.textMuted}
+          uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(60), margin: { right: S(10) } }}
+          onChange={(value) => {
+            c.draft = value.slice(0, CHAT_TEXT_MAX)
+          }}
+          onSubmit={props.onSend}
+        />
+      )}
+      <Button key={`${props.id}-send`} label="SEND" color={props.color} disabled={c.sending || c.draft.trim().length === 0} size={S(22)} uiTransform={{ width: S(150), height: S(60), minWidth: 0 }} onClick={props.onSend} />
+    </UiEntity>
+  )
 }
 
 /** LOBBY tab: chat. ALL / [TAG] toggle above the feed while in a guild; without one the feed takes the full height. */
@@ -172,7 +212,6 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   const inviteH = invites.length > 0 ? 66 : 0
   const feedH = props.height - 20 - inviteH - 64 - 10
   // Newest at the bottom; walk back until the feed is full. Two lines for long messages, one otherwise.
-  settleComposer(channel)
   const visible = st.messages.filter((m) => !lobby.muted.has(m.from))
   const rows: Array<{ id: string; from: string; guild: string; stamp: string; line: string; h: number; system: boolean; me: boolean }> = []
   let used = 0
@@ -236,26 +275,13 @@ function ChatColumn(props: { channel: Channel; height: number }) {
         )}
       </UiEntity>
 
-      <UiEntity uiTransform={{ width: '100%', height: S(64), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
-        <Input
-          key={`chat-input-${channel}-${st.draftKey}`}
-          value={st.draft}
-          placeholder={t(st.sending ? 'Sending...' : guildChannel ? `Say something to [${player.guild?.tag ?? t('your guild')}] only...` : 'Say something to everyone wearing the ring...')}
-          fontSize={S(24)}
-          color={C.text}
-          placeholderColor={C.textMuted}
-          uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(60), margin: { right: S(10) } }}
-          onChange={(value) => {
-            st.draft = value.slice(0, CHAT_TEXT_MAX)
-          }}
-          onSubmit={() => sendChat(channel)}
-        />
-        {st.retiringKey !== null ? (
-          // Retired box after a send, see setDraft in lobby.ts. Hidden and disabled; removed by settleComposer.
-          <Input key={`chat-input-${channel}-${st.retiringKey}`} value="" disabled fontSize={S(24)} uiTransform={{ positionType: 'absolute', width: 0, height: 0 }} />
-        ) : null}
-        <Button key={`chat-send-${channel}`} label="SEND" color={guildChannel ? C.purple : C.green} disabled={st.sending || st.draft.trim().length === 0} size={S(22)} uiTransform={{ width: S(150), height: S(60), minWidth: 0 }} onClick={() => sendChat(channel)} />
-      </UiEntity>
+      <ChatComposer
+        c={st}
+        id={`chat-${channel}`}
+        placeholder={t(st.sending ? 'Sending...' : guildChannel ? `Say something to [${player.guild?.tag ?? t('your guild')}] only...` : 'Say something to everyone wearing the ring...')}
+        color={guildChannel ? C.purple : C.green}
+        onSend={() => sendChat(channel)}
+      />
     </Panel>
   )
 }
@@ -374,9 +400,28 @@ function OnlineColumn(props: { height: number; guildOnly: boolean; chat?: Channe
     : props.guildOnly && myGuildId ? lobby.online.filter((p) => p.guild === myGuildId) : lobby.online
   const title = props.guildOnly ? `[${player.guild?.tag ?? 'GUILD'}] ONLINE  •  ${list.length}` : `ONLINE  •  ${list.length}`
   const bugH = bug.open ? BUG_OPEN_H + 10 : BUG_CLOSED_H
+  // Whispers waiting for me (from anyone, online or not): one button that opens the newest unread thread.
+  const waiting = whisperUnread()
+  const unreadOf = (address: string) => lobby.dm.threads[address.toLowerCase()]?.unread ?? 0
   return (
     <Panel flat color={C.navySoft} uiTransform={{ width: S(SIDE_W), height: S(props.height), padding: S(10), flexDirection: 'column' }}>
-      <OutlinedText value={title} size={S(28)} color={C.gold} uiTransform={{ width: '100%', height: S(40), margin: { bottom: S(10) } }} />
+      <UiEntity uiTransform={{ width: '100%', height: S(40), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(10) } }}>
+        <OutlinedText value={title} size={S(28)} color={C.gold} uiTransform={{ width: '100%', height: S(40) }} />
+        {waiting > 0 ? (
+          <Button
+            key="online-whispers"
+            label={`DM ${waiting}`}
+            color={C.green}
+            size={S(20)}
+            pad={6}
+            uiTransform={{ positionType: 'absolute', position: { right: 0, top: 0 }, width: S(96), height: S(40), minWidth: 0 }}
+            onClick={() => {
+              const th = whisperThreads().find((x) => x.unread > 0)
+              if (th) openWhisper(th.address, th.name)
+            }}
+          />
+        ) : null}
+      </UiEntity>
       {list.length === 0 ? (
         <Text value={lobby.loadedOnce ? (props.guildOnly ? 'No guildmates on right now.' : 'Nobody else is on right now.') : 'Looking around...'} size={S(24)} color={C.textMuted} uiTransform={{ width: '100%', height: S(36), flexGrow: 1 }} />
       ) : (
@@ -397,6 +442,7 @@ function OnlineColumn(props: { height: number; guildOnly: boolean; chat?: Channe
               <UiEntity uiTransform={{ width: '100%', height: S(36), flexDirection: 'row', alignItems: 'center' }}>
                 {isCrownHolder(p.address) ? <Icon src={CROWN_ICON} size={S(30)} uiTransform={{ margin: { right: S(6) } }} /> : null}
                 <Text value={`${withVip(p.name, p.vip)}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={nameColor(p.address, p.guild)} align="middle-left" nowrap raw uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(36) }} />
+                {unreadOf(p.address) > 0 ? <Text value={`DM ${unreadOf(p.address)}`} size={S(24)} color={C.green} align="middle-right" nowrap raw uiTransform={{ width: S(70), height: S(36) }} /> : null}
               </UiEntity>
               <Text value={statusLine(p)} size={S(23)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(30) }} />
             </UiEntity>
@@ -404,6 +450,50 @@ function OnlineColumn(props: { height: number; guildOnly: boolean; chat?: Channe
         </UiEntity>
       )}
       <BugCard />
+    </Panel>
+  )
+}
+
+/** Side column: a private window with one player. Whispers both ways, newest at the bottom; only the two of you see it. */
+function WhisperPanel(props: { th: WhisperThread; height: number }) {
+  const { th } = props
+  th.unread = 0
+  const online = lobby.online.some((p) => p.address.toLowerCase() === th.address)
+  const myAddress = (profileState.walletAddress ?? '').toLowerCase()
+  // Title 40 + note 30 + composer 74 + BACK 66, inside the 10 px padding.
+  const feedH = props.height - 20 - 40 - 30 - 74 - 66
+  // About 40 characters fit on a line at this size in the side column; up to four lines, then the text is cut.
+  const rows: Array<{ id: string; stamp: string; line: string; h: number; mine: boolean; system: boolean }> = []
+  let used = 0
+  for (let i = th.messages.length - 1; i >= 0; i--) {
+    const m = th.messages[i]
+    const mine = m.from.toLowerCase() === myAddress
+    const words = mine ? m.body ?? m.text : m.text
+    const system = m.whisper !== true
+    const line = system ? `—  ${words}` : `${mine ? t('You') : th.name}:  ${words}`
+    const h = 22 + 28 * Math.min(4, Math.ceil(line.length / 40))
+    if (used + h > feedH) break
+    used += h
+    rows.unshift({ id: m.id, stamp: chatStamp(m.at), line, h, mine, system })
+  }
+  return (
+    <Panel flat color={C.navySoft} uiTransform={{ width: S(SIDE_W), height: S(props.height), padding: S(10), flexDirection: 'column' }}>
+      <OutlinedText value={`WHISPER  •  ${th.name.toUpperCase()}`} size={S(28)} color={C.green} raw uiTransform={{ width: '100%', height: S(40) }} />
+      <Text value={online ? 'Only the two of you see this.' : 'They are not wearing the ring right now; they will see it when they are back.'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ width: '100%', height: S(30) }} />
+      <UiEntity uiTransform={{ width: '100%', height: S(feedH), flexDirection: 'column', justifyContent: 'flex-end' }}>
+        {rows.length === 0 ? (
+          <Text value="Say hi. Nobody else will see it." size={S(24)} color={C.textMuted} uiTransform={{ width: '100%', height: S(40) }} />
+        ) : (
+          rows.map((r) => (
+            <UiEntity key={r.id} uiTransform={{ width: '100%', height: S(r.h), flexDirection: 'column' }}>
+              <Text value={r.stamp} size={S(18)} color={C.textMuted} nowrap raw align="top-left" uiTransform={{ width: '100%', height: S(22) }} />
+              <Text value={r.line} size={S(22)} color={r.system ? C.textMuted : r.mine ? C.yellow : C.white} align="top-left" raw={!r.system} uiTransform={{ width: '100%', height: S(r.h - 22) }} />
+            </UiEntity>
+          ))
+        )}
+      </UiEntity>
+      <ChatComposer c={th} id={`dm-${th.address}`} placeholder={t(th.sending ? 'Sending...' : `Whisper to ${th.name}...`)} color={C.green} fontSize={S(22)} onSend={() => sendWhisper(th.address)} />
+      <Button key="dm-back" label="BACK" sound="cancel" color={C.gray} textColor={C.textMuted} size={S(22)} uiTransform={{ width: '100%', height: S(56), margin: { top: S(10) } }} onClick={() => closeWhisper()} />
     </Panel>
   )
 }
@@ -437,7 +527,10 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
 
       <UiEntity uiTransform={{ flexGrow: 1 }} />
       {props.chat ? <Button key="card-mention" label={`@ ${p.name.toUpperCase()}`} color={C.orange} textColor={C.navy} size={S(22)} uiTransform={btn} onClick={() => mentionPlayer(props.chat!, p.name)} /> : null}
-      {props.chat ? <Button key="card-whisper" label="WHISPER" color={C.navySoft} size={S(22)} uiTransform={btn} onClick={() => whisperPlayer(props.chat!, p.name)} /> : null}
+      {(() => {
+        const n = lobby.dm.threads[p.address.toLowerCase()]?.unread ?? 0
+        return <Button key="card-whisper" label={n > 0 ? `WHISPER  •  ${n} NEW` : 'WHISPER'} color={n > 0 ? C.green : C.navySoft} size={S(22)} uiTransform={btn} onClick={() => openWhisper(p.address, p.name)} />
+      })()}
       {props.canInvite && !p.guild ? (() => {
         const status = lobby.invited[p.address]
         const label = status === 'sending' ? 'SENDING…' : status === 'sent' ? 'INVITED' : `INVITE TO [${player.guild?.tag}]`
@@ -476,4 +569,5 @@ function PlayerCard(props: { p: OnlinePlayer; height: number; canInvite: boolean
 export function resetLobbyView() {
   chatChannel = 'all'
   lobby.selected = null
+  lobby.dm.open = null
 }

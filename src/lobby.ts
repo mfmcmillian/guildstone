@@ -22,26 +22,47 @@ export const CHAT_TEXT_MAX = 200
 const CHAT_KEEP = 500
 const GUILD_CHAT_KEEP = 200
 
-export interface ChatMessage { id: string; at: number; from: string; name: string; tag: string; text: string; /** Poster's KoA VIP tier 0..5 (src/vip.ts). */ vip?: number; /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean; /** Wallets named with @Name in the text (server-resolved). */ mentions?: string[] }
+export interface ChatMessage {
+  id: string; at: number; from: string; name: string; tag: string; text: string
+  /** Poster's KoA VIP tier 0..5 (src/vip.ts). */ vip?: number
+  /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean
+  /** Wallets named with @Name in the text (server-resolved). */ mentions?: string[]
+  /** A private line (`/w`). Received: `from` is the sender, `text` the words. Sent: the server's echo carries `to` / `toName` and the bare words in `body`. */
+  whisper?: boolean; to?: string; toName?: string; body?: string
+}
 /** 'all' is the global lobby; 'guild' is my guild's private channel (members only, 200 lines, see the server). */
 export type Channel = 'all' | 'guild'
 export const CHANNELS: Channel[] = ['all', 'guild']
 
-export interface ChannelState {
+/** One text box + SEND. Shared by the two channels and every whisper window. */
+export interface Composer {
+  draft: string
+  /** Bumped whenever `draft` is reset in code: the SDK Input only reads `value` on mount, so the box is remounted to clear it. */
+  draftKey: number
+  /** While this is in the future the Input is not rendered at all, so the renderer gives its text field back (and drops focus) before a fresh one is mounted. */
+  hiddenUntil: number
+  sending: boolean
+}
+const composerState = (): Composer => ({ draft: '', draftKey: 0, hiddenUntil: 0, sending: false })
+
+export interface ChannelState extends Composer {
   messages: ChatMessage[]
   /** Newest message time seen; the poll asks for lines after it. */
   lastAt: number
   /** Lines from others that arrived while this channel wasn't showing. Drives the HUD badge. */
   unread: number
-  draft: string
-  /** Bumped whenever `draft` is reset in code: the SDK Input only reads `value` on mount, so the box is remounted to clear it. */
-  draftKey: number
-  /** Key of the Input being retired after a send. It stays mounted (hidden, disabled) until `composerBlankAt` passes. */
-  retiringKey: number | null
-  composerBlankAt: number
-  sending: boolean
 }
-const channelState = (): ChannelState => ({ messages: [], lastAt: 0, unread: 0, draft: '', draftKey: 0, retiringKey: null, composerBlankAt: 0, sending: false })
+const channelState = (): ChannelState => ({ ...composerState(), messages: [], lastAt: 0, unread: 0 })
+
+/** A private back-and-forth with one player (whispers both ways), shown in the side column. */
+export interface WhisperThread extends Composer {
+  address: string
+  name: string
+  messages: ChatMessage[]
+  unread: number
+  lastAt: number
+}
+const WHISPER_KEEP = 100
 export interface OnlinePlayer {
   address: string
   name: string
@@ -78,6 +99,8 @@ export const lobby = {
   ch: { all: channelState(), guild: channelState() } as Record<Channel, ChannelState>,
   /** Guild id the guild channel belongs to; cleared (with the feed) when the server stops sending it. */
   guildChatId: '',
+  /** Whisper threads by the other player's wallet, and the one open in the side column (null: the online list). */
+  dm: { threads: {} as Record<string, WhisperThread>, open: null as string | null },
   online: [] as OnlinePlayer[],
   invites: [] as GuildInvite[],
   admin: false,
@@ -114,8 +137,10 @@ export function tickStorm() {
   notify('⚔ STORM BELL IN 30 S  •  LAST CALL', 4000)
 }
 
-/** Unread lines across both channels, for the HUD badge. */
-export const lobbyUnread = () => Math.min(99, lobby.ch.all.unread + lobby.ch.guild.unread)
+/** Unread whispers across every thread. */
+export const whisperUnread = () => Object.values(lobby.dm.threads).reduce((n, th) => n + th.unread, 0)
+/** Unread lines across both channels and the whispers, for the HUD badge. */
+export const lobbyUnread = () => Math.min(99, lobby.ch.all.unread + lobby.ch.guild.unread + whisperUnread())
 /** True while my guild's channel exists (I'm in a guild and the server has answered at least once). */
 export const hasGuildChat = () => lobby.guildChatId !== ''
 
@@ -159,6 +184,109 @@ function mergeChannel(channel: Channel, incoming: ChatMessage[], keep: number) {
   st.lastAt = Math.max(st.lastAt, ...incoming.map((m) => m.at))
 }
 
+/** The other end of a whisper line: the sender, or (for my own echo) the player it went to. '' when unknown. */
+function whisperPartner(m: ChatMessage): string {
+  const me = (profileState.walletAddress || '').toLowerCase()
+  return m.from.toLowerCase() === me ? (m.to || '').toLowerCase() : m.from.toLowerCase()
+}
+/** A private line the ring can file under a player (old-style echoes without `to` stay in the feed). */
+const isThreadable = (m: ChatMessage): boolean => m.whisper === true && whisperPartner(m) !== ''
+
+/** Whisper lines ride the lobby poll; file each under the other player, counting unread for lines from them. */
+function mergeWhispers(incoming: ChatMessage[]) {
+  const me = (profileState.walletAddress || '').toLowerCase()
+  for (const m of incoming) {
+    const partner = whisperPartner(m)
+    if (!partner || lobby.muted.has(partner)) continue
+    const mine = m.from.toLowerCase() === me
+    const name = mine ? m.toName || partner.slice(0, 8) : m.name
+    const th = (lobby.dm.threads[partner] ??= { ...composerState(), address: partner, name, messages: [], unread: 0, lastAt: 0 })
+    if (!mine && m.name) th.name = m.name
+    if (th.messages.some((x) => x.id === m.id)) continue
+    th.messages = [...th.messages, m].sort((a, b) => a.at - b.at).slice(-WHISPER_KEEP)
+    th.lastAt = Math.max(th.lastAt, m.at)
+    // History on the first load is not news. Afterwards a line from them counts unless their window is in front of me.
+    if (!mine && lobby.loadedOnce && !(lobby.showing !== '' && lobby.dm.open === partner)) {
+      th.unread = Math.min(99, th.unread + 1)
+      if (settings.alerts) {
+        playRareFindSound()
+        notify(`${th.name.toUpperCase()} WHISPERED YOU`, 4000)
+      }
+    }
+  }
+  // Private lines share the lobby cursor, so the poll must not hand them back again.
+  lobby.ch.all.lastAt = Math.max(lobby.ch.all.lastAt, ...incoming.map((m) => m.at))
+}
+
+/** A line that came back from a send or a poll on `channel`: whispers go to their thread, the rest to the feed. */
+function takeLine(channel: Channel, m: ChatMessage) {
+  if (isThreadable(m)) mergeWhispers([m])
+  else {
+    const st = lobby.ch[channel]
+    if (st.messages.some((x) => x.id === m.id)) return
+    st.messages = [...st.messages, m].slice(-(channel === 'all' ? CHAT_KEEP : GUILD_CHAT_KEEP))
+    st.lastAt = Math.max(st.lastAt, m.at)
+  }
+}
+
+/** Threads newest-first, for the ✉ button and the online list markers. */
+export function whisperThreads(): WhisperThread[] {
+  return Object.values(lobby.dm.threads).sort((a, b) => b.lastAt - a.lastAt)
+}
+
+/** Open the whisper window with a player (from their card, the online list or the ✉ button). */
+export function openWhisper(address: string, name: string) {
+  const key = address.toLowerCase()
+  const th = (lobby.dm.threads[key] ??= { ...composerState(), address: key, name, messages: [], unread: 0, lastAt: 0 })
+  if (name) th.name = name
+  th.unread = 0
+  lobby.dm.open = key
+  lobby.selected = null
+}
+export function closeWhisper() {
+  lobby.dm.open = null
+}
+
+/** Send the open thread's draft as `/w Name text`; the server's echo lands in the thread. */
+export function sendWhisper(address: string) {
+  const th = lobby.dm.threads[address]
+  if (!th) return
+  const text = th.draft.trim().slice(0, CHAT_TEXT_MAX)
+  if (!text || th.sending || profileState.status !== 'ready' || !profileState.walletAddress) return
+  th.sending = true
+  setDraft(th, BLANK_DRAFT)
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/chat`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: `/w ${th.name} ${text}`, channel: 'all' }) }
+      })
+      if (!response.ok) {
+        let message = `Whisper failed (${response.status})`
+        try { message = (JSON.parse(response.body) as { error?: string }).error ?? message } catch { /* keep default */ }
+        playErrorSound()
+        flash(message.toUpperCase())
+        setDraft(th, text)
+        return
+      }
+      const body = JSON.parse(response.body) as { message?: ChatMessage }
+      if (!body.message) return
+      // The echo files itself under them. Anything else is the server declining ("X is not taking whispers from you"):
+      // show it inside the window as a grey line so the answer is where the question was asked.
+      if (isThreadable(body.message)) takeLine('all', body.message)
+      else {
+        th.messages = [...th.messages, { ...body.message, system: true }].slice(-WHISPER_KEEP)
+        lobby.ch.all.lastAt = Math.max(lobby.ch.all.lastAt, body.message.at)
+      }
+    } catch (error) {
+      console.error('[lobby] whisper failed:', error instanceof Error ? error.message : String(error))
+      setDraft(th, text)
+    } finally {
+      th.sending = false
+    }
+  })
+}
+
 /** True when this line @-names me. */
 export const mentionsMe = (m: ChatMessage): boolean => Array.isArray(m.mentions) && m.mentions.includes((profileState.walletAddress || '').toLowerCase())
 
@@ -166,7 +294,7 @@ export const mentionsMe = (m: ChatMessage): boolean => Array.isArray(m.mentions)
 export function mentionPlayer(channel: Channel, name: string) {
   const st = lobby.ch[channel]
   const head = st.draft.trim().length > 0 ? `${st.draft.trimEnd()} ` : ''
-  setDraft(channel, `${head}@${name} `.slice(0, CHAT_TEXT_MAX))
+  setDraft(st, `${head}@${name} `.slice(0, CHAT_TEXT_MAX))
   lobby.selected = null
 }
 
@@ -185,11 +313,6 @@ export function mentionSuggestions(channel: Channel): OnlinePlayer[] {
   return lobby.online.filter((p) => p.address !== me && (channel !== 'guild' || p.guild === myGuildId) && p.name.toLowerCase().startsWith(q))
 }
 
-/** Start a whisper from a player's card: `/w Name ` in the composer of the channel on screen. */
-export function whisperPlayer(channel: Channel, name: string) {
-  setDraft(channel, `/w ${name} `.slice(0, CHAT_TEXT_MAX))
-  lobby.selected = null
-}
 
 export function pollLobby() {
   if (pollInFlight || profileState.status !== 'ready' || !profileState.walletAddress) return
@@ -202,7 +325,12 @@ export function pollLobby() {
       const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; guild?: { id: string; messages: ChatMessage[] } | null; online: OnlinePlayer[]; invites: GuildInvite[]; storm?: StormInfo | null; admin: boolean }
       if (typeof body.now === 'number') lobby.clockOffset = body.now - Date.now()
       noteStorm(body.storm && typeof body.storm.id === 'string' && (body.storm.status === 'gathering' || body.storm.status === 'live') ? body.storm : null)
-      if (Array.isArray(body.messages)) mergeChannel('all', body.messages, CHAT_KEEP)
+      if (Array.isArray(body.messages)) {
+        // Private lines ride the lobby payload; they belong in their whisper window, not the feed.
+        const whispers = body.messages.filter(isThreadable)
+        mergeChannel('all', body.messages.filter((m) => !isThreadable(m)), CHAT_KEEP)
+        if (whispers.length > 0) mergeWhispers(whispers)
+      }
       if (body.guild && typeof body.guild.id === 'string') {
         // Switched guilds (or first answer): the old channel's lines don't belong to the new one.
         if (lobby.guildChatId !== body.guild.id) lobby.ch.guild = channelState()
@@ -232,7 +360,8 @@ export function sendChat(channel: Channel) {
   if (!text || st.sending || profileState.status !== 'ready' || !profileState.walletAddress) return
   if (channel === 'guild' && !hasGuildChat()) return
   st.sending = true
-  setDraft(channel, BLANK_DRAFT)
+  console.log(`[lobby] send ${channel}: ${text.length} chars, draftKey ${st.draftKey} -> ${st.draftKey + 1}`)
+  setDraft(st, BLANK_DRAFT)
   executeTask(async () => {
     try {
       const response = await signedFetch({
@@ -244,17 +373,15 @@ export function sendChat(channel: Channel) {
         try { message = (JSON.parse(response.body) as { error?: string }).error ?? message } catch { /* keep default */ }
         playErrorSound()
         flash(message.toUpperCase())
-        setDraft(channel, text)
+        setDraft(st, text)
         return
       }
       const body = JSON.parse(response.body) as { message?: ChatMessage }
-      if (body.message) {
-        st.messages = [...st.messages, body.message].slice(-(channel === 'all' ? CHAT_KEEP : GUILD_CHAT_KEEP))
-        st.lastAt = Math.max(st.lastAt, body.message.at)
-      }
+      // A typed `/w Name text` echoes back as a whisper and files itself under them.
+      if (body.message) takeLine(channel, body.message)
     } catch (error) {
       console.error('[lobby] send failed:', error instanceof Error ? error.message : String(error))
-      setDraft(channel, text)
+      setDraft(st, text)
     } finally {
       st.sending = false
     }
@@ -268,29 +395,20 @@ export function sendChat(channel: Channel) {
 const BLANK_DRAFT = ' '
 
 /**
- * Set the composer text from code (blank after send, restore after a failure) by mounting a fresh Input. A focused Unity
+ * Set the composer text from code (blank after send, restore after a failure, "@Name " from a card). A focused Unity
  * text field keeps its own editing buffer and restores it over anything the scene writes, and the renderer pools text
- * fields, so a plain remount gets the same still-focused field back. The old Input is therefore kept mounted (hidden,
- * disabled) for a moment so the new one is built on a different field; `settleComposer` drops it afterwards.
+ * fields, so remounting while the old box is still up can hand the same still-focused field straight back. So the
+ * Input is taken off the screen entirely for `COMPOSER_GAP_MS` (the field goes back to the pool and loses focus),
+ * then a fresh one is mounted holding the new text. The player clicks the box again to keep typing.
  */
-function setDraft(channel: Channel, text: string) {
-  const st = lobby.ch[channel]
-  st.draft = text
-  st.retiringKey = st.draftKey
-  st.draftKey++
-  // 150 ms is the tested window. A 1 s hand-over was tried for the world build and brought the old text back in the
-  // local preview too, so the prod leftover-text report is still open (see ROADMAP).
-  st.composerBlankAt = Date.now() + 150
+function setDraft(c: Composer, text: string) {
+  c.draft = text
+  c.draftKey++
+  c.hiddenUntil = Date.now() + COMPOSER_GAP_MS
 }
-
-/** Called from the chat render: once the hand-over window has passed, drop the retired Input. */
-export function settleComposer(channel: Channel) {
-  const st = lobby.ch[channel]
-  if (st.composerBlankAt > 0 && Date.now() >= st.composerBlankAt) {
-    st.composerBlankAt = 0
-    st.retiringKey = null
-  }
-}
+const COMPOSER_GAP_MS = 200
+/** True while the box is off screen after `setDraft`; the render shows a blank bar in its place. */
+export const composerHidden = (c: Composer) => Date.now() < c.hiddenUntil
 
 /** Can I remove lines in this channel? Lobby admins anywhere; the guild leader and Royal Guard in the guild channel. */
 export function canModerate(channel: Channel): boolean {
