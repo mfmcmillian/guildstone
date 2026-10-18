@@ -1,6 +1,6 @@
 {
   "name": "antrom-guildstone-ring",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Knights of Antrom: AFK Companion - the AntromAFK idle loop as a smart wearable you carry anywhere in Decentraland",
   "scripts": {
     "start": "sdk-commands start",
