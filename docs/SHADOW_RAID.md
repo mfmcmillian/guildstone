@@ -182,7 +182,8 @@ Profile gains `raid: { valor, raids, wins, kos }` (replaces `hold`).
 | `start` | | officer, no active raid, under the daily cap |
 | `answer` | `{ raidId }` | officer of a different guild, gathering raid, own guild free |
 | `join` | | member, own guild's raid gathering/live, slot free |
-| `leave` | | fighter |
+| `leave` | | fighter. Live and the last real player walks out → the raid finishes on the current score at once (2026-10-18) |
+| `hero` | | fighter, raid gathering, more than `HERO_LOCK_MS` (5 s) before the bell. Rebuilds my fighter from the profile as it is now (fighters are snapshots taken at join). The ring sends it after a hero select or upgrade; the HERO window shows FIGHT WITH as LOCKED IN from 5 s before the bell to the end (2026-10-18) |
 | `go` | `{ point }` | fighter, not knocked out |
 | `home` | | fighter in a building |
 

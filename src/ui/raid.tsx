@@ -11,7 +11,7 @@ import { player } from '../state'
 import { sanitizeHeroId } from '../hero'
 import { withVip } from '../vip'
 import {
-  BoardEntry, Fighter, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId,
+  BoardEntry, Fighter, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId,
   fighterName, myFighter, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestSkip,
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
@@ -493,7 +493,7 @@ function LobbyCard(props: { v: RaidView }) {
   const bothReady = battle && SIDES_IDS.every((k) => (v.sides[k]?.fighters.length ?? 0) >= v.rules.sideMin)
   const rules = ['Click a building to take it; it pays your team every tick.', 'A building stays yours, even empty, until the enemy takes it.', 'Team with the most points at the end of the timer wins.']
   const notes: string[] = pickup
-    ? short ? [`Need ${v.rules.pickupMin} fighters or it is called off`, 'Teams are drawn at the bell.'] : v.you ? ['Teams are drawn at the bell  •  alone you fight the comp  •  odd counts get a Wraith', ...rules] : ['Teams are drawn at the bell  •  alone you fight the comp  •  odd counts get a Wraith']
+    ? short ? [`Need ${v.rules.pickupMin} fighters or it is called off`, 'Teams are drawn at the bell.'] : v.you ? ['Teams are drawn at the bell  •  alone you fight the comp  •  odd counts get a Wraith', ...rules, `Swap heroes in HERO until ${HERO_LOCK_MS / 1000} s before the bell.`] : ['Teams are drawn at the bell  •  alone you fight the comp  •  odd counts get a Wraith']
     : battle
       ? bothReady ? (v.you ? rules : ['Both guilds are ready.']) : [`Begins when both guilds have ${v.rules.sideMin} fighters`, `The window closes at ${raid.battle?.endWhen ?? ''}; a short side forfeits the night`]
       : short ? [`Need ${v.rules.sideMin} on your side or it is called off`] : v.you ? rules : !v.mine ? [v.sides.b ? 'Both sides set. Watch it from here.' : 'Waiting for an answer.'] : []

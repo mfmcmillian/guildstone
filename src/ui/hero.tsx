@@ -16,6 +16,7 @@ import { player, BASE_RESOURCES, type BaseResource } from '../state'
 import { COUNTER_MULT, HEROES, HERO_IDS, HERO_STATS, HERO_STAT_LABEL, beatenBy, heroBonus, heroCost, heroStatText, type HeroId, type HeroStat } from '../hero'
 import { heroLevelUpAt, requestHeroSelect, requestHeroUpgrade } from '../transactions'
 import { profileState } from '../playerProfile'
+import { heroLocked, pollRaid, raid } from '../raid'
 
 const CELEBRATE_MS = 2400
 const STAT_HINT: Record<HeroStat, string> = {
@@ -69,6 +70,9 @@ function HeroStage(props: { id: HeroId; level: number }) {
       <UiEntity uiTransform={{ width: S(420), height: S(64), margin: { top: S(20) }, alignItems: 'center', justifyContent: 'center' }}>
         {fighting ? (
           <OutlinedText value="YOUR FIGHTER" size={S(28)} color={C.gold} />
+        ) : heroLocked() ? (
+          // From 5 s before the bell until the raid ends, the fighter on the field is the one you went in with.
+          <Button label="LOCKED IN FOR THIS STORM" color={C.gray} textColor={C.textMuted} size={S(22)} disabled uiTransform={{ width: '100%', height: '100%' }} />
         ) : (
           <Button label={`FIGHT WITH ${def.name.toUpperCase()}`} color={C.green} size={S(24)} disabled={profileState.status !== 'ready'} uiTransform={{ width: '100%', height: '100%' }} onClick={() => requestHeroSelect(props.id)} />
         )}
@@ -112,6 +116,8 @@ function StatCard(props: { key?: string; stat: HeroStat; now: number; next: numb
 export function HeroPanel() {
   const fit = fitModal(W, H, true)
   const o = dragOffsetPx('hero')
+  // While I am in a raid, keep its clock fresh here too so FIGHT WITH locks and unlocks on time (rate-limited inside).
+  if (raid.view !== null && raid.view.you !== null) pollRaid()
   const id = heroTab
   const level = player.heroes[id].level
   const cost = heroCost(id, level)

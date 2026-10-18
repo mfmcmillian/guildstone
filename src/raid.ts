@@ -165,7 +165,7 @@ export const raid = {
 /** Server time right now, as the client best knows it. */
 export const serverNow = () => Date.now() + raid.clockOffset
 
-type RaidAction = 'view' | 'join' | 'leave' | 'go' | 'home' | 'skip' | 'signup' | 'withdraw'
+type RaidAction = 'view' | 'join' | 'leave' | 'go' | 'home' | 'skip' | 'signup' | 'withdraw' | 'hero'
 interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; tester?: boolean; features?: unknown; rules?: Partial<RaidRules>; pickup?: PickupInfo; battle?: BattleInfo; me: MyRaid; serverNow: number; updatedAt: number }
 
 function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: (result: RaidResponse) => void) {
@@ -280,6 +280,30 @@ export function requestHome() {
 /** Tester only, test raids only: pull the clocks forward to the next event or the end. */
 export function requestSkip(to: 'next' | 'end') {
   send('skip', { to })
+}
+
+/** Heroes lock this close to the bell; the server refuses changes after that (HERO_LOCK_MS in afkRaid.js). */
+export const HERO_LOCK_MS = 5_000
+/** Am I a fighter in a raid that is gathering right now? */
+const gatheringWithMe = () => raid.view !== null && raid.view.status === 'gathering' && raid.view.you !== null
+/**
+ * True while my hero cannot change for the raid I am in: from 5 s before the bell until it ends. The HERO window
+ * shows FIGHT WITH as LOCKED IN during this time.
+ */
+export function heroLocked(): boolean {
+  const v = raid.view
+  if (v === null || v.you === null) return false
+  // A view that has outlived its own clock is stale (the WAR tab was closed); do not lock on it.
+  if (v.status === 'live') return v.endAt === 0 || serverNow() < v.endAt
+  return v.status === 'gathering' && v.gatherUntil - serverNow() <= HERO_LOCK_MS && serverNow() < v.gatherUntil + 30_000
+}
+/**
+ * After a hero select or upgrade while a raid gathers: have the server rebuild my fighter from the profile, so the
+ * teams drawn at the bell use the hero I picked. No-op outside a gather I am part of.
+ */
+export function requestHeroRefresh() {
+  if (!gatheringWithMe() || heroLocked()) return
+  send('hero', {}, () => refreshRaid())
 }
 
 // ---------------------------------------------------------------- derived helpers for the renderer

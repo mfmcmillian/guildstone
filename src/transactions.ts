@@ -8,6 +8,7 @@ import { settings } from './settings'
 import { setLanguage, t, type Language } from './i18n'
 import type { UiLayout } from './ui/drag'
 import { isServer } from '@dcl/sdk/network'
+import { requestHeroRefresh } from './raid'
 import {
   BaseResource,
   Boost,
@@ -646,6 +647,8 @@ export function requestHeroSelect(hero: HeroId) {
       player.hero = sanitizeHeroId(result.hero)
       flash(`${HEROES[player.hero].name.toUpperCase()} WILL FIGHT`)
       playSuccessSound()
+      // Mid-gather: the raid keeps a snapshot of my fighter, so tell it the hero changed.
+      requestHeroRefresh()
     } catch (error) {
       console.error('[transaction] Hero select failed:', error instanceof Error ? error.message : String(error))
       playErrorSound()
@@ -686,6 +689,7 @@ export function requestHeroUpgrade(hero: HeroId) {
       heroLevelUpAt = Date.now()
       flash(`${HEROES[hero].name.toUpperCase()} LEVEL ${player.heroes[hero].level}`)
       playSuccessSound()
+      if (hero === player.hero) requestHeroRefresh()
     } catch (error) {
       console.error('[transaction] Hero upgrade failed:', error instanceof Error ? error.message : String(error))
       playErrorSound()
