@@ -1,5 +1,5 @@
-// ABOUT window: who made the ring and where to find him. Left, Matt's "profile picture": the three heroes take turns
-// idling on their stage (same sheets as the Hero menu). Right, a few lines on the Knights of Antrom and why the ring
+// ABOUT window: who made the ring and where to find him. Left, Matt's "profile picture": the Knight idling on his
+// stage (same sheet as the Hero menu). Right, a few lines on the Knights of Antrom and why the ring
 // is free, then the links: a free ring for a friend (guildstone.dev/#ring), the Discord (from remote config, hidden
 // until the invite is set), X and TikTok (@dcl_matt), and the daily SHARE ON X. The client confirms every link.
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
@@ -10,7 +10,7 @@ import { S, fitModal } from './responsive'
 import { closePanel } from './uiState'
 import { dragOffsetPx, startDrag } from './drag'
 import { ART, HERO_SHEET, Sprite, loopFrame } from './sprite'
-import { HEROES, HERO_IDS, type HeroId } from '../hero'
+import { type HeroId } from '../hero'
 import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import { remoteConfig } from '../remoteConfig'
 
@@ -21,29 +21,26 @@ const STAGE_W = 480
 const GAP = 24
 const TEXT_W = W - 72 - STAGE_W - GAP
 const PAD = 28
-/** Each hero holds the stage this long before the next steps in. */
-const HERO_MS = 4000
 const STAGE_BG: Record<HeroId, string> = { assassin: `${ART}/hero_stage_assassin_v1.jpg`, knight: `${ART}/hero_stage_knight_v1.jpg`, warlock: `${ART}/hero_stage_warlock_v1.jpg` }
 const STAGE_FOOT = Color4.create(0.04, 0.02, 0.09, 0.6)
 const BTN_H = 56
 
 const LINES = [
-  "Hi, I'm Matt. I run the Knights of Antrom in Decentraland and built this ring so we stay connected even when we're away from the keyboard: gathering, chatting and raiding from one wearable, anywhere in the world.",
-  'The goal is simple: keep us all together through Decentraland. The ring is FREE to anyone who wants to walk this road with us, and so is everything you earn with it.',
-  'Know someone who should be here? Send them the link below and the Rewards server mints them a ring of their own.'
+  "Hi, I'm Matt. I run Knights of Antrom in Decentraland and built this ring to keep us connected, even when we're in different scenes. Gather, chat, and raid together through one wearable, wherever you are in Decentraland.",
+  'The goal is simple: bring our community together. The ring is FREE to anyone who wants to join us on this adventure.',
+  'Know someone who should be here? Send them the link below, and the Rewards server will mint them a ring of their own.'
 ]
 
+/** Matt's picture: the Knight idling in his yard, nothing else but the name. */
 function Stage() {
-  const now = Date.now()
-  const id = HERO_IDS[Math.floor(now / HERO_MS) % HERO_IDS.length]
+  const id: HeroId = 'knight'
   return (
     <UiEntity uiTransform={{ width: S(STAGE_W), height: S(BODY_H), flexDirection: 'column', alignItems: 'center', padding: { left: S(PAD), right: S(PAD), bottom: S(PAD) } }} uiBackground={{ textureMode: 'stretch', texture: { src: STAGE_BG[id] } }}>
       <Spacer />
-      <Sprite src={HERO_SHEET[id].own} anim="idle" frame={loopFrame('idle', now)} size={S(360)} />
+      <Sprite src={HERO_SHEET[id].own} anim="idle" frame={loopFrame('idle', Date.now())} size={S(360)} />
       <Spacer />
-      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: 0, left: 0 }, width: '100%', height: S(120), pointerFilter: 'none' }} uiBackground={{ color: STAGE_FOOT }} />
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: 0, left: 0 }, width: '100%', height: S(90), pointerFilter: 'none' }} uiBackground={{ color: STAGE_FOOT }} />
       <OutlinedText value="MATT" size={S(36)} color={C.gold} uiTransform={{ height: S(44) }} />
-      <OutlinedText value={`@dcl_matt  •  ${HEROES[id].name.toUpperCase()}`} size={S(22)} color={C.white} uiTransform={{ height: S(30) }} />
     </UiEntity>
   )
 }
