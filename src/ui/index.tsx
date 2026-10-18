@@ -3,6 +3,7 @@ import { Hud, Toast, StormBanner } from './hud'
 import { Dock, ShowUiButton } from './dock'
 import { SkillsPanel, BankPanel, WorkshopPanel, ForgePanel, ShopPanel, GuildPanel, AwayPanel } from './panels'
 import { HeroPanel } from './hero'
+import { AboutPanel } from './about'
 import { LevelUpBanner } from './levelUp'
 import { RareFindBanner } from './rareFind'
 import { WelcomePanel, shouldShowWelcome } from './guide'
@@ -22,6 +23,7 @@ function Root() {
       {ui.open === 'guild' ? <GuildPanel /> : null}
       {ui.open === 'away' ? <AwayPanel /> : null}
       {ui.open === 'hero' ? <HeroPanel /> : null}
+      {ui.open === 'about' ? <AboutPanel /> : null}
       {shouldShowWelcome() ? <WelcomePanel /> : null}
       <LevelUpBanner />
       <RareFindBanner />

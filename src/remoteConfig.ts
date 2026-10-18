@@ -13,7 +13,9 @@ export const remoteConfig = {
   /** Antrom Relics collection, once minted: item URNs by kind and whether each can be crafted right now. */
   relics: { collection: null as string | null, items: {} as Partial<Record<string, string>>, craftable: {} as Partial<Record<string, boolean>> },
   /** Live USD per 1 MANA (0 until the first quote). Assassin mint prices are USD-pegged and paid in MANA. */
-  manaUsd: 0
+  manaUsd: 0,
+  /** ABOUT window buttons. Discord comes from the server so the invite can change without a republish ('' hides the button). */
+  links: { discord: '', x: 'https://x.com/dcl_matt', tiktok: 'https://www.tiktok.com/@dcl_matt', ring: 'https://guildstone.dev/#ring' }
 }
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
@@ -45,6 +47,13 @@ export function refreshRemoteConfig() {
           collection: typeof r.collection === 'string' && r.collection ? r.collection.toLowerCase() : null,
           items: r.items && typeof r.items === 'object' ? Object.fromEntries(Object.entries(r.items as Record<string, unknown>).filter(([, v]) => typeof v === 'string').map(([k, v]) => [k, (v as string).toLowerCase()])) : {},
           craftable: r.craftable && typeof r.craftable === 'object' ? Object.fromEntries(Object.entries(r.craftable as Record<string, unknown>).map(([k, v]) => [k, v === true])) : {}
+        }
+      }
+      if (data.links && typeof data.links === 'object') {
+        const l = data.links as Partial<Record<keyof typeof remoteConfig.links, unknown>>
+        for (const k of Object.keys(remoteConfig.links) as Array<keyof typeof remoteConfig.links>) {
+          const v = l[k]
+          if (typeof v === 'string' && (v === '' || /^https:\/\//.test(v))) remoteConfig.links[k] = v
         }
       }
       remoteConfig.loaded = true

@@ -233,8 +233,11 @@ export function Hud() {
               </UiEntity>
             </UiEntity>
           </Panel>
-          {/* Wiki: guildstone.dev explains suits, materials and guilds. The client asks before opening the link. */}
-          <Button key="hud-wiki" label="WIKI" color={C.navySoft} textColor={C.yellow} size={S(18)} uiTransform={{ width: S(200), height: S(38), minWidth: 0, margin: { top: S(4) } }} onClick={() => openSite()} />
+          {/* Wiki: guildstone.dev explains suits, materials and guilds (the client asks before opening the link). About: who made the ring, how friends get one. */}
+          <UiEntity uiTransform={{ width: S(200), height: S(38), flexDirection: 'row', justifyContent: 'space-between', margin: { top: S(4) } }}>
+            <Button key="hud-wiki" label="WIKI" color={C.navySoft} textColor={C.yellow} size={S(18)} uiTransform={{ width: S(96), height: '100%', minWidth: 0 }} onClick={() => openSite()} />
+            <Button key="hud-about" label="ABOUT" color={ui.open === 'about' ? C.purple : C.navySoft} textColor={ui.open === 'about' ? C.white : C.yellow} size={S(18)} uiTransform={{ width: S(96), height: '100%', minWidth: 0 }} onClick={() => togglePanel('about')} />
+          </UiEntity>
         </UiEntity>
       )}
 
