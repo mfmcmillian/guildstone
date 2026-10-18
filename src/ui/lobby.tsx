@@ -18,6 +18,8 @@ import {
   settleComposer,
   mentionsMe,
   mentionPlayer,
+  mentionSuggestions,
+  completeMention,
   adminChat,
   canModerate,
   hasGuildChat,
@@ -158,7 +160,10 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   // Invites only matter on the lobby feed; the guild channel is members-only.
   const invites = guildChannel ? [] : lobby.invites.filter((i) => !dismissedInvites.has(i.guildId))
   const inviteH = invites.length > 0 ? 66 : 0
-  const feedH = props.height - 20 - inviteH - 64 - 10
+  // Suggestion strip for an unfinished @name; it takes its room from the feed.
+  const sug = mentionSuggestions(channel)
+  const sugH = sug.length > 0 ? 46 + 8 : 0
+  const feedH = props.height - 20 - inviteH - 64 - 10 - sugH
   // Newest at the bottom; walk back until the feed is full. Two lines for long messages, one otherwise.
   settleComposer(channel)
   const visible = st.messages.filter((m) => !lobby.muted.has(m.from))
@@ -223,6 +228,13 @@ function ChatColumn(props: { channel: Channel; height: number }) {
         )}
       </UiEntity>
 
+      {sug.length > 0 ? (
+        <UiEntity uiTransform={{ width: '100%', height: S(46), flexDirection: 'row', alignItems: 'center', margin: { top: S(8) } }}>
+          {sug.map((p) => (
+            <Button key={`sug-${p.address}`} label={`@${p.name}`} color={C.orange} textColor={C.navy} size={S(20)} pad={10} uiTransform={{ width: S(280), height: S(46), minWidth: 0, margin: { right: S(8) } }} onClick={() => completeMention(channel, p.name)} />
+          ))}
+        </UiEntity>
+      ) : null}
       <UiEntity uiTransform={{ width: '100%', height: S(64), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
         <Input
           key={`chat-input-${channel}-${st.draftKey}`}

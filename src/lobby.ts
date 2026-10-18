@@ -170,6 +170,22 @@ export function mentionPlayer(channel: Channel, name: string) {
   lobby.selected = null
 }
 
+/** Online names matching an unfinished "@xx" at the end of the composer (up to 4) for the suggestion strip. */
+export function mentionSuggestions(channel: Channel): OnlinePlayer[] {
+  const m = lobby.ch[channel].draft.match(/(?:^|\s)@([^\s@]{0,16})$/)
+  if (!m) return []
+  const q = m[1].toLowerCase()
+  const me = (profileState.walletAddress || '').toLowerCase()
+  const myGuildId = player.guild?.id ?? ''
+  return lobby.online.filter((p) => p.address !== me && (channel !== 'guild' || p.guild === myGuildId) && p.name.toLowerCase().startsWith(q)).slice(0, 4)
+}
+
+/** Replace the unfinished "@xx" at the end of the composer with "@Name " (remounts the box, see setDraft). */
+export function completeMention(channel: Channel, name: string) {
+  const st = lobby.ch[channel]
+  setDraft(channel, `${st.draft.replace(/@[^\s@]{0,16}$/, '')}@${name} `.slice(0, CHAT_TEXT_MAX))
+}
+
 export function pollLobby() {
   if (pollInFlight || profileState.status !== 'ready' || !profileState.walletAddress) return
   pollInFlight = true
