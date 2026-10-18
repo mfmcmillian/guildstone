@@ -435,9 +435,9 @@ export const BOARD_TITLE: Record<BoardId, string> = {
 
 export interface BoardRow { key: string; name: string; tag: string; value: string; mine: boolean }
 
-/** What an empty board says. Player boards hide zero rows, so RAID is empty until the first recorded raid ends. */
+/** What an empty board says. Player boards hide zero rows, so STORM is empty until the first ranked Storm ends. */
 export function boardEmptyText(id: BoardId): string {
-  if (id === 'raid') return 'No raids fought yet. Ring the bell in WAR to start one.'
+  if (id === 'raid') return 'No Storms fought yet. Enter the Storm in WAR to start one.'
   if (id === 'hq' || id === 'points' || id === 'weekly') return 'No guilds founded yet.'
   return 'Nothing here yet.'
 }

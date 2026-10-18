@@ -27,7 +27,7 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['CONFIRM?', 'CONFIRMER ?', '¿CONFIRMAR?', '确认？'],
   ['Loading...', 'Chargement...', 'Cargando...', '加载中...'],
   ['Nothing here yet.', 'Rien ici pour le moment.', 'Aún no hay nada aquí.', '这里还没有内容。'],
-  ['No raids fought yet. Ring the bell in WAR to start one.', 'Aucun raid livré pour le moment. Sonne la cloche dans GUERRE pour en lancer un.', 'Aún no se ha librado ningún asalto. Toca la campana en GUERRA para iniciar uno.', '还没有进行过任何突袭。在“战争”中敲响铃铛来发起一次。'],
+  ['No Storms fought yet. Enter the Storm in WAR to start one.', 'Aucune Tempête livrée pour l’instant. Entre dans la Tempête depuis GUERRE pour en lancer une.', 'Aún no se ha luchado ninguna Tormenta. Entra en la Tormenta desde GUERRA para empezar una.', '还没有风暴战斗。在 战争 页进入风暴来发起一场。'],
   ['No guilds founded yet.', 'Aucune guilde fondée pour le moment.', 'Aún no se ha fundado ningún gremio.', '还没有成立任何公会。'],
   ['FULL', 'PLEIN', 'LLENO', '已满'],
   ['LOCKED', 'VERROUILLÉ', 'BLOQUEADO', '已锁定'],
