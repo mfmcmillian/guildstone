@@ -181,12 +181,21 @@ export function mentionSuggestions(channel: Channel): OnlinePlayer[] {
 }
 
 /**
- * Replace the unfinished "@xx" at the end of the composer with "@Name ". Written in place (no remount) so the box keeps
- * keyboard focus: the renderer applies a changed non-empty `value`; only blanking needs the remount in setDraft.
+ * Turn unique "@xx" tokens into "@Name" using the online list (exact, then unique prefix). The SDK Input has no focus
+ * API, so a tap on a suggestion would drop the cursor; we expand on send instead and leave the box alone.
  */
-export function completeMention(channel: Channel, name: string) {
-  const st = lobby.ch[channel]
-  st.draft = `${st.draft.replace(/@[^\s@]{0,16}$/, '')}@${name} `.slice(0, CHAT_TEXT_MAX)
+export function expandMentions(channel: Channel, text: string): string {
+  const me = (profileState.walletAddress || '').toLowerCase()
+  const myGuildId = player.guild?.id ?? ''
+  const pool = lobby.online.filter((p) => p.address !== me && (channel !== 'guild' || p.guild === myGuildId))
+  return text.replace(/(^|\s)@([^\s@]{1,24})/g, (all, pre: string, q: string) => {
+    const ql = q.toLowerCase()
+    const exact = pool.find((p) => p.name.toLowerCase() === ql)
+    if (exact) return `${pre}@${exact.name}`
+    const prefix = pool.filter((p) => p.name.toLowerCase().startsWith(ql))
+    if (prefix.length === 1) return `${pre}@${prefix[0].name}`
+    return all
+  })
 }
 
 export function pollLobby() {
@@ -226,7 +235,7 @@ export function pollLobby() {
 
 export function sendChat(channel: Channel) {
   const st = lobby.ch[channel]
-  const text = st.draft.trim().slice(0, CHAT_TEXT_MAX)
+  const text = expandMentions(channel, st.draft).trim().slice(0, CHAT_TEXT_MAX)
   if (!text || st.sending || profileState.status !== 'ready' || !profileState.walletAddress) return
   if (channel === 'guild' && !hasGuildChat()) return
   st.sending = true

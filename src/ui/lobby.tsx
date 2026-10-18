@@ -20,7 +20,6 @@ import {
   mentionsMe,
   mentionPlayer,
   mentionSuggestions,
-  completeMention,
   adminChat,
   canModerate,
   hasGuildChat,
@@ -161,7 +160,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   // Invites only matter on the lobby feed; the guild channel is members-only.
   const invites = guildChannel ? [] : lobby.invites.filter((i) => !dismissedInvites.has(i.guildId))
   const inviteH = invites.length > 0 ? 66 : 0
-  // Suggestion strip for an unfinished @name; it takes its room from the feed.
+  // Preview of who an unfinished @name will tag on send. Not tappable: a click would drop the Input's cursor.
   const sug = mentionSuggestions(channel)
   const sugH = sug.length > 0 ? 46 + 8 : 0
   const feedH = props.height - 20 - inviteH - 64 - 10 - sugH
@@ -232,7 +231,9 @@ function ChatColumn(props: { channel: Channel; height: number }) {
       {sug.length > 0 ? (
         <UiEntity uiTransform={{ width: '100%', height: S(46), flexDirection: 'row', alignItems: 'center', margin: { top: S(8) } }}>
           {sug.map((p) => (
-            <Button key={`sug-${p.address}`} label={`@${p.name}`} color={Color4.create(0.05, 0.05, 0.07, 0.95)} textColor={C.green} size={S(20)} pad={10} uiTransform={{ width: S(280), height: S(46), minWidth: 0, margin: { right: S(8) } }} onClick={() => completeMention(channel, p.name)} />
+            <UiEntity key={`sug-${p.address}`} uiTransform={{ width: S(280), height: S(46), minWidth: 0, margin: { right: S(8) }, alignItems: 'center', justifyContent: 'center', padding: { left: S(10), right: S(10) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.05, 0.05, 0.07, 0.95) }}>
+              <Text value={`@${p.name}`} size={S(20)} color={C.green} nowrap uiTransform={{ width: '100%', height: S(30) }} />
+            </UiEntity>
           ))}
         </UiEntity>
       ) : null}
