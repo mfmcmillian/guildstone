@@ -74,9 +74,11 @@ Five points at fixed positions over a painted background (`battlefield_v1.jpg`),
 | Quarry | +1 | 15 % | 30, 74 |
 | Bone Shrine | +1 | 15 % | 70, 71 |
 
-Max 6 points a tick, 480 for a perfect 80-tick raid. Offline sims of a mixed team vs Wraiths land around 150–220 a side; contesting a building denies its pips to both sides, so a fighter who keeps walking back into a held Citadel is still worth points.
+**Capture and hold.** A building's flag belongs to a team until the other team takes it. Standing in a building alone for `captureTicks` ticks in a row (2 = 6 s) flips the flag; from then on it pays its holder every tick **whether or not anyone is standing in it**, so a 2v2 can spread out and own three or four buildings. The enemy takes it back the same way: stand there alone for two clean ticks. While a capture is under way, and whenever both sides stand in a building, it pays nobody; a defender walking in resets the attacker's progress. The marker reads `[TAG] · held` when a flag stands with nobody home and `[TAG] · Name  ·  taking 1/2` while it is being taken.
 
-**Armour** reduces damage taken by the side that *held* the point at the previous tick (the defenders). Attackers inside take full damage. Who held what is recomputed every tick (§5 step 3).
+Max 6 points a tick, 480 for a perfect 80-tick raid. Offline sims of a mixed team vs roaming Wraiths land around 140–170 a side; contesting a building denies its pips to both sides, so a fighter who keeps walking back into a held Citadel is still worth points.
+
+**Armour** reduces damage taken by the side whose flag is on the point (the defenders). Attackers inside take full damage. Flags are updated every tick (§5 step 3).
 
 ## 5. Movement and the tick
 
@@ -92,7 +94,7 @@ Every 3 s (`tickMs`) the server runs a tick, in this order:
 
 1. **Arrivals** land (walkers whose arrival time ≤ tick time become `in`; knocked-out walkers who reach camp revive).
 2. **Damage** at every point where both sides stand: each side's total ATK is dealt to the enemy fighters at that point, split evenly. Defenders (the side that held the point last tick) take `× (1 − armour)`. Fighters at 0 HP are knocked out and start the slow walk home.
-3. **Scoring**: a point with exactly one side standing pays that side its pips and records that side as the holder. Contested (both standing) pays nobody and the holder is unchanged. Empty pays nobody and clears the holder.
+3. **Scoring**: a point pays its pips to the team whose flag is on it, empty or garrisoned. If only the *other* team is standing there, the point pays nobody and their capture count rises by one (`cap[point] = { side, n }`); at `captureTicks` the flag flips, the count clears and the point pays the new holder that same tick. Contested (both standing) pays nobody, keeps the flag and clears any capture count. A point nobody has taken yet pays nobody.
 4. **Participation**: every fighter in the raid (any state) gets +1 tick toward Valor.
 
 So the side that drops the last defender scores the point from the *next* tick.
@@ -130,7 +132,7 @@ The weekly event: guild vs guild, 4 a side, for bragging rights and a resource p
 
 ## 7. Wraiths
 
-Wraiths only appear in pickup raids, and only to even out an odd count (one Wraith on the short side, a copy of one fighter's stats from the other side, named Wraith Blade / Shade / Howl / Fang). Test raids (§14) are the exception: a tester alone gets a full mirror side. Wraiths take their first orders at the end of tick 1 (one clash after the start), so a caller who clicks at once can hold the Citadel first. Wraith AI per tick: the first two go to the Citadel, the rest to the unheld corner with the fewest Wraiths; a knocked-out Wraith re-picks on revive, preferring an enemy-held point it can out-ATK, else the Citadel. A Wraith scores and pays Valor for its side like any fighter; it earns none itself.
+Wraiths only appear in pickup raids, and only to even out an odd count (one Wraith on the short side, a copy of one fighter's stats from the other side, named Wraith Blade / Shade / Howl / Fang). Test raids (§14) are the exception: a tester alone gets a full mirror side. Wraiths take their first orders at the end of tick 1 (one clash after the start), so a caller who clicks at once can hold the Citadel first. Wraith AI per tick: the first two go to the Citadel and stay; the rest go to the corner with the fewest Wraiths heading there, preferring an enemy flag with nobody guarding it over a neutral one and avoiding corners they already hold. A Wraith standing alone in a corner it has taken moves on to the next target (the flag stays), so the pack keeps retaking; a knocked-out Wraith re-picks on revive, preferring an enemy-held point it can out-ATK, else the Citadel. A Wraith scores and pays Valor for its side like any fighter; it earns none itself.
 
 ## 8. End, rewards, record
 
@@ -152,7 +154,8 @@ Valor has no spend in MVP1. Candidates: banner frames, titles, a Valor leaderboa
 { id, gameId: 'antrom-afk-raid', status: 'gathering'|'live'|'done'|'cancelled',
   createdAt, by, gatherUntil, startAt, endAt, tick, nextTickAt,
   sides: { a: Side, b: Side|null },  // a = caller, b = answerer or Wraiths
-  held:  { watchtower: 'a'|'b'|null, ... },
+  held:  { watchtower: 'a'|'b'|null, ... },           // flags; persist while empty
+  cap:   { watchtower: { side, n } | null, ... },     // capture under way by the non-holder
   score: { a, b },
   feed:  [{ at, text }]  (last 14),
   result: { winner: 'a'|'b'|'draw', valor: { [wallet]: n } } | null }
@@ -210,7 +213,7 @@ Clicks dip and play the button sound like every other control.
 
 ## 13. Numbers to tune (live, from the control dashboard)
 
-Defaults: `tickMs 3000`, `ticks 80` (4 min; was 15 s × 20, then 100 × 3 s), `gatherMs 120000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 20000` (was 30000), `sideMax 4`, `sideMin 2`, `pickupMin 4`, `raidsPerDay 5` (per player, pickup), armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
+Defaults: `tickMs 3000`, `ticks 80` (4 min; was 15 s × 20, then 100 × 3 s), `gatherMs 120000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 20000` (was 30000), `sideMax 4`, `sideMin 2`, `pickupMin 4`, `raidsPerDay 5` (per player, pickup), `captureTicks 2`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
 
 Guild Battle (`battle`): `enabled true`, `weekday 3`, `hour 21`, `minute 0`, `tz America/New_York`, `windowMs 7200000`, `readyMs 60000`, `teamSize 4`, `pointsMult 3`, `reward.win { wood 300, rock 300, meat 150, bone 150 }`, `reward.lose { 150, 150, 75, 75 }`.
 
