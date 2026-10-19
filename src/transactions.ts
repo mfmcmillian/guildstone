@@ -5,6 +5,7 @@ import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
 import { HEROES, HERO_STAT_LABEL, heroLevel, sanitizeHeroes, sanitizeHeroId, type HeroId, type HeroStat } from './hero'
 import { settings } from './settings'
+import { social, seedSocial, NICK_MAX } from './social'
 import { setLanguage, t, type Language } from './i18n'
 import type { UiLayout } from './ui/drag'
 import { isServer } from '@dcl/sdk/network'
@@ -1055,6 +1056,63 @@ export function setLanguagePref(code: Language) {
       console.error('[transaction] Language failed:', error instanceof Error ? error.message : String(error))
     }
   })
+}
+
+// ---- Nicknames & friends (social.ts holds the maps) ------------------------------------------------------------------
+/** Local now, server after. Polls carrying older maps are ignored for a moment so the card never flips back. */
+const SOCIAL_HOLD_MS = 6000
+
+async function saveSocial(body: Record<string, unknown>, what: string, revert: () => void) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || !settings.seeded) return
+  social.holdUntil = Date.now() + SOCIAL_HOLD_MS
+  try {
+    const response = await signedFetch({
+      url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/settings`,
+      init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    })
+    if (!response.ok) {
+      let message = `${what} failed (${response.status})`
+      try { message = (JSON.parse(response.body) as { error?: string }).error ?? message } catch { /* keep default */ }
+      throw new Error(message)
+    }
+    // The server answers with the whole settings block; take its maps so two rings on one wallet agree.
+    const saved = JSON.parse(response.body) as { settings?: { nicknames?: Record<string, string>; friends?: Record<string, number> } }
+    if (saved.settings) seedSocial(saved.settings)
+  } catch (error) {
+    revert()
+    playErrorSound()
+    flash((error instanceof Error ? error.message : `${what} failed`).toUpperCase())
+    console.error(`[transaction] ${what} failed:`, error instanceof Error ? error.message : String(error))
+  }
+}
+
+/** Label a player for myself. '' removes the nickname. Applies on this frame; the server copy follows. */
+export function setNickname(address: string, name: string) {
+  const key = address.toLowerCase()
+  const nick = name.replace(/\s+/g, ' ').trim().slice(0, NICK_MAX)
+  const before = social.nicknames[key]
+  if ((before ?? '') === nick) return
+  if (nick) social.nicknames[key] = nick
+  else delete social.nicknames[key]
+  playSuccessSound()
+  executeTask(() => saveSocial({ nick: { address: key, name: nick } }, 'Nickname', () => {
+    if (before) social.nicknames[key] = before
+    else delete social.nicknames[key]
+  }))
+}
+
+/** Add or remove a player from my friends list (mine only; they are not asked). */
+export function setFriend(address: string, on: boolean) {
+  const key = address.toLowerCase()
+  const before = social.friends[key]
+  if (on === (before !== undefined)) return
+  if (on) social.friends[key] = Date.now()
+  else delete social.friends[key]
+  playSuccessSound()
+  executeTask(() => saveSocial({ friend: { address: key, on } }, on ? 'Add friend' : 'Remove friend', () => {
+    if (before !== undefined) social.friends[key] = before
+    else delete social.friends[key]
+  }))
 }
 
 const KOA_LANGUAGE: Record<string, Language> = { English: 'en', French: 'fr', Spanish: 'es', Chinese: 'zh' }

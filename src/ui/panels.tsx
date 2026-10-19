@@ -5,6 +5,7 @@ import { C, TEX, SLICE_128, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal, CONTENT_W } from './responsive'
 import { LobbyTab, RankingsTab, resetLobbyView } from './lobby'
+import { labelFor } from '../social'
 import { WarScreen, resetWarTab } from './raid'
 import { DragId, dragOffsetPx, startDrag } from './drag'
 import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
@@ -1252,6 +1253,8 @@ function seedGuildForm() {
 function shortWallet(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
+/** A guildmate's name on the roster, with my private nickname in front when I set one ("Nick (RealName)"). */
+const memberLabel = (guild: GuildInfo, id: string) => labelFor(id, guild.memberNames?.[id] || shortWallet(id))
 
 const GUILD_TECH_ICON: Record<GuildTechKey, string> = {
   woodBoost: RESOURCE_INFO.wood.icon,
@@ -1404,7 +1407,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
     .sort((a, b) => {
       const rankDiff = (GUILD_ROLE_RANK[guildRole(guild, a)] ?? 9) - (GUILD_ROLE_RANK[guildRole(guild, b)] ?? 9)
       if (rankDiff !== 0) return rankDiff
-      return (guild.memberNames?.[a] || a).localeCompare(guild.memberNames?.[b] || b)
+      return memberLabel(guild, a).localeCompare(memberLabel(guild, b))
     })
 
   return (
@@ -1499,7 +1502,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
               <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(100), flexDirection: 'row', alignItems: 'center', padding: { left: S(18), right: S(18) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
                 <Icon src={isCrownHolder(id) ? 'images/icons/guild/crown_small.png' : guildRoleIcon(role)} size={S(64)} uiTransform={{ margin: { right: S(8) } }} />
                 <UiEntity uiTransform={{ width: S(220), flexDirection: 'column' }}>
-                  <Text value={withVip(guild.memberNames?.[id] || shortWallet(id), vipOf(id))} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(34) }} />
+                  <Text value={withVip(memberLabel(guild, id), vipOf(id))} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(34) }} />
                   <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(22)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(28) }} />
                 </UiEntity>
                 <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1753,7 +1756,7 @@ export function GuildPanel() {
                         if (rankDiff !== 0) return rankDiff
                         if (a === wallet) return -1
                         if (b === wallet) return 1
-                        return (guild.memberNames?.[a] || a).localeCompare(guild.memberNames?.[b] || b)
+                        return memberLabel(guild, a).localeCompare(memberLabel(guild, b))
                       })
                       .map((id) => {
                         const role = guildRole(guild, id)
@@ -1772,7 +1775,7 @@ export function GuildPanel() {
                             {/* Rank as an icon, not a word: a text label next to a nowrap name overlapped it. Your own row is the purple highlight. */}
                             <Icon src={guildRoleIcon(role)} size={S(26)} uiTransform={{ flexShrink: 0, margin: { right: S(6) } }} />
                             <Text
-                              value={withVip(guild.memberNames?.[id] || shortWallet(id), vipOf(id))}
+                              value={withVip(memberLabel(guild, id), vipOf(id))}
                               size={S(22)}
                               color={isYou ? C.purple : role === 'member' ? C.text : guildRoleColor(role)}
                               align="middle-left"
@@ -1787,7 +1790,7 @@ export function GuildPanel() {
                   {/* Footer doubles as the roster tooltip: hovering a row shows that member's last contribution instead of the legend. */}
                   {rosterHover && guild.memberIds.includes(rosterHover) ? (
                     <Text
-                      value={`${guild.memberNames?.[rosterHover] || shortWallet(rosterHover)}  •  ${lastContributedText(guild.contributions?.[rosterHover]?.lastAt)}  •  ${guild.contributions?.[rosterHover]?.points ?? 0} points`}
+                      value={`${memberLabel(guild, rosterHover)}  •  ${lastContributedText(guild.contributions?.[rosterHover]?.lastAt)}  •  ${guild.contributions?.[rosterHover]?.points ?? 0} points`}
                       size={S(20)}
                       color={C.text}
                       align="middle-left"
@@ -1815,7 +1818,7 @@ export function GuildPanel() {
                           uiBackground={isYou ? { color: Color4.create(0.55, 0.35, 0.95, 0.18) } : undefined}
                         >
                           <OutlinedText value={`${index + 1}`} size={S(24)} color={index === 0 ? C.gold : index < 3 ? C.orange : C.textMuted} uiTransform={{ width: S(44) }} />
-                          <Text value={withVip(guild.memberNames?.[id] || shortWallet(id), vipOf(id))} size={S(22)} color={isYou ? C.purple : C.text} align="middle-left" nowrap uiTransform={{ width: S(300), overflow: 'hidden' }} />
+                          <Text value={withVip(memberLabel(guild, id), vipOf(id))} size={S(22)} color={isYou ? C.purple : C.text} align="middle-left" nowrap uiTransform={{ width: S(300), overflow: 'hidden' }} />
                           <Text value={`${entry.points}`} size={S(24)} color={C.greenDark} align="middle-right" uiTransform={{ width: S(160) }} />
                         </UiEntity>
                       )
@@ -1838,7 +1841,7 @@ export function GuildPanel() {
                   ) : (
                     recentEvents.map((event, index) => {
                       const highlight = event.type === 'hq' || event.type === 'techUp'
-                      const who = event.by === wallet ? 'You' : guild.memberNames?.[event.by] || shortWallet(event.by)
+                      const who = event.by === wallet ? 'You' : memberLabel(guild, event.by)
                       return (
                         <UiEntity key={`${event.at}-${index}`} uiTransform={{ width: '100%', flexDirection: 'column', margin: { top: S(6) } }}>
                           <Text

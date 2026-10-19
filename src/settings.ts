@@ -4,6 +4,7 @@
  * The save itself lives in `transactions.ts` (signed POST); this module only holds the values.
  */
 import { isLanguage, setLanguage, type Language } from './i18n'
+import { seedSocial, type SocialSettings } from './social'
 
 export const settings = {
   /**
@@ -18,7 +19,7 @@ export const settings = {
   languageSeeded: false
 }
 
-export interface ProfileSettings {
+export interface ProfileSettings extends SocialSettings {
   alerts?: boolean
   /** UI language (i18n.ts). Unset = never chose one: the ring then adopts the KoA choice if there is one. */
   language?: string
@@ -30,6 +31,7 @@ export interface ProfileSettings {
 export function seedSettings(raw: ProfileSettings | undefined): boolean {
   settings.alerts = raw?.alerts !== false
   settings.seeded = true
+  seedSocial(raw)
   const chosen = isLanguage(raw?.language)
   if (chosen) setLanguage(raw!.language as Language)
   settings.languageSeeded = chosen

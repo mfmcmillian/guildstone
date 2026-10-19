@@ -13,6 +13,8 @@ import { HEROES, sanitizeHeroId } from './hero'
 import { noteMailSummary } from './mail'
 import { t } from './i18n'
 import { settings } from './settings'
+import { labelFor, seedSocial, type SocialSettings } from './social'
+import { CLIENT_VERSION } from './version'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 /** Poll cadence while the LOBBY tab is on screen; nothing is fetched otherwise. */
@@ -79,6 +81,8 @@ export interface OnlinePlayer {
   /** Skill being worked right now ('' when idle). */
   working: string
   active: number
+  /** Only on friends-list entries: wearing the ring right now. (Everyone in `lobby.online` is.) */
+  online?: boolean
 }
 export interface GuildInvite { guildId: string; tag: string; name: string; byName: string; at: number }
 
@@ -103,6 +107,8 @@ export const lobby = {
   /** Whisper threads by the other player's wallet, and the one open in the side column (null: the online list). */
   dm: { threads: {} as Record<string, WhisperThread>, open: null as string | null },
   online: [] as OnlinePlayer[],
+  /** My friends list from the server, online first; `online` says who is on. Offline friends carry their last `active`. */
+  friends: [] as OnlinePlayer[],
   invites: [] as GuildInvite[],
   admin: false,
   loadedOnce: false,
@@ -179,7 +185,7 @@ function mergeChannel(channel: Channel, incoming: ChatMessage[], keep: number) {
   const called = news.find((m) => mentionsMe(m))
   if (called && settings.alerts) {
     playRareFindSound()
-    if (lobby.showing !== channel) notify(`${called.name.toUpperCase()} MENTIONED YOU IN ${channel === 'guild' ? 'GUILD CHAT' : 'THE LOBBY'}`, 4000)
+    if (lobby.showing !== channel) notify(`${labelFor(called.from, called.name).toUpperCase()} MENTIONED YOU IN ${channel === 'guild' ? 'GUILD CHAT' : 'THE LOBBY'}`, 4000)
   }
   st.messages = [...st.messages, ...fresh].slice(-keep)
   st.lastAt = Math.max(st.lastAt, ...incoming.map((m) => m.at))
@@ -211,7 +217,7 @@ function mergeWhispers(incoming: ChatMessage[]) {
       th.unread = Math.min(99, th.unread + 1)
       if (settings.alerts) {
         playRareFindSound()
-        notify(`${th.name.toUpperCase()} WHISPERED YOU`, 4000)
+        notify(`${labelFor(th.address, th.name).toUpperCase()} WHISPERED YOU`, 4000)
       }
     }
   }
@@ -299,7 +305,7 @@ export function pollLobby() {
     try {
       const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/lobby?since=${lobby.ch.all.lastAt}&gsince=${lobby.ch.guild.lastAt}`, init: { method: 'GET', headers: {} } })
       if (!response.ok) throw new Error(`Lobby poll failed (${response.status})`)
-      const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; guild?: { id: string; messages: ChatMessage[] } | null; online: OnlinePlayer[]; invites: GuildInvite[]; storm?: StormInfo | null; mail?: unknown; admin: boolean }
+      const body = JSON.parse(response.body) as { now: number; messages: ChatMessage[]; guild?: { id: string; messages: ChatMessage[] } | null; online: OnlinePlayer[]; friends?: OnlinePlayer[]; social?: SocialSettings; invites: GuildInvite[]; storm?: StormInfo | null; mail?: unknown; admin: boolean }
       if (typeof body.now === 'number') lobby.clockOffset = body.now - Date.now()
       noteStorm(body.storm && typeof body.storm.id === 'string' && (body.storm.status === 'gathering' || body.storm.status === 'live') ? body.storm : null)
       if (Array.isArray(body.messages)) {
@@ -318,6 +324,9 @@ export function pollLobby() {
         lobby.ch.guild = channelState()
       }
       lobby.online = Array.isArray(body.online) ? body.online : []
+      lobby.friends = Array.isArray(body.friends) ? body.friends : []
+      // Nicknames and the friends map ride the poll too, so a change made on another device shows up here.
+      if (body.social) seedSocial(body.social, true)
       lobby.invites = Array.isArray(body.invites) ? body.invites : []
       lobby.admin = body.admin === true
       // Mail rides this poll: unread count for the MAIL badge, newest arrival for the chime.
@@ -467,7 +476,6 @@ export const BUG_TEXT_MAX = 500
 /** Client-side pause between reports; the server also caps at 3 per wallet per day. */
 const BUG_COOLDOWN_MS = 60_000
 const BUG_THANKS_MS = 4000
-const CLIENT_VERSION = '0.2.0'
 
 export const bug = {
   /** The card is collapsed to one button until tapped; collapsing unmounts the Input, which is how it gets cleared. */
@@ -600,7 +608,7 @@ export function boardRows(id: BoardId, limit = 15): BoardRow[] {
     .filter((p) => value(p) > 0)
     .sort((a, b) => value(b) - value(a))
     .slice(0, limit)
-    .map((p) => ({ key: p.address, name: withVip(p.name, p.vip), tag: tagOf[p.guild] ?? '', value: show(p), mine: p.address === me }))
+    .map((p) => ({ key: p.address, name: withVip(labelFor(p.address, p.name), p.vip), tag: tagOf[p.guild] ?? '', value: show(p), mine: p.address === me }))
 }
 
 const raidValor = (p: BoardPlayer) => Math.max(0, Math.floor(Number(p.raid?.valor) || 0))
