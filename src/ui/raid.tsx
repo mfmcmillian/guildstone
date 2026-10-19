@@ -10,6 +10,7 @@ import { dragOffsetPx, startDrag } from './drag'
 import { player } from '../state'
 import { sanitizeHeroId } from '../hero'
 import { withVip } from '../vip'
+import { VipName } from './vipName'
 import {
   BoardEntry, Fighter, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId,
   fighterName, myFighter, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestSkip,
@@ -317,7 +318,7 @@ function FighterCard(props: { key?: string; v: RaidView; side: SideId; f: Fighte
     <UiEntity uiTransform={{ width: S(ROSTER_W), height: S(CARD_H), margin: { bottom: S(CARD_GAP) }, padding: S(3) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: border }}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', padding: { left: S(12), right: S(12), top: S(8) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: DARK }}>
         <UiEntity uiTransform={{ width: '100%', height: S(30), flexDirection: 'row', alignItems: 'center' }}>
-          <Text value={withVip(you ? `${f.name} (you)` : fighterName(v, f), f.vip)} size={S(24)} color={C.white} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(30), overflow: 'hidden' }} />
+          <VipName name={you ? `${f.name} (you)` : fighterName(v, f)} level={f.vip} size={S(24)} color={C.white} raw={false} uiTransform={{ flexGrow: 1, height: S(30), overflow: 'hidden' }} />
         </UiEntity>
         <Bar value={f.hp / f.hpMax} color={hpColor(f)} height={S(14)} uiTransform={{ margin: { top: S(4), bottom: S(4) } }} />
         <UiEntity uiTransform={{ width: '100%', height: S(26), flexDirection: 'row', alignItems: 'center' }}>
@@ -549,7 +550,7 @@ function ResultColumn(props: { key?: string; v: RaidView; side: SideId }) {
         const c = you ? C.white : Color4.create(0.85, 0.82, 0.95, 1)
         return (
           <UiEntity key={`res-${side}-${f.id}`} uiTransform={{ width: '100%', height: S(34), flexDirection: 'row', alignItems: 'center' }} uiBackground={you ? { textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(0.64, 0.35, 1, 0.35) } : undefined}>
-            <Text value={withVip(you ? `${f.name} (you)` : fighterName(v, f), f.vip)} size={S(22)} color={c} nowrap align="middle-left" uiTransform={{ width: S(RES_COLS.name), height: S(32), padding: { left: S(10) }, overflow: 'hidden' }} />
+            <VipName name={you ? `${f.name} (you)` : fighterName(v, f)} level={f.vip} size={S(22)} color={c} raw={false} uiTransform={{ width: S(RES_COLS.name), height: S(32), padding: { left: S(10) }, overflow: 'hidden' }} />
             {cell(String(f.dealt), RES_COLS.dealt, c)}
             {cell(String(f.taken), RES_COLS.taken, c)}
             {cell(String(f.kos), RES_COLS.kos, c)}

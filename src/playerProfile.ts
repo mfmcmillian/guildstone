@@ -115,6 +115,9 @@ export interface AfkPlayerProfile {
   uiLayout?: Partial<Record<string, { x?: number; y?: number }>>
   /** A MANA pack payment the server saw but couldn't settle yet (tx not mined when we asked). See packs.ts. */
   pendingManaPurchase?: { txHash?: string; sku?: string; at?: number } | null
+  /** VIP level 0..10 cached by the server (src/vip.ts) and the shop-purchase points behind it. */
+  vip?: number
+  vipPoints?: number
   legacyGuildMigrationVersion?: number
   legacyGuildImportedAt?: number
   legacyStorageMigrationVersion?: number

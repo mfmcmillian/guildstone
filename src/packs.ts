@@ -20,6 +20,7 @@ import { profileState, type StorageData } from './playerProfile'
 import { player, flash, notify, type BaseResource } from './state'
 import { sanitizeStorage } from './backpackPersistence'
 import { playBoostSound, playErrorSound } from './uiSounds'
+import { cleanVip } from './vip'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 /** Polygon MANA; the catalog repeats it and we refuse to send if they ever disagree. */
@@ -85,8 +86,55 @@ export const packs = {
   history: [] as Receipt[],
   historyStatus: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
   historyAt: 0,
-  /** The last credited pack, for the delivery banner (at = 0 once dismissed). */
-  celebration: { at: 0, pack: null as Pack | null }
+  /** The last credited pack, for the delivery banner (at = 0 once dismissed). `vipGained` points came with it. */
+  celebration: { at: 0, pack: null as Pack | null, vipGained: 0, vipLevelUp: false }
+}
+
+/** One row of the tier table the server sends (afkVip.js vipSummary). */
+export type VipTier = { level: number; name: string; min: number; gatherPct: number; bagPct: number }
+/** The VIP tab's data: combined score = KoA wearables (`koa`) + ring purchases (`points`). */
+export const vip = {
+  status: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
+  level: 0,
+  score: 0,
+  koa: 0,
+  points: 0,
+  next: null as { level: number; min: number } | null,
+  tiers: [] as VipTier[],
+  loadedAt: 0
+}
+let vipInFlight = false
+
+/** Level, score parts and the perk table for the VIP tab; cheap no-op while fresh (called every render of that tab). */
+export function refreshVip(force = false) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || vipInFlight) return
+  const now = Date.now()
+  if (!force && vip.status === 'ready' && now - vip.loadedAt < CATALOG_TTL_MS) return
+  if (!force && vip.status === 'error' && now - vip.loadedAt < RETRY_GAP_MS) return
+  vipInFlight = true
+  if (vip.status !== 'ready') vip.status = 'loading'
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/vip`, init: { method: 'GET', headers: {} } })
+      if (!response.ok) throw new Error(`vip ${response.status}`)
+      const body = JSON.parse(response.body) as Partial<typeof vip>
+      const n0 = (v: unknown) => (Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0)
+      vip.level = cleanVip(body.level)
+      vip.score = n0(body.score)
+      vip.koa = n0(body.koa)
+      vip.points = n0(body.points)
+      vip.next = body.next && Number.isFinite(Number(body.next.min)) ? { level: cleanVip(body.next.level), min: n0(body.next.min) } : null
+      vip.tiers = Array.isArray(body.tiers) ? body.tiers.filter((t) => t && Number.isFinite(Number(t.min))).map((t) => ({ level: cleanVip(t.level), name: String(t.name || ''), min: n0(t.min), gatherPct: n0(t.gatherPct), bagPct: n0(t.bagPct) })) : []
+      player.vip = vip.level
+      vip.status = 'ready'
+    } catch (error) {
+      vip.status = 'error'
+      console.error('[packs] vip failed:', error instanceof Error ? error.message : String(error))
+    } finally {
+      vip.loadedAt = Date.now()
+      vipInFlight = false
+    }
+  })
 }
 
 export const packById = (id: string): Pack | undefined => packs.list.find((p) => p.id === id)
@@ -250,11 +298,12 @@ async function verify(pending: PendingPurchase) {
         playBoostSound()
         const pack = packById(pending.sku)
         finish(true, pack ? `+${pack.units.toLocaleString('en-US')} ${pack.resource === 'all' ? 'OF EACH RESOURCE' : pack.resource.toUpperCase()} IN STORAGE` : 'PACK CREDITED')
-        // The delivery banner, then fresh balance / windows / receipts.
-        packs.celebration = { at: Date.now(), pack: pack ?? null }
+        // The delivery banner, then fresh balance / windows / receipts / VIP.
+        packs.celebration = { at: Date.now(), pack: pack ?? null, vipGained: lastVipGained, vipLevelUp: lastVipLevelUp }
         packs.loadedAt = 0
         refreshPacks(true)
         refreshHistory(true)
+        refreshVip(true)
         return
       }
       if (outcome === 'failed') { finish(false, 'TRANSACTION FAILED ON-CHAIN - NOTHING WAS CHARGED'); return }
@@ -273,6 +322,9 @@ async function verify(pending: PendingPurchase) {
 }
 
 type Outcome = 'credited' | 'pending' | 'failed' | 'mismatch' | 'rejected'
+/** VIP points / level-up from the last credited answer, for the delivery banner. */
+let lastVipGained = 0
+let lastVipLevelUp = false
 
 /** One round-trip to the server. Network errors count as `pending` (we still hold the hash, so we just ask again). */
 async function settle(pending: PendingPurchase): Promise<Outcome> {
@@ -281,11 +333,18 @@ async function settle(pending: PendingPurchase): Promise<Outcome> {
       url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs/purchase`,
       init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ txHash: pending.txHash, sku: pending.sku }) }
     })
-    const body = response.body ? (JSON.parse(response.body) as { status?: string; error?: string; storage?: StorageData }) : {}
+    const body = response.body ? (JSON.parse(response.body) as { status?: string; error?: string; storage?: StorageData; vip?: { level?: number; points?: number; gained?: number; levelUp?: boolean } }) : {}
     if (response.status === 202 || body.status === 'pending') return 'pending'
     if (response.status >= 500) return 'pending'
     if (body.status === 'credited') {
       if (body.storage) player.storage = sanitizeStorage(body.storage)
+      lastVipGained = Math.max(0, Math.floor(Number(body.vip?.gained) || 0))
+      lastVipLevelUp = body.vip?.levelUp === true
+      if (body.vip && Number.isFinite(Number(body.vip.level))) {
+        player.vip = cleanVip(body.vip.level)
+        vip.level = player.vip
+        vip.points = Math.max(0, Math.floor(Number(body.vip.points) || 0))
+      }
       // The window is used up the moment it credits; the next catalog fetch confirms it.
       if (pending.sku && packs.list.some((p) => p.id === pending.sku && p.window !== 'none')) packs.bought = { ...packs.bought, [pending.sku]: true }
       return 'credited'

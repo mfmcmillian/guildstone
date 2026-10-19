@@ -2,6 +2,7 @@
 import { settings } from './settings'
 import type { GuildRaidSummary } from './raid'
 import { emptyHeroes, DEFAULT_HERO, type HeroId } from './hero'
+import { vipBagPct, vipGatherPct } from './vip'
 
 export type BaseResource = 'wood' | 'rock' | 'meat' | 'bone'
 export type Material = 'plank' | 'brick' | 'jerky' | 'bonedust'
@@ -360,6 +361,8 @@ export const player = {
   heroes: emptyHeroes(),
   /** The hero that fights in raids. */
   hero: DEFAULT_HERO as HeroId,
+  /** VIP level 0..10 (src/vip.ts), cached by the server; feeds gatherMult/backpackCap like the server does. */
+  vip: 0,
   activeZone: null as ZoneId | null,
   workProgress: 0, // 0..1 within the current cycle
   perfectStreak: 0,
@@ -492,7 +495,7 @@ export function backpackGrowthPct(): number {
 
 /** One shared backpack: flat cap scaled by mastery/tool growth. */
 export function backpackCap(): number {
-  return Math.round(backpackFlatCap() * (1 + backpackGrowthPct()))
+  return Math.round(backpackFlatCap() * (1 + backpackGrowthPct()) * (1 + vipBagPct(player.vip)))
 }
 
 export function backpackFull(): boolean {
@@ -511,7 +514,8 @@ export function gatherMult(skill: Skill): number {
   const ration = player.rationUntil > Date.now() ? 1.5 : 1
   const resource = SKILL_INFO[skill].resource
   const guildPct = player.guild?.bonuses[`${resource}Pct` as keyof NonNullable<GuildInfo['bonuses']>] ?? 0
-  return base * ration * (1 + guildPct) * (1 + masteryYieldPct(player.mastery[skill].level)) * (1 + toolPct(skill)) * (1 + levelYieldPct(player.skills[skill].level))
+  // VIP adds to the resource % like a guild tech does (server: afkYieldFloat gets guild% + vipGatherPct).
+  return base * ration * (1 + guildPct + vipGatherPct(player.vip)) * (1 + masteryYieldPct(player.mastery[skill].level)) * (1 + toolPct(skill)) * (1 + levelYieldPct(player.skills[skill].level))
 }
 
 /** "3.75" / "4" for HUD labels. */

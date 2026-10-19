@@ -1,6 +1,7 @@
 import { engine, executeTask } from '@dcl/sdk/ecs'
 import { isServer } from '@dcl/sdk/network'
 import { seedSettings } from './settings'
+import { cleanVip } from './vip'
 import { onLayoutChanged, seedLayout } from './ui/drag'
 import {
   BackpackData,
@@ -186,6 +187,7 @@ export function initializeBackpackPersistence() {
     player.tools = sanitizeTools(profileState.profile.tools)
     player.heroes = sanitizeHeroes(profileState.profile.heroes)
     player.hero = sanitizeHeroId(profileState.profile.hero)
+    player.vip = cleanVip(profileState.profile.vip)
     player.equippedAssassinPieces = player.skills.assassin.suit > 0 ? sanitizeAssassinPieces(profileState.profile.equippedSuits?.assassin) : []
     const boosts = sanitizeBoosts(profileState.profile.boosts)
     player.rationUntil = boosts.rationUntil

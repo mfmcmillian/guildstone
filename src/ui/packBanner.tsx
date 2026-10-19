@@ -5,7 +5,8 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128 } from './theme'
 import { OutlinedText, Icon, CloseButton } from './components'
-import { BASE_RESOURCES, RESOURCE_INFO } from '../state'
+import { BASE_RESOURCES, RESOURCE_INFO, player } from '../state'
+import { vipColor } from '../vip'
 import { packs } from '../packs'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { ui } from './uiState'
@@ -14,7 +15,7 @@ const SHOW_SECS = 5
 const POP_SECS = 0.45
 const FADE_SECS = 0.6
 
-const dismiss = () => { packs.celebration = { at: 0, pack: null } }
+const dismiss = () => { packs.celebration = { at: 0, pack: null, vipGained: 0, vipLevelUp: false } }
 
 function easeOutBack(t: number): number {
   const c1 = 1.70158
@@ -85,10 +86,11 @@ export function Confetti() {
 }
 
 export function PackCreditedBanner() {
-  const { at, pack } = packs.celebration
+  const { at, pack, vipGained, vipLevelUp } = packs.celebration
   if (!at || !pack) return null
   const elapsed = (Date.now() - at) / 1000
   if (elapsed > SHOW_SECS) return null
+  const vipLine = vipLevelUp ? `+${vipGained.toLocaleString('en-US')} VIP POINTS  ·  NOW VIP ${player.vip}!` : vipGained > 0 ? `+${vipGained.toLocaleString('en-US')} VIP POINTS` : ''
 
   setScale(hudScale())
   const canvas = getCanvas()
@@ -96,7 +98,7 @@ export function PackCreditedBanner() {
   const alpha = elapsed > SHOW_SECS - FADE_SECS ? Math.max(0, (SHOW_SECS - elapsed) / FADE_SECS) : 1
   const items = BASE_RESOURCES.filter((r) => (pack.grants?.[r] ?? 0) > 0)
   const W = (items.length > 1 ? 1180 : 760) * k
-  const H = 440 * k
+  const H = (vipLine ? 484 : 440) * k
 
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(340), left: '50%' }, width: 0, height: 0, alignItems: 'flex-start', justifyContent: 'center' }}>
@@ -131,6 +133,7 @@ export function PackCreditedBanner() {
         </UiEntity>
 
         <OutlinedText value="Added to your Depot storage" size={S(26 * k)} color={withAlpha(C.gray, alpha)} uiTransform={{ width: S(900 * k), height: S(40 * k), margin: { top: S(10 * k) } }} />
+        {vipLine ? <OutlinedText value={vipLine} size={S(28 * k)} color={withAlpha(vipLevelUp ? vipColor(player.vip) : C.yellow, alpha)} uiTransform={{ width: S(900 * k), height: S(40 * k), margin: { top: S(4 * k) } }} /> : null}
       </UiEntity>
     </UiEntity>
   )

@@ -10,6 +10,7 @@ const CROWN_ICON = 'images/icons/guild/crown_small.png'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { profileState } from '../playerProfile'
 import { withVip } from '../vip'
+import { VipName } from './vipName'
 import { playButtonSound } from '../uiSounds'
 import { labelFor, isFriend, nicknameOf, cleanNickInput, NICK_MAX } from '../social'
 import { setNickname, setFriend } from '../transactions'
@@ -554,7 +555,7 @@ function OnlineColumn(props: { height: number; guildOnly: boolean; chat?: Channe
               >
                 <UiEntity uiTransform={{ width: '100%', height: S(36), flexDirection: 'row', alignItems: 'center' }}>
                   {isCrownHolder(p.address) ? <Icon src={CROWN_ICON} size={S(30)} uiTransform={{ margin: { right: S(6) } }} /> : null}
-                  <Text value={`${withVip(labelFor(p.address, p.name || shortAddress(p.address)), p.vip)}${p.tag ? `  [${p.tag}]` : ''}`} size={S(28)} color={off ? C.textMuted : nameColor(p.address, p.guild)} align="middle-left" nowrap raw uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(36) }} />
+                  <VipName name={`${labelFor(p.address, p.name || shortAddress(p.address))}${p.tag ? `  [${p.tag}]` : ''}`} level={p.vip} size={S(28)} color={off ? C.textMuted : nameColor(p.address, p.guild)} onLight uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(36) }} />
                   {unreadOf(p.address) > 0 ? <Text value={`DM ${unreadOf(p.address)}`} size={S(24)} color={C.green} align="middle-right" nowrap raw uiTransform={{ width: S(70), height: S(36) }} /> : null}
                 </UiEntity>
                 <Text value={statusLine(p)} size={S(23)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: '100%', height: S(30) }} />

@@ -81,9 +81,10 @@ import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
 import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
-import { buyPack, canAfford, GET_MANA_URL, isPackBusy, packById, packCostWithFee, packs, refreshHistory, refreshPacks, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, windowResetIn, type Pack } from '../packs'
+import { buyPack, canAfford, GET_MANA_URL, isPackBusy, packById, packCostWithFee, packs, refreshHistory, refreshPacks, refreshVip, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, vip, windowResetIn, type Pack } from '../packs'
 import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
-import { withVip } from '../vip'
+import { VIP_BAG_PCT, VIP_GATHER_PCT, VIP_MAX, VIP_MIN_SCORE, VIP_NAMES, VIP_POINTS_PER_MANA, VIP_RAID_PCT_PER_LEVEL, vipColor, vipName } from '../vip'
+import { VipName } from './vipName'
 import { stepTarget } from './guide'
 import { HERO_SHEET, Sprite, loopFrame } from './sprite'
 
@@ -1084,27 +1085,29 @@ function activeBoost(): { item: (typeof SHOP_ITEMS)[number]; until: number } | n
 }
 
 /** BERRY SHOP (boosts) · RESOURCES (packs for MANA). Remembered while the ring is on so reopening lands where you were. */
-type ShopTabId = 'berries' | 'resources' | 'deals' | 'whale' | 'history'
+type ShopTabId = 'berries' | 'resources' | 'deals' | 'whale' | 'history' | 'vip'
 let shopTab: ShopTabId = 'berries'
 let confirmingPackId = ''
-const SHOP_TAB_ICON: Record<ShopTabId, string> = { berries: 'images/icons/berry.png', resources: 'images/icons/wood.png', deals: 'images/icons/coin.png', whale: 'images/icons/assassin.png', history: 'images/icons/backpack.png' }
-const SHOP_TAB_TITLE: Record<ShopTabId, string> = { berries: 'BERRY SHOP', resources: 'RESOURCES', deals: 'DEALS', whale: 'WHALE PACKS', history: 'PURCHASES' }
-const isPackTab = (id: ShopTabId) => id !== 'berries'
+const SHOP_TAB_ICON: Record<ShopTabId, string> = { berries: 'images/icons/berry.png', resources: 'images/icons/wood.png', deals: 'images/icons/coin.png', whale: 'images/icons/assassin.png', history: 'images/icons/backpack.png', vip: 'images/icons/res_star_core.png' }
+const SHOP_TAB_TITLE: Record<ShopTabId, string> = { berries: 'BERRY SHOP', resources: 'RESOURCES', deals: 'DEALS', whale: 'WHALE PACKS', history: 'PURCHASES', vip: 'VIP' }
+/** Tabs that sell MANA packs (catalog refresh + funnel 'tab' step). */
+const isPackTab = (id: ShopTabId) => id !== 'berries' && id !== 'vip'
 
 function ShopTab(props: { key?: string; id: ShopTabId; label: string }) {
   return (
     <Button
       label={props.label}
       icon={SHOP_TAB_ICON[props.id]}
-      color={shopTab === props.id ? C.purple : C.navySoft}
-      size={S(26)}
-      uiTransform={{ width: S(330), height: S(70), margin: { left: S(7), right: S(7) } }}
+      color={shopTab === props.id ? (props.id === 'vip' ? C.gold : C.purple) : C.navySoft}
+      size={S(24)}
+      uiTransform={{ width: S(272), height: S(70), margin: { left: S(6), right: S(6) } }}
       onClick={() => {
         confirmingPackId = ''
         if (shopTab !== props.id && isPackTab(props.id)) trackShop('tab', props.id)
         shopTab = props.id
         if (isPackTab(props.id)) refreshPacks()
         if (props.id === 'history') refreshHistory()
+        if (props.id === 'vip') refreshVip()
       }}
     />
   )
@@ -1115,8 +1118,9 @@ export function ShopPanel() {
   // Pack tabs refresh when the panel opens on them (prices are server-configured and can change).
   if (isPackTab(shopTab)) refreshPacks()
   if (shopTab === 'history') refreshHistory()
+  if (shopTab === 'vip') refreshVip()
   return (
-    <Modal title={SHOP_TAB_TITLE[shopTab]} color={C.purple} {...bigFrame(fit, 'BERRY SHOP', 'shop')} onClose={() => { confirmingPackId = ''; closePanel() }}>
+    <Modal title={SHOP_TAB_TITLE[shopTab]} color={shopTab === 'vip' ? C.gold : C.purple} {...bigFrame(fit, 'BERRY SHOP', 'shop')} onClose={() => { confirmingPackId = ''; closePanel() }}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(4), bottom: S(10) } }}>
           <ShopTab key="stab-berries" id="berries" label="BERRY SHOP" />
@@ -1124,8 +1128,9 @@ export function ShopPanel() {
           <ShopTab key="stab-deals" id="deals" label="DEALS" />
           <ShopTab key="stab-whale" id="whale" label="WHALE PACKS" />
           <ShopTab key="stab-history" id="history" label="PURCHASES" />
+          <ShopTab key="stab-vip" id="vip" label="VIP" />
         </UiEntity>
-        {shopTab === 'resources' ? <ResourcePacks /> : shopTab === 'deals' ? <DealPacks /> : shopTab === 'whale' ? <WhalePacks /> : shopTab === 'history' ? <PurchaseHistory /> : <BerryShop />}
+        {shopTab === 'resources' ? <ResourcePacks /> : shopTab === 'deals' ? <DealPacks /> : shopTab === 'whale' ? <WhalePacks /> : shopTab === 'history' ? <PurchaseHistory /> : shopTab === 'vip' ? <VipTab /> : <BerryShop />}
         {confirmingPackId ? <PackPurchaseConfirm /> : null}
       </UiEntity>
     </Modal>
@@ -1250,6 +1255,96 @@ function PurchaseHistory() {
     </UiEntity>
   )
 }
+
+const pct = (v: number) => `+${Math.round(v * 100)}%`
+const vipPts = (v: number) => v.toLocaleString('en-US')
+/** VIP: your tier, the two score parts, progress to the next tier, and the full ladder with its perks. */
+function VipTab() {
+  const level = vip.status === 'ready' ? vip.level : player.vip
+  const tiers = vip.tiers.length === VIP_MAX + 1 ? vip.tiers : VIP_MIN_SCORE.map((min, i) => ({ level: i, name: VIP_NAMES[i], min, gatherPct: VIP_GATHER_PCT[i], bagPct: VIP_BAG_PCT[i] }))
+  const me = tiers[level]
+  const next = level < VIP_MAX ? tiers[level + 1] : null
+  const progress = next ? Math.max(0, Math.min(1, (vip.score - me.min) / Math.max(1, next.min - me.min))) : 1
+  const remaining = next ? Math.max(0, next.min - vip.score) : 0
+  const tint = vipColor(level, true)
+  const status = vip.status === 'error' ? 'Could not load VIP. Reopen to try again.' : vip.status !== 'ready' ? 'Loading...' : ''
+  const COLS = { tag: 150, name: 220, pts: 240, perk: 190 }
+  return (
+    <UiEntity uiTransform={{ width: S(1704), flexGrow: 1, flexDirection: 'row', margin: { top: S(6) } }}>
+      {/* Your tier */}
+      <Panel flat color={C.paper} uiTransform={{ width: S(620), height: '100%', flexDirection: 'column', alignItems: 'center', padding: S(30), margin: { right: S(16) } }}>
+        <Pill color={level > 0 ? vipColor(level) : C.navySoft} uiTransform={{ width: S(300), height: S(84), justifyContent: 'center', alignItems: 'center' }}>
+          <OutlinedText value={level > 0 ? `VIP ${level}` : 'NO VIP YET'} size={S(40)} uiTransform={{ height: S(60) }} raw={level > 0} />
+        </Pill>
+        <OutlinedText value={vipName(level).toUpperCase()} size={S(44)} color={tint} uiTransform={{ height: S(60), margin: { top: S(14) } }} raw />
+        <Text value={status || `${vipPts(vip.score)} VIP POINTS`} size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(36) }} />
+        <Bar value={progress} color={level > 0 ? vipColor(level) : C.purple} height={S(40)} label={next ? `${vipPts(remaining)} TO VIP ${next.level}` : 'MAX TIER'} uiTransform={{ width: S(520), margin: { top: S(14) } }} />
+        {next ? <Text value={`Next: ${next.name} at ${vipPts(next.min)} points`} size={S(21)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(6) } }} /> : null}
+
+        <Text value="WHERE YOUR POINTS COME FROM" size={S(22)} color={C.text} nowrap uiTransform={{ height: S(32), margin: { top: S(26) } }} />
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', height: S(48), margin: { top: S(6) } }}>
+          <Icon src="images/icons/suit.png" size={S(40)} />
+          <Text value="Knights of Antrom wearables" size={S(23)} color={C.text} align="middle-left" nowrap uiTransform={{ flexGrow: 1, height: '100%', margin: { left: S(10) } }} />
+          <Text value={vipPts(vip.koa)} size={S(25)} color={C.gold} align="middle-right" nowrap uiTransform={{ width: S(170), height: '100%' }} raw />
+        </UiEntity>
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', height: S(48) }}>
+          <Icon src="images/icons/coin.png" size={S(40)} />
+          <Text value="Ring shop purchases" size={S(23)} color={C.text} align="middle-left" nowrap uiTransform={{ flexGrow: 1, height: '100%', margin: { left: S(10) } }} />
+          <Text value={vipPts(vip.points)} size={S(25)} color={C.gold} align="middle-right" nowrap uiTransform={{ width: S(170), height: '100%' }} raw />
+        </UiEntity>
+        <Pill color={C.navySoft} uiTransform={{ width: '100%', height: S(50), justifyContent: 'center', alignItems: 'center', margin: { top: S(12) } }}>
+          <OutlinedText value={`Every 1 MANA spent = ${VIP_POINTS_PER_MANA} VIP points`} size={S(22)} uiTransform={{ height: S(36) }} />
+        </Pill>
+
+        <Text value="YOUR PERKS NOW" size={S(22)} color={C.text} nowrap uiTransform={{ height: S(32), margin: { top: S(26) } }} />
+        <Text value={`Gathering yield ${pct(me.gatherPct)}`} size={S(24)} color={me.gatherPct > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: S(4) } }} />
+        <Text value={`Backpack capacity ${pct(me.bagPct)}`} size={S(24)} color={me.bagPct > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(34) }} />
+        <Text value={`Raid HP and ATK ${pct(VIP_RAID_PCT_PER_LEVEL * level)}`} size={S(24)} color={level > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(34) }} />
+        <Spacer />
+        <Text value={level > 0 ? 'Your name shows your VIP tag in chat, the online list, guild rosters and raids.' : 'Buy any pack to start climbing. Your tag shows next to your name everywhere.'} size={S(20)} color={C.textMuted} uiTransform={{ height: S(56) }} />
+      </Panel>
+
+      {/* The ladder */}
+      <Panel flat color={C.paper} uiTransform={{ flexGrow: 1, height: '100%', flexDirection: 'column', padding: { top: S(22), bottom: S(16), left: S(26), right: S(26) } }}>
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', height: S(40) }}>
+          <Text value="TIER" size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(COLS.tag), height: '100%' }} />
+          <Text value="NAME" size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(COLS.name), height: '100%' }} />
+          <Text value="POINTS" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.pts), height: '100%' }} />
+          <Text value="GATHER" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.perk), height: '100%' }} />
+          <Text value="BACKPACK" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.perk), height: '100%' }} />
+          <Text value="RAID" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ flexGrow: 1, height: '100%' }} />
+        </UiEntity>
+        <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', overflow: 'scroll' }}>
+          {tiers.filter((tier) => tier.level > 0).map((tier) => {
+            const mine = tier.level === level
+            const unlocked = tier.level <= level
+            const col = unlocked ? C.text : C.textMuted
+            return (
+              <UiEntity
+                key={`vip-tier-${tier.level}`}
+                uiTransform={{ width: '100%', height: S(74), flexShrink: 0, flexDirection: 'row', alignItems: 'center', padding: { left: S(8), right: S(8) }, margin: { bottom: S(4) } }}
+                uiBackground={mine ? { textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: C.paper2 } : undefined}
+              >
+                <UiEntity uiTransform={{ width: S(COLS.tag), height: '100%', alignItems: 'center' }}>
+                  <Pill color={vipColor(tier.level)} uiTransform={{ width: S(128), height: S(46), justifyContent: 'center', alignItems: 'center' }}>
+                    <OutlinedText value={`VIP ${tier.level}`} size={S(24)} uiTransform={{ height: S(36) }} raw />
+                  </Pill>
+                </UiEntity>
+                <Text value={tier.name.toUpperCase()} size={S(26)} color={unlocked ? vipColor(tier.level, true) : C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(COLS.name), height: '100%' }} raw />
+                <Text value={vipPts(tier.min)} size={S(25)} color={col} align="middle-right" nowrap uiTransform={{ width: S(COLS.pts), height: '100%' }} raw />
+                <Text value={pct(tier.gatherPct)} size={S(25)} color={unlocked ? C.greenDark : C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.perk), height: '100%' }} raw />
+                <Text value={tier.bagPct > 0 ? pct(tier.bagPct) : '-'} size={S(25)} color={unlocked && tier.bagPct > 0 ? C.greenDark : C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.perk), height: '100%' }} raw />
+                <Text value={pct(VIP_RAID_PCT_PER_LEVEL * tier.level)} size={S(25)} color={unlocked ? C.greenDark : C.textMuted} align="middle-right" nowrap uiTransform={{ flexGrow: 1, height: '100%' }} raw />
+              </UiEntity>
+            )
+          })}
+        </UiEntity>
+        <Text value="VIP points never expire. Knights of Antrom wearables count the same points they give in KoA." size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(8) } }} />
+      </Panel>
+    </UiEntity>
+  )
+}
+
 /**
  * Deal discount vs the cheapest way to buy the same amount of each with regular Hero packs
  * (e.g. 2,000 of each = two Hero sacks = 48 MANA, so a 30 MANA daily is -37%). 0 when there is no saving.
@@ -1880,7 +1975,7 @@ function GuildManageTab(props: { guild: GuildInfo; wallet: string }) {
               <Panel key={id} flat color={C.paper} uiTransform={{ width: '100%', height: S(100), flexDirection: 'row', alignItems: 'center', padding: { left: S(18), right: S(18) }, margin: { bottom: S(8) }, flexShrink: 0 }}>
                 <Icon src={isCrownHolder(id) ? 'images/icons/guild/crown_small.png' : guildRoleIcon(role)} size={S(64)} uiTransform={{ margin: { right: S(8) } }} />
                 <UiEntity uiTransform={{ width: S(220), flexDirection: 'column' }}>
-                  <Text value={withVip(memberLabel(guild, id), vipOf(id))} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(34) }} />
+                  <VipName name={memberLabel(guild, id)} level={vipOf(id)} size={S(28)} color={C.text} onLight uiTransform={{ width: S(220), height: S(34) }} />
                   <Text value={role === 'member' ? 'INITIATE' : role.toUpperCase()} size={S(22)} color={guildRoleColor(role)} align="middle-left" nowrap uiTransform={{ width: S(220), height: S(28) }} />
                 </UiEntity>
                 <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -2152,12 +2247,12 @@ export function GuildPanel() {
                             <UiEntity uiTransform={{ width: S(12), height: S(12), flexShrink: 0, margin: { left: S(6), right: S(6) } }} uiBackground={{ color: activeToday ? C.green : Color4.create(0, 0, 0, 0.15) }} />
                             {/* Rank as an icon, not a word: a text label next to a nowrap name overlapped it. Your own row is the purple highlight. */}
                             <Icon src={guildRoleIcon(role)} size={S(26)} uiTransform={{ flexShrink: 0, margin: { right: S(6) } }} />
-                            <Text
-                              value={withVip(memberLabel(guild, id), vipOf(id))}
+                            <VipName
+                              name={memberLabel(guild, id)}
+                              level={vipOf(id)}
                               size={S(22)}
                               color={isYou ? C.purple : role === 'member' ? C.text : guildRoleColor(role)}
-                              align="middle-left"
-                              nowrap
+                              onLight
                               uiTransform={{ width: S(196), height: S(36), overflow: 'hidden' }}
                             />
                           </UiEntity>
@@ -2196,7 +2291,7 @@ export function GuildPanel() {
                           uiBackground={isYou ? { color: Color4.create(0.55, 0.35, 0.95, 0.18) } : undefined}
                         >
                           <OutlinedText value={`${index + 1}`} size={S(24)} color={index === 0 ? C.gold : index < 3 ? C.orange : C.textMuted} uiTransform={{ width: S(44) }} />
-                          <Text value={withVip(memberLabel(guild, id), vipOf(id))} size={S(22)} color={isYou ? C.purple : C.text} align="middle-left" nowrap uiTransform={{ width: S(300), overflow: 'hidden' }} />
+                          <VipName name={memberLabel(guild, id)} level={vipOf(id)} size={S(22)} color={isYou ? C.purple : C.text} onLight uiTransform={{ width: S(300), height: S(30), overflow: 'hidden' }} />
                           <Text value={`${entry.points}`} size={S(24)} color={C.greenDark} align="middle-right" uiTransform={{ width: S(160) }} />
                         </UiEntity>
                       )
