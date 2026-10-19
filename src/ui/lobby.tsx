@@ -107,16 +107,31 @@ function pageNewer<T extends { id: string }>(items: T[], heightOf: (m: T) => num
   }
   feedAnchor[key] = end >= items.length - 1 ? '' : items[end].id
 }
-/** The ▲ / ▼ column beside a feed; LIVE appears while paged back so one tap returns to the newest lines. */
+const ARROW_UP = 'images/ui/ic_arrow_up.png'
+const ARROW_DOWN = 'images/ui/ic_arrow_down.png'
+/** Square icon button for the feed arrows: bright when it does something, dim navy when there is nowhere to go. */
+function ArrowButton(props: { k: string; icon: string; size: number; active: boolean; onClick: () => void }) {
+  const pressed = (arrowPressed[props.k] ?? 0) > Date.now()
+  return (
+    <UiEntity
+      uiTransform={{ width: S(props.size), height: S(props.size), margin: { bottom: S(6) }, alignItems: 'center', justifyContent: 'center', position: { top: pressed ? S(3) : 0 } }}
+      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: props.active ? C.yellow : C.navy }}
+      onMouseDown={props.active ? () => { arrowPressed[props.k] = Date.now() + 140; playButtonSound(); props.onClick() } : undefined}
+    >
+      <UiEntity uiTransform={{ width: S(props.size * 0.6), height: S(props.size * 0.6) }} uiBackground={{ textureMode: 'stretch', texture: { src: props.icon }, color: props.active ? C.white : C.textMuted }} />
+    </UiEntity>
+  )
+}
+const arrowPressed: Record<string, number> = {}
+/** The ▲ / ▼ column beside a feed; while paged back a +n / NOW button returns to the newest lines in one tap. */
 function FeedArrows<T extends { id: string }>(props: { items: T[]; heightOf: (m: T) => number; feedH: number; page: Page<T>; k: string; size?: number }) {
   const { page } = props
-  const w = props.size ?? 48
-  const b = { width: S(w), height: S(w), minWidth: 0, margin: { bottom: S(6) } }
+  const w = props.size ?? 52
   return (
-    <UiEntity uiTransform={{ width: S(w), height: '100%', flexDirection: 'column', alignItems: 'center', margin: { left: S(6) } }}>
-      <Button key={`${props.k}-older`} label="▲" color={C.navy} textColor={page.start > 0 ? C.text : C.textMuted} disabled={page.start <= 0} size={S(20)} pad={0} uiTransform={b} onClick={() => pageOlder(props.items, page, props.k)} />
-      <Button key={`${props.k}-newer`} label="▼" color={page.live ? C.navy : C.green} textColor={page.live ? C.textMuted : undefined} disabled={page.live} size={S(20)} pad={0} uiTransform={b} onClick={() => pageNewer(props.items, props.heightOf, props.feedH, page, props.k)} />
-      {!page.live ? <Button key={`${props.k}-live`} label={page.newer > 0 ? `+${page.newer}` : 'NOW'} color={page.newer > 0 ? C.orange : C.navySoft} size={S(16)} pad={0} uiTransform={b} onClick={() => { feedAnchor[props.k] = '' }} /> : null}
+    <UiEntity uiTransform={{ width: S(w), height: '100%', flexDirection: 'column', alignItems: 'center', margin: { left: S(8) } }}>
+      <ArrowButton k={`${props.k}-older`} icon={ARROW_UP} size={w} active={page.start > 0} onClick={() => pageOlder(props.items, page, props.k)} />
+      <ArrowButton k={`${props.k}-newer`} icon={ARROW_DOWN} size={w} active={!page.live} onClick={() => pageNewer(props.items, props.heightOf, props.feedH, page, props.k)} />
+      {!page.live ? <Button key={`${props.k}-live`} label={page.newer > 0 ? `+${page.newer}` : 'NOW'} color={page.newer > 0 ? C.orange : C.green} size={S(w >= 52 ? 18 : 15)} pad={0} uiTransform={{ width: S(w), height: S(w), minWidth: 0 }} onClick={() => { feedAnchor[props.k] = '' }} /> : null}
     </UiEntity>
   )
 }
