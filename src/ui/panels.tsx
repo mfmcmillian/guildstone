@@ -1183,7 +1183,7 @@ function ResourcePacks() {
       </UiEntity>
       {/* Hero packs: the same amount of all four, which is exactly how a Hero stat step is priced. */}
       {bundles.length > 0 ? (
-        <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(300), flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
+        <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(40 + 86 * bundles.length), flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
           <UiEntity uiTransform={{ flexDirection: 'column', width: S(520), height: '100%', justifyContent: 'center' }}>
             <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(80) }}>
               <Icon src="images/icons/assassin.png" size={S(64)} />
@@ -1204,7 +1204,7 @@ function ResourcePacks() {
   )
 }
 /** Sack / Crate / Wagon by size, so a price change in the admin config doesn't rename anything. */
-const PACK_SIZE_NAME = (units: number) => (units >= 15_000 ? 'WAGON' : units >= 5_000 ? 'CRATE' : 'SACK')
+const PACK_SIZE_NAME = (units: number) => (units >= 50_000 ? 'WHALE' : units >= 15_000 ? 'WAGON' : units >= 5_000 ? 'CRATE' : 'SACK')
 
 function BerryShop() {
   const active = activeBoost()

@@ -914,6 +914,7 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string, strin
   ['SACK', 'SAC', 'SACO', '袋', 'SACK'],
   ['CRATE', 'CAISSE', 'CAJA', '箱', 'KISTE'],
   ['WAGON', 'CHARIOT', 'CARRETA', '车', 'WAGEN'],
+  ['WHALE', 'BALEINE', 'BALLENA', '鲸', 'WAL'],
   ['HERO PACKS', 'PACKS HÉROS', 'PACKS DE HÉROE', '英雄礼包', 'HELDENPAKETE'],
   ['{0} of each', '{0} de chaque', '{0} de cada uno', '每种 {0}', 'je {0}'],
   ['Everything one Hero stat step needs, x4', 'Tout ce qu’il faut pour un palier de héros, x4', 'Todo lo que necesita un paso de héroe, x4', '英雄升一级所需的全部，x4', 'Alles für eine Helden-Stufe, x4'],
