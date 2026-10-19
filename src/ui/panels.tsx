@@ -1127,7 +1127,9 @@ function ResourcePacks() {
   const usd = (mana: number) => (rate > 0 ? `  ·  ${usdLabel(Math.round(mana * rate * 100) / 100)}` : '')
   const busy = isPackBusy()
   const singles = packs.list.filter((p) => p.resource !== 'all')
-  const bundles = packs.list.filter((p) => p.resource === 'all')
+  const bundles = packs.list.filter((p) => p.resource === 'all' && p.id.startsWith('hero_'))
+  const whales = packs.list.filter((p) => p.id.startsWith('whale_'))
+  const deals = packs.list.filter((p) => p.id.startsWith('deal_'))
   const header =
     packs.phase === 'signing' ? 'Confirm the MANA transfer in your wallet...'
     : packs.phase === 'verifying' ? 'Payment sent - waiting for Polygon to confirm (usually under a minute)...'
@@ -1138,22 +1140,23 @@ function ResourcePacks() {
     : 'Paid in MANA on Polygon. Resources land in Depot storage - Hero upgrades draw from storage first.'
   const headerColor = packs.phase !== 'idle' ? C.yellow : packs.message ? (packs.messageOk ? C.greenDark : C.red) : C.textMuted
   const bySize = (a: Pack, b: Pack) => a.units - b.units
-  /** One buy row: "SACK · 1,000" on the left, the MANA button (with live USD) on the right. */
-  const buyRow = (p: Pack, wide: boolean) => {
+  /** One buy row: the tier name and amount on the left, the MANA button (with live USD) on the right. */
+  const buyRow = (p: Pack, wide: boolean, name: string) => {
     const mine = packs.busySku === p.id
-    const label = mine ? (packs.phase === 'signing' ? 'CONFIRM IN WALLET' : 'CONFIRMING...') : `${p.mana} MANA${usd(p.mana)}`
+    const used = packs.bought[p.id] === true
+    const label = mine ? (packs.phase === 'signing' ? 'CONFIRM IN WALLET' : 'CONFIRMING...') : used ? 'BOUGHT' : `${p.mana} MANA${usd(p.mana)}`
     return (
       <UiEntity key={`row-${p.id}`} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(86) }}>
         <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
-          <Text value={PACK_SIZE_NAME(p.units)} size={S(26)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(32) }} />
+          <Text value={name} size={S(26)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(32) }} />
           <Text value={wide ? `${p.units.toLocaleString('en-US')} of each` : p.units.toLocaleString('en-US')} size={S(24)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30) }} raw={!wide} />
         </UiEntity>
         <Button
           key={`buy-pack-${p.id}`}
           label={label}
-          color={mine ? C.yellow : C.purple}
+          color={mine ? C.yellow : used ? C.gray : C.purple}
           textColor={mine ? C.text : C.white}
-          disabled={busy || !packs.enabled}
+          disabled={busy || !packs.enabled || used}
           size={S(mine ? 20 : 24)}
           uiTransform={{ width: S(wide ? 300 : 220), height: S(70), minWidth: 0 }}
           onClick={() => buyPack(p.id)}
@@ -1176,7 +1179,7 @@ function ResourcePacks() {
                 <Icon src={RESOURCE_INFO[r].icon} size={S(64)} />
                 <OutlinedText value={RESOURCE_INFO[r].name.toUpperCase()} size={S(32)} uiTransform={{ width: 'auto', margin: { left: S(10) } }} align="middle-left" />
               </UiEntity>
-              {rows.map((p) => buyRow(p, false))}
+              {rows.map((p) => buyRow(p, false, PACK_SIZE_NAME(p.units)))}
             </Panel>
           )
         })}
@@ -1195,7 +1198,31 @@ function ResourcePacks() {
             </UiEntity>
           </UiEntity>
           <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0, justifyContent: 'center' }}>
-            {bundles.sort(bySize).map((p) => buyRow(p, true))}
+            {bundles.sort(bySize).map((p) => buyRow(p, true, PACK_SIZE_NAME(p.units)))}
+          </UiEntity>
+        </Panel>
+      ) : null}
+      {/* Deals: one purchase per wallet per UTC day / week, priced below the ladder. */}
+      {deals.length > 0 ? (
+        <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(40 + 86 * deals.length), flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
+          <UiEntity uiTransform={{ flexDirection: 'column', width: S(520), height: '100%', justifyContent: 'center' }}>
+            <OutlinedText value="DEALS" size={S(32)} uiTransform={{ width: 'auto' }} align="middle-left" />
+            <Text value="One per wallet. Resets at midnight UTC." size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(60) }} />
+          </UiEntity>
+          <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0, justifyContent: 'center' }}>
+            {deals.sort((a, b) => (a.window === 'week' ? 1 : 0) - (b.window === 'week' ? 1 : 0)).map((p) => buyRow(p, true, p.window === 'week' ? 'WEEKLY' : 'DAILY'))}
+          </UiEntity>
+        </Panel>
+      ) : null}
+      {/* Whale ladder: the big all-four packs, a tier of their own. */}
+      {whales.length > 0 ? (
+        <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(40 + 86 * whales.length), flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
+          <UiEntity uiTransform={{ flexDirection: 'column', width: S(520), height: '100%', justifyContent: 'center' }}>
+            <OutlinedText value="WHALE PACKS" size={S(32)} uiTransform={{ width: 'auto' }} align="middle-left" />
+            <Text value="For filling a hero in one sitting." size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(60) }} />
+          </UiEntity>
+          <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0, justifyContent: 'center' }}>
+            {whales.sort(bySize).map((p) => buyRow(p, true, WHALE_NAME(p.units)))}
           </UiEntity>
         </Panel>
       ) : null}
@@ -1204,7 +1231,9 @@ function ResourcePacks() {
   )
 }
 /** Sack / Crate / Wagon by size, so a price change in the admin config doesn't rename anything. */
-const PACK_SIZE_NAME = (units: number) => (units >= 50_000 ? 'WHALE' : units >= 15_000 ? 'WAGON' : units >= 5_000 ? 'CRATE' : 'SACK')
+const PACK_SIZE_NAME = (units: number) => (units >= 15_000 ? 'WAGON' : units >= 5_000 ? 'CRATE' : 'SACK')
+/** Whale ladder names, keyed by size (the catalog owns the numbers). */
+const WHALE_NAME = (units: number) => (units >= 500_000 ? 'TITAN' : units >= 250_000 ? 'KRAKEN' : units >= 100_000 ? 'LEVIATHAN' : 'POD')
 
 function BerryShop() {
   const active = activeBoost()

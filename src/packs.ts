@@ -34,7 +34,7 @@ const CATALOG_TTL_MS = 60_000
 /** Minimum gap between catalog attempts, so a failing server isn't hammered once per frame. */
 const RETRY_GAP_MS = 5_000
 
-export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; grants: Record<BaseResource, number> }
+export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; window: 'none' | 'day' | 'week'; grants: Record<BaseResource, number> }
 export type PendingPurchase = { txHash: string; sku: string; at: number }
 type Phase = 'idle' | 'signing' | 'verifying'
 
@@ -43,6 +43,8 @@ export const packs = {
   enabled: false,
   wallet: '',
   list: [] as Pack[],
+  /** Timed packs already bought in the current window, from the catalog: { sku: true }. */
+  bought: {} as Record<string, boolean>,
   loadedAt: 0,
   /** An unsettled purchase we are still polling for (ours this session, or one the server remembered). */
   pending: null as PendingPurchase | null,
@@ -74,11 +76,12 @@ export function refreshPacks(force = false) {
     try {
       const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs`, init: { method: 'GET', headers: {} } })
       if (!response.ok) throw new Error(`catalog ${response.status}`)
-      const body = JSON.parse(response.body) as { enabled: boolean; wallet: string; mana: string; packs: Pack[]; pending: PendingPurchase | null }
+      const body = JSON.parse(response.body) as { enabled: boolean; wallet: string; mana: string; packs: Pack[]; pending: PendingPurchase | null; bought?: Record<string, boolean> }
       if (String(body.mana).toLowerCase() !== MANA_POLYGON) throw new Error('token mismatch')
       packs.enabled = body.enabled === true
       packs.wallet = String(body.wallet || '').toLowerCase()
       packs.list = Array.isArray(body.packs) ? body.packs.filter((p) => p && typeof p.id === 'string' && p.mana > 0 && p.units > 0) : []
+      packs.bought = body.bought && typeof body.bought === 'object' ? body.bought : {}
       packs.loadedAt = Date.now()
       packs.status = 'ready'
       // A hash the server is still waiting on (e.g. the ring closed mid-purchase): resume polling for it.
@@ -197,8 +200,11 @@ async function settle(pending: PendingPurchase): Promise<Outcome> {
     if (response.status >= 500) return 'pending'
     if (body.status === 'credited') {
       if (body.storage) player.storage = sanitizeStorage(body.storage)
+      // The window is used up the moment it credits; the next catalog fetch confirms it.
+      if (pending.sku && packs.list.some((p) => p.id === pending.sku && p.window !== 'none')) packs.bought = { ...packs.bought, [pending.sku]: true }
       return 'credited'
     }
+    if (body.status === 'limited') { packs.message = (body.error ?? 'Already bought this period').toUpperCase(); return 'rejected' }
     if (body.status === 'failed') return 'failed'
     if (body.status === 'mismatch') return 'mismatch'
     packs.message = (body.error ?? `Purchase rejected (${response.status})`).toUpperCase()
