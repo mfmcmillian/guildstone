@@ -34,7 +34,24 @@ const CATALOG_TTL_MS = 60_000
 /** Minimum gap between catalog attempts, so a failing server isn't hammered once per frame. */
 const RETRY_GAP_MS = 5_000
 
-export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; window: 'none' | 'day' | 'week'; grants: Record<BaseResource, number> }
+export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; window: 'none' | 'day' | 'week'; chain: string | null; tier: number; grants: Record<BaseResource, number> }
+
+/** ms until the next Monday 00:00 UTC (weekly windows) or next 00:00 UTC (daily). */
+export function windowResetIn(window: 'day' | 'week', now = Date.now()): number {
+  const day = 86_400_000
+  const midnight = Math.ceil(now / day) * day
+  if (window === 'day') return midnight - now
+  const dow = new Date(midnight).getUTCDay() // weekday of the coming midnight
+  const daysToMonday = (8 - dow) % 7
+  return midnight + daysToMonday * day - now
+}
+
+/** Chain state: a tier is buyable only when every lower tier is bought in this window. */
+export function tierLocked(p: Pack): boolean {
+  if (!p.chain || p.tier <= 1) return false
+  const below = packs.list.find((q) => q.chain === p.chain && q.tier === p.tier - 1)
+  return !below || packs.bought[below.id] !== true
+}
 export type PendingPurchase = { txHash: string; sku: string; at: number }
 type Phase = 'idle' | 'signing' | 'verifying'
 
@@ -103,6 +120,7 @@ export function buyPack(sku: string) {
   if (profileState.status !== 'ready' || !profileState.walletAddress || packs.phase !== 'idle') return
   const pack = packById(sku)
   if (!pack || !packs.enabled || !WALLET_PATTERN.test(packs.wallet)) return
+  if (packs.bought[sku] || tierLocked(pack)) return
   packs.phase = 'signing'
   packs.busySku = sku
   packs.message = ''

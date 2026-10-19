@@ -81,7 +81,7 @@ import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
 import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces, usdLabel } from '../suits'
-import { buyPack, isPackBusy, packs, refreshPacks, type Pack } from '../packs'
+import { buyPack, isPackBusy, packs, refreshPacks, tierLocked, windowResetIn, type Pack } from '../packs'
 import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
 import { withVip } from '../vip'
 import { stepTarget } from './guide'
@@ -1207,22 +1207,52 @@ function ResourcePacks() {
         <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(40 + 86 * deals.length), flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
           <UiEntity uiTransform={{ flexDirection: 'column', width: S(520), height: '100%', justifyContent: 'center' }}>
             <OutlinedText value="DEALS" size={S(32)} uiTransform={{ width: 'auto' }} align="middle-left" />
-            <Text value="One per wallet. Resets at midnight UTC." size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(60) }} />
+            <Text value="One per wallet. Resets at midnight UTC." size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(32) }} />
+            <Text value={`Daily in ${resetText(windowResetIn('day'))}  ·  Weekly in ${resetText(windowResetIn('week'))}`} size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(28) }} />
           </UiEntity>
           <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0, justifyContent: 'center' }}>
             {deals.sort((a, b) => (a.window === 'week' ? 1 : 0) - (b.window === 'week' ? 1 : 0)).map((p) => buyRow(p, true, p.window === 'week' ? 'WEEKLY' : 'DAILY'))}
           </UiEntity>
         </Panel>
       ) : null}
-      {/* Whale ladder: the big all-four packs, a tier of their own. */}
+      {/* Whale chain: tiers bought in order, each once a week. BOUGHT · NEXT (buyable) · LOCKED. */}
       {whales.length > 0 ? (
-        <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(40 + 86 * whales.length), flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
-          <UiEntity uiTransform={{ flexDirection: 'column', width: S(520), height: '100%', justifyContent: 'center' }}>
+        <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(330), flexDirection: 'column', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
+          <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(50) }}>
             <OutlinedText value="WHALE PACKS" size={S(32)} uiTransform={{ width: 'auto' }} align="middle-left" />
-            <Text value="For filling a hero in one sitting." size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(60) }} />
+            <Text value="Buy the tiers in order. Each tier once a week - value climbs with every step." size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', margin: { left: S(24) } }} />
+            <Spacer />
+            <Text value={`Resets in ${resetText(windowResetIn('week'))}`} size={S(22)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: 'auto' }} />
           </UiEntity>
-          <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0, justifyContent: 'center' }}>
-            {whales.sort(bySize).map((p) => buyRow(p, true, WHALE_NAME(p.units)))}
+          <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', width: '100%', margin: { top: S(8) } }}>
+            {whales.sort((a, b) => a.tier - b.tier).map((p) => {
+              const used = packs.bought[p.id] === true
+              const locked = !used && tierLocked(p)
+              const mine = packs.busySku === p.id
+              const label = mine ? (packs.phase === 'signing' ? 'CONFIRM IN WALLET' : 'CONFIRMING...') : used ? 'BOUGHT' : locked ? 'LOCKED' : `${p.mana} MANA`
+              return (
+                <Panel key={`whale-${p.id}`} flat color={mine ? C.yellow : locked ? C.gray : C.white} uiTransform={{ width: S(262), height: S(250), flexDirection: 'column', alignItems: 'center', padding: S(10), margin: { left: S(5), right: S(5) } }}>
+                  <Text value={`TIER ${p.tier}`} size={S(24)} color={used ? C.greenDark : locked ? C.textMuted : C.purple} nowrap uiTransform={{ height: S(30) }} />
+                  <OutlinedText value={p.units.toLocaleString('en-US')} size={S(34)} uiTransform={{ margin: { top: S(2) } }} raw />
+                  <Text value="of each" size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(26) }} />
+                  <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', height: S(36), margin: { top: S(4) } }}>
+                    {BASE_RESOURCES.map((r) => <Icon key={`whale-${p.id}-${r}`} src={RESOURCE_INFO[r].icon} size={S(30)} uiTransform={{ margin: { left: S(3), right: S(3) } }} />)}
+                  </UiEntity>
+                  <Text value={rate > 0 && !used && !locked ? usdLabel(Math.round(p.mana * rate * 100) / 100) : ' '} size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(26) }} raw />
+                  <Spacer />
+                  <Button
+                    key={`buy-whale-${p.id}`}
+                    label={label}
+                    color={mine ? C.yellow : used ? C.greenDark : locked ? C.gray : C.purple}
+                    textColor={mine ? C.text : C.white}
+                    disabled={busy || !packs.enabled || used || locked}
+                    size={S(mine ? 18 : 24)}
+                    uiTransform={{ width: S(230), height: S(64), minWidth: 0 }}
+                    onClick={() => buyPack(p.id)}
+                  />
+                </Panel>
+              )
+            })}
           </UiEntity>
         </Panel>
       ) : null}
@@ -1233,7 +1263,13 @@ function ResourcePacks() {
 /** Sack / Crate / Wagon by size, so a price change in the admin config doesn't rename anything. */
 const PACK_SIZE_NAME = (units: number) => (units >= 15_000 ? 'WAGON' : units >= 5_000 ? 'CRATE' : 'SACK')
 /** Whale ladder names, keyed by size (the catalog owns the numbers). */
-const WHALE_NAME = (units: number) => (units >= 500_000 ? 'TITAN' : units >= 250_000 ? 'KRAKEN' : units >= 100_000 ? 'LEVIATHAN' : 'POD')
+/** "3d 4h" / "4h 05m" / "12m" for a window reset countdown. */
+const resetText = (ms: number) => {
+  const h = Math.floor(ms / 3_600_000)
+  const d = Math.floor(h / 24)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  return d > 0 ? `${d}d ${h % 24}h` : h > 0 ? `${h}h ${m < 10 ? '0' : ''}${m}m` : `${Math.max(1, m)}m`
+}
 
 function BerryShop() {
   const active = activeBoost()
