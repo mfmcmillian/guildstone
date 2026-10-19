@@ -1351,7 +1351,8 @@ function VipTab() {
 
       {/* The ladder */}
       <Panel flat color={C.paper} uiTransform={{ flexGrow: 1, height: '100%', flexDirection: 'column', padding: { top: S(22), bottom: S(16), left: S(26), right: S(26) } }}>
-        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', height: S(40) }}>
+        {/* Right padding matches the scrollbar the row list reserves, so RAID lines up with its values. */}
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', height: S(40), padding: { right: S(30) } }}>
           <Text value="TIER" size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(COLS.tag), height: '100%' }} />
           <Text value="NAME" size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(COLS.name), height: '100%' }} />
           <Text value="POINTS" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.pts), height: '100%' }} />
@@ -1384,7 +1385,7 @@ function VipTab() {
             )
           })}
         </UiEntity>
-        <Text value={vipHover ? VIP_PERK_HELP[vipHover] : 'VIP points never expire. Knights of Antrom wearables count the same points they give in KoA. Hover a column to see what it boosts.'} size={S(20)} color={vipHover ? C.purple : C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(56), margin: { top: S(6) } }} />
+        <Text value={vipHover ? VIP_PERK_HELP[vipHover] : 'VIP points never expire. Knights of Antrom wearables count the same points they give in KoA. Hover a column to see what it boosts.'} size={S(32)} color={vipHover ? C.purple : C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(120), margin: { top: S(8) } }} />
       </Panel>
     </UiEntity>
   )
