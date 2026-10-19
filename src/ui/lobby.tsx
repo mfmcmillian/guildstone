@@ -9,7 +9,7 @@ import { S } from './responsive'
 const CROWN_ICON = 'images/icons/guild/crown_small.png'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { profileState } from '../playerProfile'
-import { withVip } from '../vip'
+import { cleanVip, vipColor, withVip } from '../vip'
 import { VipName } from './vipName'
 import { playButtonSound } from '../uiSounds'
 import { labelFor, isFriend, nicknameOf, cleanNickInput, NICK_MAX } from '../social'
@@ -319,7 +319,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   const heightOf = (m: typeof visible[number]) => 30 + 26 * (Math.min(8, Math.ceil(lineOf(m).length / 75)) - 1)
   const feedKey = `ch-${channel}`
   const page = pageBack(visible, heightOf, feedH, feedKey)
-  const rows = page.rows.map(({ m, h }) => ({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', stamp: chatStamp(m.at), line: lineOf(m), h, system: m.system === true, me: mentionsMe(m) }))
+  const rows = page.rows.map(({ m, h }) => ({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', stamp: chatStamp(m.at), line: lineOf(m), h, system: m.system === true, me: mentionsMe(m), vipLine: m.system === true && m.kind === 'vip' ? cleanVip(m.vip) : 0 }))
   const moderator = canModerate(channel)
   const emptyText = !lobby.loadedOnce
     ? lobby.failed ? 'Could not reach the lobby. Retrying...' : 'Joining the lobby...'
@@ -356,7 +356,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
               }}
             >
               <Text value={r.stamp} size={S(20)} color={C.textMuted} nowrap raw align="top-left" uiTransform={{ width: S(190), height: S(r.h), margin: { right: S(10) } }} />
-              <Text value={r.line} size={S(22)} color={r.system ? C.textMuted : r.me ? C.orange : nameColor(r.from, r.guild)} align="top-left" raw={!r.system} uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
+              <Text value={r.line} size={S(22)} color={r.vipLine ? vipColor(r.vipLine) : r.system ? C.textMuted : r.me ? C.orange : nameColor(r.from, r.guild)} align="top-left" raw={!r.system} uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
               {moderator && !r.system ? (
                 <UiEntity
                   uiTransform={{ width: S(30), height: S(26), alignItems: 'center', justifyContent: 'center', margin: { left: S(6) } }}

@@ -37,7 +37,8 @@ const RETRY_GAP_MS = 5_000
 
 export type PackWindow = 'none' | 'day' | 'week' | 'once'
 export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; window: PackWindow; chain: string | null; tier: number; grants: Record<BaseResource, number> }
-export type Receipt = { txHash: string; sku: string; mana: number; grants: Partial<Record<BaseResource, number>>; at: number }
+export type Receipt = { txHash: string; sku: string; mana: number; paid?: 'mana' | 'credit'; grants: Partial<Record<BaseResource, number>>; at: number }
+export const isCreditReceipt = (r: Receipt) => r.paid === 'credit' || r.txHash.startsWith('credit-')
 /** Decentraland's gasless relay takes its cut as a second MANA transfer in the same tx; the wallet shows pack + this. */
 export const RELAY_FEE_PCT = 2.5
 export const packCostWithFee = (mana: number) => Math.ceil(mana * (1 + RELAY_FEE_PCT / 100) * 100) / 100
@@ -82,6 +83,8 @@ export const packs = {
   messageOk: true,
   /** This wallet's Polygon MANA (from the catalog, so up to a minute old); -1 while unknown. */
   balance: -1,
+  /** Shop credit in MANA (mail prizes from the team); pays for a whole pack at a time. */
+  credit: 0,
   /** Receipts for the PURCHASES tab, newest first. */
   history: [] as Receipt[],
   historyStatus: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
@@ -175,7 +178,8 @@ export function refreshHistory(force = false) {
       const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs/history`, init: { method: 'GET', headers: {} } })
       if (!response.ok) throw new Error(`history ${response.status}`)
       const body = JSON.parse(response.body) as { rows?: Receipt[] }
-      packs.history = Array.isArray(body.rows) ? body.rows.filter((r) => r && TX_PATTERN.test(String(r.txHash))) : []
+      // Credit redemptions have a `credit-…` id instead of a hash (no Polygonscan receipt for those).
+      packs.history = Array.isArray(body.rows) ? body.rows.filter((r) => r && (TX_PATTERN.test(String(r.txHash)) || String(r.txHash).startsWith('credit-'))) : []
       packs.historyStatus = 'ready'
     } catch (error) {
       packs.historyStatus = 'error'
@@ -200,13 +204,14 @@ export function refreshPacks(force = false) {
     try {
       const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs`, init: { method: 'GET', headers: {} } })
       if (!response.ok) throw new Error(`catalog ${response.status}`)
-      const body = JSON.parse(response.body) as { enabled: boolean; wallet: string; mana: string; packs: Pack[]; pending: PendingPurchase | null; bought?: Record<string, boolean>; balance?: number }
+      const body = JSON.parse(response.body) as { enabled: boolean; wallet: string; mana: string; packs: Pack[]; pending: PendingPurchase | null; bought?: Record<string, boolean>; balance?: number; credit?: number }
       if (String(body.mana).toLowerCase() !== MANA_POLYGON) throw new Error('token mismatch')
       packs.enabled = body.enabled === true
       packs.wallet = String(body.wallet || '').toLowerCase()
       packs.list = Array.isArray(body.packs) ? body.packs.filter((p) => p && typeof p.id === 'string' && p.mana > 0 && p.units > 0) : []
       packs.bought = body.bought && typeof body.bought === 'object' ? body.bought : {}
       packs.balance = typeof body.balance === 'number' && body.balance >= 0 ? body.balance : -1
+      packs.credit = typeof body.credit === 'number' && body.credit > 0 ? Math.floor(body.credit) : 0
       packs.loadedAt = Date.now()
       packs.status = 'ready'
       // A hash the server is still waiting on (e.g. the ring closed mid-purchase): resume polling for it.
@@ -295,15 +300,7 @@ async function verify(pending: PendingPurchase) {
     while (Date.now() < deadline) {
       const outcome = await settle(pending)
       if (outcome === 'credited') {
-        playBoostSound()
-        const pack = packById(pending.sku)
-        finish(true, pack ? `+${pack.units.toLocaleString('en-US')} ${pack.resource === 'all' ? 'OF EACH RESOURCE' : pack.resource.toUpperCase()} IN STORAGE` : 'PACK CREDITED')
-        // The delivery banner, then fresh balance / windows / receipts / VIP.
-        packs.celebration = { at: Date.now(), pack: pack ?? null, vipGained: lastVipGained, vipLevelUp: lastVipLevelUp }
-        packs.loadedAt = 0
-        refreshPacks(true)
-        refreshHistory(true)
-        refreshVip(true)
+        delivered(pending.sku)
         return
       }
       if (outcome === 'failed') { finish(false, 'TRANSACTION FAILED ON-CHAIN - NOTHING WAS CHARGED'); return }
@@ -321,6 +318,64 @@ async function verify(pending: PendingPurchase) {
   }
 }
 
+/** A pack just landed (on-chain or by credit): sound, toast, the delivery banner, then fresh balance / windows / receipts / VIP. */
+function delivered(sku: string) {
+  playBoostSound()
+  const pack = packById(sku)
+  finish(true, pack ? `+${pack.units.toLocaleString('en-US')} ${pack.resource === 'all' ? 'OF EACH RESOURCE' : pack.resource.toUpperCase()} IN STORAGE` : 'PACK CREDITED')
+  packs.celebration = { at: Date.now(), pack: pack ?? null, vipGained: lastVipGained, vipLevelUp: lastVipLevelUp }
+  packs.loadedAt = 0
+  refreshPacks(true)
+  refreshHistory(true)
+  refreshVip(true)
+}
+
+type CreditedBody = { status?: string; error?: string; storage?: StorageData; credit?: number; vip?: { level?: number; points?: number; gained?: number; levelUp?: boolean } }
+/** Apply what a 'credited' answer carries: storage, remaining shop credit, VIP points / level. */
+function applyCredited(body: CreditedBody) {
+  if (body.storage) player.storage = sanitizeStorage(body.storage)
+  if (typeof body.credit === 'number' && body.credit >= 0) packs.credit = Math.floor(body.credit)
+  lastVipGained = Math.max(0, Math.floor(Number(body.vip?.gained) || 0))
+  lastVipLevelUp = body.vip?.levelUp === true
+  if (body.vip && Number.isFinite(Number(body.vip.level))) {
+    player.vip = cleanVip(body.vip.level)
+    vip.level = player.vip
+    vip.points = Math.max(0, Math.floor(Number(body.vip.points) || 0))
+  }
+}
+
+/** Can the whole price come out of shop credit? (Never a split with MANA.) */
+export const canUseCredit = (p: Pack) => packs.credit >= p.mana
+
+/** Buy a pack with shop credit (mail prizes). No wallet involved; the server deducts the credit and hands the pack over. */
+export function redeemCredit(sku: string) {
+  const pack = packById(sku)
+  if (!pack || isPackBusy() || !canUseCredit(pack) || packs.bought[sku]) return
+  packs.phase = 'verifying'
+  packs.busySku = sku
+  packs.message = ''
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs/redeem`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku }) }
+      })
+      const body = response.body ? (JSON.parse(response.body) as CreditedBody) : {}
+      if (body.status === 'credited') {
+        applyCredited(body)
+        if (pack.window !== 'none') packs.bought = { ...packs.bought, [sku]: true }
+        delivered(sku)
+        return
+      }
+      if (typeof body.credit === 'number') packs.credit = Math.max(0, Math.floor(body.credit))
+      finish(false, (body.error ?? `Could not use credit (${response.status})`).toUpperCase())
+    } catch (error) {
+      console.error('[packs] redeem failed:', error instanceof Error ? error.message : String(error))
+      finish(false, 'COULD NOT REACH THE SHOP - TRY AGAIN')
+    }
+  })
+}
+
 type Outcome = 'credited' | 'pending' | 'failed' | 'mismatch' | 'rejected'
 /** VIP points / level-up from the last credited answer, for the delivery banner. */
 let lastVipGained = 0
@@ -333,18 +388,11 @@ async function settle(pending: PendingPurchase): Promise<Outcome> {
       url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs/purchase`,
       init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ txHash: pending.txHash, sku: pending.sku }) }
     })
-    const body = response.body ? (JSON.parse(response.body) as { status?: string; error?: string; storage?: StorageData; vip?: { level?: number; points?: number; gained?: number; levelUp?: boolean } }) : {}
+    const body = response.body ? (JSON.parse(response.body) as CreditedBody) : {}
     if (response.status === 202 || body.status === 'pending') return 'pending'
     if (response.status >= 500) return 'pending'
     if (body.status === 'credited') {
-      if (body.storage) player.storage = sanitizeStorage(body.storage)
-      lastVipGained = Math.max(0, Math.floor(Number(body.vip?.gained) || 0))
-      lastVipLevelUp = body.vip?.levelUp === true
-      if (body.vip && Number.isFinite(Number(body.vip.level))) {
-        player.vip = cleanVip(body.vip.level)
-        vip.level = player.vip
-        vip.points = Math.max(0, Math.floor(Number(body.vip.points) || 0))
-      }
+      applyCredited(body)
       // The window is used up the moment it credits; the next catalog fetch confirms it.
       if (pending.sku && packs.list.some((p) => p.id === pending.sku && p.window !== 'none')) packs.bought = { ...packs.bought, [pending.sku]: true }
       return 'credited'

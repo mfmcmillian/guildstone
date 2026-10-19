@@ -25,7 +25,7 @@ const ROW_UNREAD = Color4.create(1, 1, 1, 0.9)
 const ROW_READ = Color4.create(1, 1, 1, 0.45)
 const ROW_OPEN = Color4.create(1, 0.82, 0.25, 0.35)
 const CHIP_GOLD = Color4.create(0.72, 0.48, 0, 0.9)
-const ICON_OF: Record<MailAttachKey, string> = { wood: RESOURCE_INFO.wood.icon, rock: RESOURCE_INFO.rock.icon, meat: RESOURCE_INFO.meat.icon, bone: RESOURCE_INFO.bone.icon, coins: RESOURCE_INFO.coin.icon, berries: RESOURCE_INFO.berry.icon }
+const ICON_OF: Record<MailAttachKey, string> = { wood: RESOURCE_INFO.wood.icon, rock: RESOURCE_INFO.rock.icon, meat: RESOURCE_INFO.meat.icon, bone: RESOURCE_INFO.bone.icon, coins: RESOURCE_INFO.coin.icon, berries: RESOURCE_INFO.berry.icon, credit: 'images/icons/res_star_core.png' }
 let page = 0
 
 function Row(props: { key?: string; m: Letter; now: number }) {

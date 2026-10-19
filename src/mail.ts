@@ -7,11 +7,12 @@ import { signedFetch } from '~system/SignedFetch'
 import { profileState } from './playerProfile'
 import { flash, notify, player } from './state'
 import { sanitizeStorage } from './backpackPersistence'
+import { packs } from './packs'
 import { settings } from './settings'
 import { playErrorSound, playRareFindSound, playSuccessSound } from './uiSounds'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
-export const MAIL_ATTACH_KEYS = ['wood', 'rock', 'meat', 'bone', 'coins', 'berries'] as const
+export const MAIL_ATTACH_KEYS = ['wood', 'rock', 'meat', 'bone', 'coins', 'berries', 'credit'] as const
 export type MailAttachKey = (typeof MAIL_ATTACH_KEYS)[number]
 export type MailAttach = Partial<Record<MailAttachKey, number>>
 export interface Letter {
@@ -135,7 +136,8 @@ export function readLetter(id: string) {
   }
 }
 
-export const ATTACH_LABEL: Record<MailAttachKey, string> = { wood: 'WOOD', rock: 'ROCK', meat: 'MEAT', bone: 'BONE', coins: 'COINS', berries: 'BERRIES' }
+/** 'credit' is shop credit in MANA: spends on any pack in the shop, one whole pack at a time (packs.ts redeemCredit). */
+export const ATTACH_LABEL: Record<MailAttachKey, string> = { wood: 'WOOD', rock: 'ROCK', meat: 'MEAT', bone: 'BONE', coins: 'COINS', berries: 'BERRIES', credit: 'MANA CREDIT' }
 export function attachText(a: MailAttach): string {
   return MAIL_ATTACH_KEYS.filter((k) => (a[k] ?? 0) > 0).map((k) => `+${a[k]} ${ATTACH_LABEL[k]}`).join('  ')
 }
@@ -150,7 +152,7 @@ export function mailAction(id: string, action: 'read' | 'claim' | 'delete', sile
         url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/mail/${id}`,
         init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) }
       })
-      const body = JSON.parse(response.body) as { mail?: unknown; claimed?: MailAttach | null; storage?: Record<string, number>; currency?: { coins: number; berries: number }; error?: string }
+      const body = JSON.parse(response.body) as { mail?: unknown; claimed?: MailAttach | null; storage?: Record<string, number>; currency?: { coins: number; berries: number }; shopCredit?: number; error?: string }
       if (!response.ok) {
         if (!silent) {
           playErrorSound()
@@ -166,6 +168,10 @@ export function mailAction(id: string, action: 'read' | 'claim' | 'delete', sile
         if (body.currency) {
           player.coins = body.currency.coins
           player.berries = body.currency.berries
+        }
+        if (typeof body.shopCredit === 'number') {
+          packs.credit = Math.max(0, Math.floor(body.shopCredit))
+          packs.loadedAt = 0
         }
         playSuccessSound()
         flash(body.claimed ? `CLAIMED  ${attachText(body.claimed)}` : 'CLAIMED', 2400)

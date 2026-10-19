@@ -81,7 +81,7 @@ import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
 import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
-import { buyPack, canAfford, GET_MANA_URL, isPackBusy, packById, packCostWithFee, packs, refreshHistory, refreshPacks, refreshVip, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, vip, windowResetIn, type Pack } from '../packs'
+import { buyPack, canAfford, canUseCredit, GET_MANA_URL, isCreditReceipt, isPackBusy, packById, packCostWithFee, packs, redeemCredit, refreshHistory, refreshPacks, refreshVip, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, vip, windowResetIn, type Pack } from '../packs'
 import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
 import { VIP_BAG_PCT, VIP_GATHER_PCT, VIP_MAX, VIP_MIN_SCORE, VIP_NAMES, VIP_POINTS_PER_MANA, VIP_RAID_PCT_PER_LEVEL, vipColor, vipName } from '../vip'
 import { VipName } from './vipName'
@@ -1173,6 +1173,8 @@ function PackPurchaseConfirm() {
   const limit = p.window === 'day' ? 'Available once per day' : p.window === 'week' ? 'Available once per week' : p.window === 'once' ? 'One time only' : ''
   const short = !canAfford(p)
   const total = packCostWithFee(p.mana)
+  // Shop credit covers the whole price: no wallet, no relay fee. Credit never splits with MANA.
+  const credit = canUseCredit(p)
   return (
     <UiEntity
       uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
@@ -1188,18 +1190,31 @@ function PackPurchaseConfirm() {
         {/* The relay fee is charged in the same transaction, so the wallet will show more than the pack price. */}
         <Text value={`Plus a ~${RELAY_FEE_PCT}% Decentraland relay fee: your wallet will ask for about ${total} MANA`} size={S(21)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
         {/* Only when the wallet can't cover it; otherwise nothing extra. */}
-        {short ? <Text value={`You have ${packs.balance.toLocaleString('en-US')} MANA on Polygon - not enough for this pack`} size={S(22)} color={C.red} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} /> : null}
+        {short && !credit ? <Text value={`You have ${packs.balance.toLocaleString('en-US')} MANA on Polygon - not enough for this pack`} size={S(22)} color={C.red} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} /> : null}
+        {credit ? <Text value={`You have ${packs.credit.toLocaleString('en-US')} MANA shop credit - use it and pay nothing from your wallet`} size={S(22)} color={C.greenDark} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} /> : null}
         <Spacer />
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', height: S(76) }}>
-          <Button label="CANCEL" sound="cancel" color={C.navySoft} size={S(26)} uiTransform={{ width: S(240), height: '100%', margin: { right: S(14) } }} onClick={() => { confirmingPackId = ''; trackShop('cancel', p.id) }} />
-          {short ? (
+          <Button label="CANCEL" sound="cancel" color={C.navySoft} size={S(26)} uiTransform={{ width: S(credit ? 200 : 240), height: '100%', margin: { right: S(14) } }} onClick={() => { confirmingPackId = ''; trackShop('cancel', p.id) }} />
+          {credit ? (
+            <Button
+              label={`USE ${p.mana} CREDIT`}
+              color={C.green}
+              size={S(25)}
+              uiTransform={{ width: S(300), height: '100%', margin: { right: S(14) } }}
+              onClick={() => {
+                confirmingPackId = ''
+                redeemCredit(p.id)
+              }}
+            />
+          ) : null}
+          {short && !credit ? (
             <Button label="GET MANA" color={C.green} size={S(26)} uiTransform={{ width: S(360), height: '100%' }} onClick={() => openUrl(GET_MANA_URL)} />
-          ) : (
+          ) : short ? null : (
             <Button
               label={`BUY FOR ${p.mana} MANA`}
               color={C.purple}
               size={S(25)}
-              uiTransform={{ width: S(360), height: '100%' }}
+              uiTransform={{ width: S(credit ? 300 : 360), height: '100%' }}
               onClick={() => {
                 confirmingPackId = ''
                 buyPack(p.id)
@@ -1215,7 +1230,8 @@ function PackPurchaseConfirm() {
 /** PURCHASES: this wallet's receipts (what, when, how much MANA, the Polygonscan link) and the terms. */
 function PurchaseHistory() {
   const rows = packs.history
-  const total = rows.reduce((sum, r) => sum + r.mana, 0)
+  // Only MANA actually paid; credit redemptions are listed but not summed.
+  const total = rows.reduce((sum, r) => sum + (isCreditReceipt(r) ? 0 : r.mana), 0)
   const status =
     packs.historyStatus === 'loading' || packs.historyStatus === 'idle' ? 'Loading receipts...'
     : packs.historyStatus === 'error' ? 'Could not load receipts. Reopen to try again.'
@@ -1245,8 +1261,12 @@ function PurchaseHistory() {
                   </UiEntity>
                 ))}
               </UiEntity>
-              <OutlinedText value={`${r.mana} MANA`} size={S(28)} color={C.gold} uiTransform={{ width: S(200), height: S(40) }} align="middle-right" raw />
-              <Button label="RECEIPT" color={C.navySoft} size={S(20)} uiTransform={{ width: S(170), height: S(56), minWidth: 0, margin: { left: S(20) } }} onClick={() => openUrl(txUrl(r.txHash))} />
+              <OutlinedText value={isCreditReceipt(r) ? `${r.mana} CREDIT` : `${r.mana} MANA`} size={S(28)} color={isCreditReceipt(r) ? C.greenDark : C.gold} uiTransform={{ width: S(220), height: S(40) }} align="middle-right" raw={!isCreditReceipt(r)} />
+              {isCreditReceipt(r) ? (
+                <Text value="SHOP CREDIT" size={S(18)} color={C.textMuted} nowrap uiTransform={{ width: S(170), height: S(56), margin: { left: S(20) } }} />
+              ) : (
+                <Button label="RECEIPT" color={C.navySoft} size={S(20)} uiTransform={{ width: S(170), height: S(56), minWidth: 0, margin: { left: S(20) } }} onClick={() => openUrl(txUrl(r.txHash))} />
+              )}
             </Panel>
           )
         })}
@@ -1268,7 +1288,8 @@ function VipTab() {
   const remaining = next ? Math.max(0, next.min - vip.score) : 0
   const tint = vipColor(level, true)
   const status = vip.status === 'error' ? 'Could not load VIP. Reopen to try again.' : vip.status !== 'ready' ? 'Loading...' : ''
-  const COLS = { tag: 150, name: 220, pts: 240, perk: 190 }
+  // Ladder panel is ~1016 wide inside its padding: 140 + 190 + 200 + 150 + 150 = 830 fixed, RAID takes the rest.
+  const COLS = { tag: 140, name: 190, pts: 200, perk: 150 }
   return (
     <UiEntity uiTransform={{ width: S(1704), flexGrow: 1, flexDirection: 'row', margin: { top: S(6) } }}>
       {/* Your tier */}
@@ -1365,7 +1386,17 @@ function PackHeader(props: { blurb: string }) {
     : !packs.enabled ? 'The resource shop is closed right now.'
     : props.blurb
   const color = packs.phase !== 'idle' ? C.yellow : packs.message ? (packs.messageOk ? C.greenDark : C.red) : C.textMuted
-  return <Text value={text} size={S(26)} color={color} nowrap uiTransform={{ height: S(36), margin: { top: S(4) } }} />
+  return (
+    <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: S(44), margin: { top: S(4) } }}>
+      <Text value={text} size={S(26)} color={color} nowrap uiTransform={{ width: 'auto', height: S(36) }} />
+      {/* Shop credit from the team (mail prizes): spends on any pack whose price it covers, with no wallet step. */}
+      {packs.credit > 0 && packs.phase === 'idle' ? (
+        <Pill color={C.greenDark} uiTransform={{ width: 'auto', height: S(40), padding: { left: S(18), right: S(18) }, margin: { left: S(18) }, alignItems: 'center', justifyContent: 'center' }}>
+          <OutlinedText value={`SHOP CREDIT: ${packs.credit.toLocaleString('en-US')} MANA`} size={S(22)} uiTransform={{ width: 'auto', height: S(32) }} />
+        </Pill>
+      ) : null}
+    </UiEntity>
+  )
 }
 
 /** One buy row: the tier name and amount on the left, the MANA button on the right. Rows share their column's height. */
