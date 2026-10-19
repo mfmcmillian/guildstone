@@ -13,9 +13,11 @@ import { ART, HERO_SHEET, Sprite, loopFrame } from './sprite'
 import { type HeroId } from '../hero'
 import { openUrl, share, shareAvailable, shareOnX, shareWaitText, SHARE_BERRIES } from '../links'
 import { remoteConfig } from '../remoteConfig'
+import { CLIENT_BUILD_DATE, CLIENT_VERSION } from '../version'
 
-const W = 1400
-const BODY_H = 620
+// Roomy on purpose: the paragraphs have fixed-height rows and were clipping into each other at 1400 × 620.
+const W = 1500
+const BODY_H = 700
 const H = BODY_H + 140
 const STAGE_W = 480
 const GAP = 24
@@ -39,8 +41,10 @@ function Stage() {
       <Spacer />
       <Sprite src={HERO_SHEET[id].own} anim="idle" frame={loopFrame('idle', Date.now())} size={S(360)} />
       <Spacer />
-      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: 0, left: 0 }, width: '100%', height: S(90), pointerFilter: 'none' }} uiBackground={{ color: STAGE_FOOT }} />
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: 0, left: 0 }, width: '100%', height: S(104), pointerFilter: 'none' }} uiBackground={{ color: STAGE_FOOT }} />
       <OutlinedText value="MATT" size={S(36)} color={C.gold} uiTransform={{ height: S(44) }} />
+      {/* Build stamp, so a player can read off which ring they are wearing when something looks wrong. */}
+      <Text value={`Ring v${CLIENT_VERSION}  •  ${CLIENT_BUILD_DATE}`} size={S(18)} color={C.textMuted} raw uiTransform={{ height: S(26) }} />
     </UiEntity>
   )
 }
@@ -59,9 +63,9 @@ export function AboutPanel() {
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center' }}>
         <Stage />
         <Panel flat color={C.paper2} uiTransform={{ width: S(TEXT_W), height: S(BODY_H), flexDirection: 'column', padding: S(PAD), margin: { left: S(GAP) } }}>
-          <OutlinedText value="KNIGHTS OF ANTROM" size={S(34)} color={C.gold} uiTransform={{ height: S(42), margin: { bottom: S(10) } }} align="middle-left" />
+          <OutlinedText value="KNIGHTS OF ANTROM" size={S(34)} color={C.gold} uiTransform={{ height: S(42), margin: { bottom: S(12) } }} align="middle-left" />
           {LINES.map((line, i) => (
-            <Text key={`about-line-${i}`} value={line} size={S(21)} color={C.text} align="top-left" uiTransform={{ width: '100%', height: S(i === 2 ? 56 : 84), margin: { bottom: S(8) } }} />
+            <Text key={`about-line-${i}`} value={line} size={S(21)} color={C.text} align="top-left" uiTransform={{ width: '100%', height: S(i === 2 ? 64 : 96), margin: { bottom: S(12) } }} />
           ))}
           <Spacer />
           <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
