@@ -19,7 +19,6 @@ import {
   BASE_RESOURCES,
   backpackCap,
   backpackCount,
-  backpackGrowthPct,
   suitBag,
   xpForLevel,
   nextMasteryMilestone,
@@ -83,7 +82,7 @@ import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCra
 import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
 import { buyPack, canAfford, canUseCredit, GET_MANA_URL, isCreditReceipt, isPackBusy, packById, packCostWithFee, packs, packVipPoints, redeemCredit, refreshHistory, refreshPacks, refreshVip, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, vip, windowResetIn, type Pack } from '../packs'
 import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
-import { VIP_BAG_PCT, VIP_GATHER_PCT, VIP_MAX, VIP_MIN_SCORE, VIP_NAMES, VIP_POINTS_PER_MANA, VIP_RAID_PCT_PER_LEVEL, VIP_TOAST_MIN_LEVEL, vipColor, vipName, vipTag } from '../vip'
+import { VIP_BAG_PCT, VIP_GATHER_PCT, VIP_MAX, VIP_MIN_SCORE, VIP_NAMES, VIP_POINTS_PER_MANA, VIP_RAID_PCT_PER_LEVEL, VIP_TOAST_MIN_LEVEL, vipBagPct, vipColor, vipName, vipTag } from '../vip'
 import { VipName } from './vipName'
 import { stepTarget } from './guide'
 import { HERO_SHEET, Sprite, loopFrame } from './sprite'
@@ -300,8 +299,8 @@ function SuitsTab() {
   const extras: string[] = []
   if (player.bigBagUntil > Date.now()) extras.push('Big Backpack +100')
   if ((player.guild?.bonuses.bagBonus ?? 0) > 0) extras.push(`Loot Luck +${player.guild?.bonuses.bagBonus}`)
-  const growth = backpackGrowthPct()
-  const capText = [`${SUIT_CAP[0]} base`, ...suitParts, ...extras].join('  •  ') + (growth > 0 ? `   x${(1 + growth).toFixed(2)} from mastery & tools` : '')
+  const vipPct = vipBagPct(player.vip)
+  const capText = [`${SUIT_CAP[0]} base`, ...suitParts, ...extras].join('  •  ') + (vipPct > 0 ? `   x${(1 + vipPct).toFixed(2)} from VIP ${player.vip}` : '')
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
       <Panel flat color={C.paper2} uiTransform={{ width: S(CONTENT_W), height: S(130), flexDirection: 'row', alignItems: 'center', padding: { left: S(30), right: S(30) } }}>
@@ -840,15 +839,15 @@ export function itemSource(id: ItemId | 'coins'): string {
     }
   }
   const drop = RARE_DROPS[id as RareRaw]
-  if (drop) return `${name}: rare find in the ${drop.zones.map(zoneOf).join(' / ')} with ${gateText(drop.gate)}${Object.keys(drop.gate).length === 1 ? '+ suit' : ' suits'}`
+  if (drop) return `${name}: rare find in the ${drop.zones.map(zoneOf).join(' / ')} with ${gateText(drop.gate, drop.until)}${Object.keys(drop.gate).length === 1 ? ' suit' : ' suits'}`
   return name
 }
 
-/** "Lumberjack L2 + Miner L2" for a rare drop's suit gate. */
-function gateText(gate: Partial<Record<Skill, number>>): string {
+/** "Lumberjack L2 + Miner L2" for a rare drop's suit gate; tier raws show the window they roll in ("Lumberjack L1-L2"). */
+function gateText(gate: Partial<Record<Skill, number>>, until?: number): string {
   const entries = Object.entries(gate) as Array<[Skill, number]>
   if (entries.length === SKILLS.length && entries.every(([, lv]) => lv === entries[0][1])) return `L${entries[0][1]} suits in all 4 professions`
-  return entries.map(([s, lv]) => `${SKILL_INFO[s].name} L${lv}`).join(' + ')
+  return entries.map(([s, lv]) => (until !== undefined && until > lv ? `${SKILL_INFO[s].name} L${lv}-L${until}` : `${SKILL_INFO[s].name} L${lv}`)).join(' + ')
 }
 
 /** One recipe input: icon, amount needed (green when covered), and what the player holds. */

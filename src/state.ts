@@ -14,8 +14,8 @@ export const BASE_RESOURCES: BaseResource[] = ['wood', 'rock', 'meat', 'bone']
 export const MATERIALS: Material[] = ['plank', 'brick', 'jerky', 'bonedust']
 
 // --- Guildstone economy (mirrors the server / koa/guildstone-web) ------------------------------------
-// Suits are keys: wearing tier N of a profession makes tier N+1 raws drop in its zone. Rare raws skip the
-// backpack and land straight in Depot storage; only base items can be sold.
+// Suits are keys: wearing tier N of a profession makes tier N raws drop in its zone (tier N-1 keeps rolling, lower
+// tiers stop). Rare raws land straight in Bank storage but each takes a bag slot on the way; only base items can be sold.
 export type RareRaw =
   | 'hardwood' | 'ironwood' | 'heartwood' | 'eldertree_root'
   | 'iron_ore' | 'silver_ore' | 'mithril_ore' | 'starstone'
@@ -39,7 +39,8 @@ export const LADDER: Record<Skill, Array<[StorageKey, string, MaterialKey, strin
   assassin: [['bone', 'Bone', 'bonedust', 'Bone Dust'], ['fang', 'Fang', 'fang_powder', 'Fang Powder'], ['skull', 'Skull', 'skull_charm', 'Skull Charm'], ['wraith_bone', 'Wraith Bone', 'wraith_ash', 'Wraith Ash'], ['lich_marrow', 'Lich Marrow', 'lich_sigil', 'Lich Sigil']]
 }
 export const TIER_RATES = [0, 40, 120, 300, 800]
-export interface RareDropDef { gate: Partial<Record<Skill, number>>; zones: Skill[]; rate: number; name: string }
+/** `until`: tier raws stop rolling once the suit is above this tier (own tier + one below roll; combos have no ceiling). */
+export interface RareDropDef { gate: Partial<Record<Skill, number>>; zones: Skill[]; rate: number; name: string; until?: number }
 export const COMBOS: Record<string, RareDropDef> = {
   deepwood_amber: { name: 'Deepwood Amber', gate: { lumberjack: 2, miner: 2 }, zones: ['lumberjack', 'miner'], rate: 150 },
   shadow_sinew: { name: 'Shadow Sinew', gate: { butcher: 2, assassin: 2 }, zones: ['butcher', 'assassin'], rate: 150 },
@@ -52,7 +53,7 @@ export const RARE_DROPS: Record<RareRaw, RareDropDef> = {} as Record<RareRaw, Ra
 for (const skill of SKILLS) {
   LADDER[skill].forEach(([rawId, rawName], tier) => {
     if (tier === 0) return
-    RARE_DROPS[rawId as RareRaw] = { name: rawName, gate: { [skill]: tier }, zones: [skill], rate: TIER_RATES[tier] }
+    RARE_DROPS[rawId as RareRaw] = { name: rawName, gate: { [skill]: tier }, zones: [skill], rate: TIER_RATES[tier], until: Math.min(4, tier + 1) }
   })
 }
 for (const [id, def] of Object.entries(COMBOS)) RARE_DROPS[id as RareRaw] = def
@@ -66,9 +67,15 @@ export const PROSPECTOR_PCT_PER_LEVEL = 0.02
 export function gateMet(gate: Partial<Record<Skill, number>>, skills: Record<Skill, SkillState>): boolean {
   return Object.entries(gate).every(([skill, level]) => (skills[skill as Skill]?.suit ?? 0) >= (level ?? 0))
 }
+/** Gate met and, for tier raws, the suit not more than one tier above (mirrors the server's afkRareRolls). */
+export function rareRolls(def: RareDropDef, skills: Record<Skill, SkillState>): boolean {
+  if (!gateMet(def.gate, skills)) return false
+  if (def.until === undefined) return true
+  return (Object.keys(def.gate) as Skill[]).every((s) => (skills[s]?.suit ?? 0) <= (def.until ?? 4))
+}
 /** Rare drops rolling right now in a profession's zone, given the suits being worn. */
 export function activeRareDrops(skill: Skill): RareRaw[] {
-  return RARE_RAWS.filter((id) => RARE_DROPS[id].zones.includes(skill) && gateMet(RARE_DROPS[id].gate, player.skills))
+  return RARE_RAWS.filter((id) => RARE_DROPS[id].zones.includes(skill) && rareRolls(RARE_DROPS[id], player.skills))
 }
 /** Plain-language gate text for a rare drop ("Wear Lumberjack L2+ and Miner L2+"). */
 export function gateText(gate: Partial<Record<Skill, number>>): string {
@@ -129,7 +136,8 @@ export const SKILL_ICON: Record<Skill, string> = {
 // Suits no longer multiply yield: they are keys that unlock rarer drops (see the Guildstone catalogue).
 // The table is kept at 1 so the client/server rounding chain stays identical.
 export const SUIT_MULT = [1, 1, 1, 1, 1]
-export const SUIT_CAP = [200, 500, 1000, 2000, 4000]
+/** Index 0 is everyone's base backpack; 1-4 is what each worn suit tier adds. Mirrors the server's AFK_SUIT_CAP. */
+export const SUIT_CAP = [500, 500, 1000, 2000, 4000]
 export const WORK_CYCLE_SECS = 3 // demo speed (design: 5s)
 export const CRAFT_SECS = 2 // demo speed
 
@@ -480,22 +488,15 @@ export function suitBag(level: number): number {
   return level > 0 ? SUIT_CAP[level] : 0
 }
 
-/** Flat backpack: base 200 + every equipped suit's bag + Big Backpack boost + guild Loot Luck. */
+/** Flat backpack: base 500 + every equipped suit's bag + Big Backpack boost + guild Loot Luck. */
 export function backpackFlatCap(): number {
   const suits = SKILLS.reduce((total, s) => total + suitBag(player.skills[s].suit), 0)
   return SUIT_CAP[0] + suits + (player.bigBagUntil > Date.now() ? 100 : 0) + (player.guild?.bonuses.bagBonus ?? 0)
 }
 
-/** Long-term bag growth: +1% per mastery level past 1 (all zones) and +10% per tool tier (all tools). Mirrors the server. */
-export function backpackGrowthPct(): number {
-  const masteryPct = MASTERY_ENABLED ? SKILLS.reduce((sum, s) => sum + (player.mastery[s].level - 1), 0) / 100 : 0
-  const toolsPct = SKILLS.reduce((sum, s) => sum + player.tools[s], 0) * TOOL_PCT_PER_TIER
-  return masteryPct + toolsPct
-}
-
-/** One shared backpack: flat cap scaled by mastery/tool growth. */
+/** One shared backpack: the flat cap plus the VIP bag perk. Tools only affect yield (mirrors the server's afkBackpackCapacity). */
 export function backpackCap(): number {
-  return Math.round(backpackFlatCap() * (1 + backpackGrowthPct()) * (1 + vipBagPct(player.vip)))
+  return Math.round(backpackFlatCap() * (1 + vipBagPct(player.vip)))
 }
 
 export function backpackFull(): boolean {
