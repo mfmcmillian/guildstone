@@ -12,11 +12,11 @@ export const VIP_NAMES = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'My
 /** Combined score needed for each level (index = level). Mirrors afkVip.js VIP_MIN_SCORE. */
 export const VIP_MIN_SCORE = [0, 2500, 6500, 12500, 25000, 50000, 100000, 175000, 300000, 500000, 1000000]
 /** 1 MANA spent in the shop = this many VIP points. */
-export const VIP_POINTS_PER_MANA = 10
+export const VIP_POINTS_PER_MANA = 25
 /** Gather yield bonus per level. */
 export const VIP_GATHER_PCT = [0, 0.02, 0.04, 0.06, 0.08, 0.12, 0.14, 0.16, 0.18, 0.21, 0.25]
 /** Backpack capacity bonus per level. */
-export const VIP_BAG_PCT = [0, 0, 0, 0.1, 0.1, 0.2, 0.2, 0.3, 0.3, 0.4, 0.5]
+export const VIP_BAG_PCT = [0, 0, 0, 0.05, 0.05, 0.1, 0.1, 0.15, 0.15, 0.2, 0.25]
 /** Raid HP/ATK per level (server rule `vipPerLevel`, shown here only). */
 export const VIP_RAID_PCT_PER_LEVEL = 0.04
 

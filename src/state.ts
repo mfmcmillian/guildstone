@@ -587,7 +587,7 @@ export function gather(skill: Skill, amount: number): number {
     addXp(skill, 10 * got)
     gainToast(`+${got} ${RESOURCE_INFO[res].name}`)
   } else {
-    flash('BACKPACK FULL - go DEPOT!')
+    flash('BACKPACK FULL - go to the BANK!')
   }
   return got
 }

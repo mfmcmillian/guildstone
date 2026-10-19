@@ -20,7 +20,7 @@ import { profileState, type StorageData } from './playerProfile'
 import { player, flash, notify, type BaseResource } from './state'
 import { sanitizeStorage } from './backpackPersistence'
 import { playBoostSound, playErrorSound } from './uiSounds'
-import { cleanVip } from './vip'
+import { cleanVip, VIP_POINTS_PER_MANA } from './vip'
 
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 /** Polygon MANA; the catalog repeats it and we refuse to send if they ever disagree. */
@@ -36,7 +36,9 @@ const CATALOG_TTL_MS = 60_000
 const RETRY_GAP_MS = 5_000
 
 export type PackWindow = 'none' | 'day' | 'week' | 'once'
-export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; window: PackWindow; chain: string | null; tier: number; grants: Record<BaseResource, number> }
+export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; window: PackWindow; chain: string | null; tier: number; /** Extra VIP points on top of the per-MANA ones (the starter's VIP 1 unlock). */ vipBonus: number; grants: Record<BaseResource, number> }
+/** VIP points a pack earns: VIP_POINTS_PER_MANA per MANA plus any pack bonus (mirrors afkShop.js grantPack). */
+export const packVipPoints = (p: Pack) => p.mana * VIP_POINTS_PER_MANA + (p.vipBonus || 0)
 export type Receipt = { txHash: string; sku: string; mana: number; paid?: 'mana' | 'credit'; grants: Partial<Record<BaseResource, number>>; at: number }
 export const isCreditReceipt = (r: Receipt) => r.paid === 'credit' || r.txHash.startsWith('credit-')
 /** Decentraland's gasless relay takes its cut as a second MANA transfer in the same tx; the wallet shows pack + this. */
@@ -208,7 +210,7 @@ export function refreshPacks(force = false) {
       if (String(body.mana).toLowerCase() !== MANA_POLYGON) throw new Error('token mismatch')
       packs.enabled = body.enabled === true
       packs.wallet = String(body.wallet || '').toLowerCase()
-      packs.list = Array.isArray(body.packs) ? body.packs.filter((p) => p && typeof p.id === 'string' && p.mana > 0 && p.units > 0) : []
+      packs.list = Array.isArray(body.packs) ? body.packs.filter((p) => p && typeof p.id === 'string' && p.mana > 0 && p.units > 0).map((p) => ({ ...p, vipBonus: Math.max(0, Math.floor(Number(p.vipBonus) || 0)) })) : []
       packs.bought = body.bought && typeof body.bought === 'object' ? body.bought : {}
       packs.balance = typeof body.balance === 'number' && body.balance >= 0 ? body.balance : -1
       packs.credit = typeof body.credit === 'number' && body.credit > 0 ? Math.floor(body.credit) : 0

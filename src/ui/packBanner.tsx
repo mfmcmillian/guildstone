@@ -132,7 +132,7 @@ export function PackCreditedBanner() {
           ))}
         </UiEntity>
 
-        <OutlinedText value="Added to your Depot storage" size={S(26 * k)} color={withAlpha(C.gray, alpha)} uiTransform={{ width: S(900 * k), height: S(40 * k), margin: { top: S(10 * k) } }} />
+        <OutlinedText value="Added to your Bank" size={S(26 * k)} color={withAlpha(C.gray, alpha)} uiTransform={{ width: S(900 * k), height: S(40 * k), margin: { top: S(10 * k) } }} />
         {vipLine ? <OutlinedText value={vipLine} size={S(28 * k)} color={withAlpha(vipLevelUp ? vipColor(player.vip) : C.yellow, alpha)} uiTransform={{ width: S(900 * k), height: S(40 * k), margin: { top: S(4 * k) } }} /> : null}
       </UiEntity>
     </UiEntity>

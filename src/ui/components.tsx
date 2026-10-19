@@ -141,6 +141,10 @@ export function Button(props: Keyed & {
   uiTransform?: UiTransformProps
   /** Side padding in design px (default 22). Small header controls use less so short labels fit narrow buttons. */
   pad?: number
+  /** A smaller second line under the label (e.g. "+300 VIP" under a price). */
+  sub?: string
+  subColor?: Color4
+  subRaw?: boolean
 }) {
   const disabled = props.disabled ?? false
   const pad = S(props.pad ?? 22)
@@ -180,13 +184,20 @@ export function Button(props: Keyed & {
         }
       >
         {props.icon ? <Icon src={props.icon} size={(props.size ?? S(FONT.button)) * 1.5} uiTransform={{ margin: { right: S(10) } }} /> : null}
-        <OutlinedText
-          value={props.label}
-          size={props.size ?? S(FONT.button)}
-          color={textColor}
-          outline={outline}
-          uiTransform={{ width: props.icon ? '70%' : '100%', margin: { bottom: pressed ? 0 : S(6) } }}
-        />
+        {props.sub ? (
+          <UiEntity uiTransform={{ width: props.icon ? '70%' : '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { bottom: pressed ? 0 : S(4) } }}>
+            <OutlinedText value={props.label} size={props.size ?? S(FONT.button)} color={textColor} outline={outline} uiTransform={{ height: (props.size ?? S(FONT.button)) * 1.15 }} />
+            <OutlinedText value={props.sub} size={(props.size ?? S(FONT.button)) * 0.62} color={props.subColor ?? C.yellow} outline={outline} uiTransform={{ height: (props.size ?? S(FONT.button)) * 0.8 }} raw={props.subRaw} />
+          </UiEntity>
+        ) : (
+          <OutlinedText
+            value={props.label}
+            size={props.size ?? S(FONT.button)}
+            color={textColor}
+            outline={outline}
+            uiTransform={{ width: props.icon ? '70%' : '100%', margin: { bottom: pressed ? 0 : S(6) } }}
+          />
+        )}
       </UiEntity>
     </UiEntity>
   )

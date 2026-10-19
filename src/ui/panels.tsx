@@ -81,7 +81,7 @@ import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
 import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
-import { buyPack, canAfford, canUseCredit, GET_MANA_URL, isCreditReceipt, isPackBusy, packById, packCostWithFee, packs, redeemCredit, refreshHistory, refreshPacks, refreshVip, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, vip, windowResetIn, type Pack } from '../packs'
+import { buyPack, canAfford, canUseCredit, GET_MANA_URL, isCreditReceipt, isPackBusy, packById, packCostWithFee, packs, packVipPoints, redeemCredit, refreshHistory, refreshPacks, refreshVip, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, vip, windowResetIn, type Pack } from '../packs'
 import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
 import { VIP_BAG_PCT, VIP_GATHER_PCT, VIP_MAX, VIP_MIN_SCORE, VIP_NAMES, VIP_POINTS_PER_MANA, VIP_RAID_PCT_PER_LEVEL, vipColor, vipName } from '../vip'
 import { VipName } from './vipName'
@@ -1144,7 +1144,9 @@ const packLabel = (p: Pack, mine: boolean, used: boolean) => (mine ? (packs.phas
 /** "167 per 1 MANA" (singles) or "42 of each per 1 MANA" (bundles): makes the ladder self-explanatory. */
 const perMana = (p: Pack) => `${Math.round(p.units / p.mana).toLocaleString('en-US')}${p.resource === 'all' ? ' of each' : ''} per 1 MANA`
 /** Shown on the confirm card and the PURCHASES tab. */
-const PACK_TERMS = 'Resources are virtual goods delivered to Depot storage. Purchases are final. Problem? REPORT BUG in the Lobby.'
+const PACK_TERMS = 'Resources are virtual goods delivered to your Bank. Purchases are final. Problem? REPORT BUG in the Lobby.'
+/** "+300 VIP" under a price button (nothing while the button is busy / bought / locked). */
+const vipSub = (p: Pack, showing: boolean) => (showing ? `+${packVipPoints(p).toLocaleString('en-US')} VIP` : undefined)
 const requestPackConfirmation = (id: string) => {
   if (isPackBusy() || packs.bought[id]) return
   confirmingPackId = id
@@ -1187,6 +1189,7 @@ function PackPurchaseConfirm() {
         <Text value={amount} size={S(25)} color={C.textMuted} nowrap uiTransform={{ height: S(34) }} />
         {limit ? <Text value={limit} size={S(21)} color={C.purple} nowrap uiTransform={{ height: S(30), margin: { top: S(4) } }} /> : null}
         <OutlinedText value={`${p.mana} MANA`} size={S(48)} color={C.gold} uiTransform={{ height: S(66), margin: { top: S(12) } }} raw />
+        <Text value={p.vipBonus > 0 ? `Earns ${packVipPoints(p).toLocaleString('en-US')} VIP points - unlocks VIP 1 right away` : `Earns ${packVipPoints(p).toLocaleString('en-US')} VIP points`} size={S(22)} color={C.purple} nowrap uiTransform={{ height: S(32) }} />
         {/* The relay fee is charged in the same transaction, so the wallet will show more than the pack price. */}
         <Text value={`Plus a ~${RELAY_FEE_PCT}% Decentraland relay fee: your wallet will ask for about ${total} MANA`} size={S(21)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
         {/* Only when the wallet can't cover it; otherwise nothing extra. */}
@@ -1279,6 +1282,27 @@ function PurchaseHistory() {
 const pct = (v: number) => `+${Math.round(v * 100)}%`
 const vipPts = (v: number) => v.toLocaleString('en-US')
 /** VIP: your tier, the two score parts, progress to the next tier, and the full ladder with its perks. */
+/** Which perk column the pointer is over (header or a cell); the ladder's footnote explains it while hovered. */
+type VipPerk = 'gather' | 'bag' | 'raid'
+let vipHover: VipPerk | null = null
+const VIP_PERK_HELP: Record<VipPerk, string> = {
+  gather: 'GATHER: more wood, rock, meat and bone from every work cycle and tap, on top of guild and tool bonuses.',
+  bag: 'BACKPACK: a bigger backpack, so you bank less often and lose nothing while away.',
+  raid: 'RAID: more HP and attack for your fighter in guild raids.'
+}
+/** A ladder cell in a perk column: hovering it (or its header) lights the column and shows the help line. */
+function VipPerkCell(props: { key?: string; perk: VipPerk; value: string; color: Color4; size: number; header?: boolean; grow?: boolean; width?: number }) {
+  const hot = vipHover === props.perk
+  return (
+    <UiEntity
+      uiTransform={{ width: props.grow ? undefined : S(props.width ?? 150), flexGrow: props.grow ? 1 : 0, height: '100%', justifyContent: 'flex-end', alignItems: 'center' }}
+      onMouseEnter={() => { vipHover = props.perk }}
+      onMouseLeave={() => { if (vipHover === props.perk) vipHover = null }}
+    >
+      <Text value={props.value} size={props.size} color={hot ? C.purple : props.color} align="middle-right" nowrap raw={!props.header} uiTransform={{ width: 'auto', height: '100%' }} />
+    </UiEntity>
+  )
+}
 function VipTab() {
   const level = vip.status === 'ready' ? vip.level : player.vip
   const tiers = vip.tiers.length === VIP_MAX + 1 ? vip.tiers : VIP_MIN_SCORE.map((min, i) => ({ level: i, name: VIP_NAMES[i], min, gatherPct: VIP_GATHER_PCT[i], bagPct: VIP_BAG_PCT[i] }))
@@ -1331,9 +1355,9 @@ function VipTab() {
           <Text value="TIER" size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(COLS.tag), height: '100%' }} />
           <Text value="NAME" size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(COLS.name), height: '100%' }} />
           <Text value="POINTS" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.pts), height: '100%' }} />
-          <Text value="GATHER" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.perk), height: '100%' }} />
-          <Text value="BACKPACK" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.perk), height: '100%' }} />
-          <Text value="RAID" size={S(20)} color={C.textMuted} align="middle-right" nowrap uiTransform={{ flexGrow: 1, height: '100%' }} />
+          <VipPerkCell perk="gather" value="GATHER" size={S(20)} color={C.textMuted} header width={COLS.perk} />
+          <VipPerkCell perk="bag" value="BACKPACK" size={S(20)} color={C.textMuted} header width={COLS.perk} />
+          <VipPerkCell perk="raid" value="RAID" size={S(20)} color={C.textMuted} header grow />
         </UiEntity>
         <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', overflow: 'scroll' }}>
           {tiers.filter((tier) => tier.level > 0).map((tier) => {
@@ -1353,14 +1377,14 @@ function VipTab() {
                 </UiEntity>
                 <Text value={tier.name.toUpperCase()} size={S(26)} color={unlocked ? vipColor(tier.level, true) : C.textMuted} align="middle-left" nowrap uiTransform={{ width: S(COLS.name), height: '100%' }} raw />
                 <Text value={vipPts(tier.min)} size={S(25)} color={col} align="middle-right" nowrap uiTransform={{ width: S(COLS.pts), height: '100%' }} raw />
-                <Text value={pct(tier.gatherPct)} size={S(25)} color={unlocked ? C.greenDark : C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.perk), height: '100%' }} raw />
-                <Text value={tier.bagPct > 0 ? pct(tier.bagPct) : '-'} size={S(25)} color={unlocked && tier.bagPct > 0 ? C.greenDark : C.textMuted} align="middle-right" nowrap uiTransform={{ width: S(COLS.perk), height: '100%' }} raw />
-                <Text value={pct(VIP_RAID_PCT_PER_LEVEL * tier.level)} size={S(25)} color={unlocked ? C.greenDark : C.textMuted} align="middle-right" nowrap uiTransform={{ flexGrow: 1, height: '100%' }} raw />
+                <VipPerkCell key={`vip-g-${tier.level}`} perk="gather" value={pct(tier.gatherPct)} size={S(25)} color={unlocked ? C.greenDark : C.textMuted} width={COLS.perk} />
+                <VipPerkCell key={`vip-b-${tier.level}`} perk="bag" value={tier.bagPct > 0 ? pct(tier.bagPct) : '-'} size={S(25)} color={unlocked && tier.bagPct > 0 ? C.greenDark : C.textMuted} width={COLS.perk} />
+                <VipPerkCell key={`vip-r-${tier.level}`} perk="raid" value={pct(VIP_RAID_PCT_PER_LEVEL * tier.level)} size={S(25)} color={unlocked ? C.greenDark : C.textMuted} grow />
               </UiEntity>
             )
           })}
         </UiEntity>
-        <Text value="VIP points never expire. Knights of Antrom wearables count the same points they give in KoA." size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(8) } }} />
+        <Text value={vipHover ? VIP_PERK_HELP[vipHover] : 'VIP points never expire. Knights of Antrom wearables count the same points they give in KoA. Hover a column to see what it boosts.'} size={S(20)} color={vipHover ? C.purple : C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(56), margin: { top: S(6) } }} />
       </Panel>
     </UiEntity>
   )
@@ -1415,6 +1439,7 @@ function PackRow(props: { key?: string; pack: Pack; wide: boolean; name: string 
       <Button
         key={`buy-pack-${p.id}`}
         label={packLabel(p, mine, used)}
+        sub={vipSub(p, !mine && !used)}
         color={mine ? C.yellow : used ? C.gray : C.purple}
         textColor={mine ? C.text : C.white}
         disabled={isPackBusy() || !packs.enabled || used}
@@ -1432,7 +1457,7 @@ function ResourcePacks() {
   const bundles = packs.list.filter((p) => p.resource === 'all' && p.id.startsWith('hero_'))
   return (
     <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', alignItems: 'center', padding: { bottom: S(16) } }}>
-      <PackHeader blurb="Resources land in Depot storage - Hero upgrades draw from storage first." />
+      <PackHeader blurb="Resources land in your Bank - Hero upgrades draw from it first." />
       <Pill color={C.navySoft} flat uiTransform={{ width: S(760), height: S(42), justifyContent: 'center', margin: { top: S(4) } }}>
         <Text value={`DAILY LIMIT  •  Each pack once  •  Resets in ${resetText(windowResetIn('day'))}`} size={S(22)} color={C.white} nowrap uiTransform={{ width: '100%', height: '100%' }} />
       </Pill>
@@ -1511,6 +1536,8 @@ function DealPacks() {
               <Button
                 key={`buy-deal-${p.id}`}
                 label={packLabel(p, mine, used)}
+                sub={vipSub(p, !mine && !used)}
+                subColor={once ? C.white : C.yellow}
                 color={mine ? C.yellow : used ? C.gray : once ? C.green : C.purple}
                 textColor={mine ? C.text : C.white}
                 disabled={isPackBusy() || !packs.enabled || used}
@@ -1563,6 +1590,7 @@ function WhalePacks() {
               <Button
                 key={`buy-whale-${p.id}`}
                 label={label}
+                sub={vipSub(p, !mine && !used && !locked)}
                 color={mine ? C.yellow : used ? C.greenDark : locked ? C.gray : C.purple}
                 textColor={mine ? C.text : C.white}
                 disabled={busy || !packs.enabled || used || locked}
