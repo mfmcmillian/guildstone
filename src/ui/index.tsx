@@ -7,7 +7,7 @@ import { AboutPanel } from './about'
 import { MailPanel } from './mail'
 import { LevelUpBanner } from './levelUp'
 import { RareFindBanner } from './rareFind'
-import { PackCreditedBanner } from './packBanner'
+import { Confetti, PackCreditedBanner } from './packBanner'
 import { WelcomePanel, shouldShowWelcome } from './guide'
 import { ui } from './uiState'
 
@@ -30,6 +30,7 @@ function Root() {
       {shouldShowWelcome() ? <WelcomePanel /> : null}
       <LevelUpBanner />
       <RareFindBanner />
+      <Confetti />
       <PackCreditedBanner />
       {/* Last so flash() toasts and the Storm bell sit above every window. */}
       <StormBanner />

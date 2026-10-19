@@ -305,7 +305,8 @@ function finish(ok: boolean, message: string) {
   packs.phase = 'idle'
   packs.busySku = ''
   packs.pending = null
-  packs.message = message
+  // Success is told by the delivery banner and the toast; the header line only carries problems.
+  packs.message = ok ? '' : message
   packs.messageOk = ok
   if (ok) notify(message, 2600)
   else { flash(message, 2600); playErrorSound() }

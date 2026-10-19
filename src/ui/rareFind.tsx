@@ -6,6 +6,7 @@ import { levelUp, RESOURCE_INFO } from '../state'
 import { lastRareFind } from '../transactions'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { settings } from '../settings'
+import { ui } from './uiState'
 
 const SHOW_SECS = 5
 const POP_SECS = 0.45
@@ -29,7 +30,12 @@ function withAlpha(color: Color4, alpha: number): Color4 {
  * then fades. Sits below the level-up banner if both are showing. Rendered above every panel.
  */
 export function RareFindBanner() {
-  if (lastRareFind.items.length === 0 || !settings.alerts) return null
+  if (lastRareFind.items.length === 0 || !lastRareFind.at || !settings.alerts) return null
+  // Never over a menu: hold the find (its clock keeps resetting) and show it once the window closes.
+  if (ui.open) {
+    lastRareFind.at = Date.now()
+    return null
+  }
   const elapsed = (Date.now() - lastRareFind.at) / 1000
   if (elapsed > SHOW_SECS) return null
 

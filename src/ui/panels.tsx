@@ -1136,8 +1136,8 @@ export function ShopPanel() {
 const bySize = (a: Pack, b: Pack) => a.units - b.units
 /** Price label: the MANA amount only (no fiat), or the purchase/bought state. */
 const packLabel = (p: Pack, mine: boolean, used: boolean) => (mine ? (packs.phase === 'signing' ? 'CONFIRM IN WALLET' : 'CONFIRMING...') : used ? 'BOUGHT' : `${p.mana} MANA`)
-/** "167 / MANA" (singles) or "42 of each / MANA" (bundles): makes the ladder self-explanatory. */
-const perMana = (p: Pack) => `${Math.round(p.units / p.mana).toLocaleString('en-US')}${p.resource === 'all' ? ' of each' : ''} / MANA`
+/** "167 per 1 MANA" (singles) or "42 of each per 1 MANA" (bundles): makes the ladder self-explanatory. */
+const perMana = (p: Pack) => `${Math.round(p.units / p.mana).toLocaleString('en-US')}${p.resource === 'all' ? ' of each' : ''} per 1 MANA`
 /** Shown on the confirm card and the PURCHASES tab. */
 const PACK_TERMS = 'Resources are virtual goods delivered to Depot storage. Purchases are final. Problem? REPORT BUG in the Lobby.'
 const requestPackConfirmation = (id: string) => {
@@ -1173,7 +1173,7 @@ function PackPurchaseConfirm() {
       uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
       uiBackground={{ color: C.dim }}
     >
-      <Panel flat color={C.paper} uiTransform={{ width: S(800), height: S(640), flexDirection: 'column', alignItems: 'center', padding: S(34) }}>
+      <Panel flat color={C.paper} uiTransform={{ width: S(800), height: S(540), flexDirection: 'column', alignItems: 'center', padding: S(34) }}>
         <Icon src={p.resource === 'all' ? 'images/icons/assassin.png' : RESOURCE_INFO[p.resource].icon} size={S(86)} />
         <OutlinedText value="CONFIRM PURCHASE" size={S(38)} color={C.purple} uiTransform={{ height: S(52), margin: { top: S(8) } }} />
         <Text value={packTitle(p)} size={S(28)} color={C.text} nowrap uiTransform={{ height: S(38), margin: { top: S(4) } }} />
@@ -1182,13 +1182,9 @@ function PackPurchaseConfirm() {
         <OutlinedText value={`${p.mana} MANA`} size={S(48)} color={C.gold} uiTransform={{ height: S(66), margin: { top: S(12) } }} raw />
         {/* The relay fee is charged in the same transaction, so the wallet will show more than the pack price. */}
         <Text value={`Plus a ~${RELAY_FEE_PCT}% Decentraland relay fee: your wallet will ask for about ${total} MANA`} size={S(21)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
-        {short ? (
-          <Text value={`You have ${packs.balance.toLocaleString('en-US')} MANA on Polygon - not enough for this pack`} size={S(22)} color={C.red} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} />
-        ) : (
-          <Text value="This will request a real Polygon MANA transfer from your wallet." size={S(21)} color={C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} />
-        )}
+        {/* Only when the wallet can't cover it; otherwise nothing extra. */}
+        {short ? <Text value={`You have ${packs.balance.toLocaleString('en-US')} MANA on Polygon - not enough for this pack`} size={S(22)} color={C.red} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} /> : null}
         <Spacer />
-        <Text value={PACK_TERMS} size={S(18)} color={C.textMuted} nowrap uiTransform={{ height: S(26), margin: { bottom: S(10) } }} />
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', height: S(76) }}>
           <Button label="CANCEL" sound="cancel" color={C.navySoft} size={S(26)} uiTransform={{ width: S(240), height: '100%', margin: { right: S(14) } }} onClick={() => { confirmingPackId = ''; trackShop('cancel', p.id) }} />
           {short ? (
@@ -1285,13 +1281,10 @@ function PackRow(props: { key?: string; pack: Pack; wide: boolean; name: string 
   return (
     <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', flexGrow: 1, minHeight: S(90) }}>
       <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
-        <Text value={props.name} size={S(30)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(36) }} />
-        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(32) }}>
-          <Text value={props.wide ? `${p.units.toLocaleString('en-US')} of each` : p.units.toLocaleString('en-US')} size={S(26)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', height: S(32) }} raw={!props.wide} />
-          {/* Value per MANA, so the ladder explains itself (the bundle version says "of each" via its own row). */}
-          <Text value="  ·  " size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', height: S(32) }} raw />
-          <Text value={perMana(p)} size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', height: S(32) }} />
-        </UiEntity>
+        <Text value={props.name} size={S(30)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(34) }} />
+        <Text value={props.wide ? `${p.units.toLocaleString('en-US')} of each` : p.units.toLocaleString('en-US')} size={S(26)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30) }} raw={!props.wide} />
+        {/* Value per MANA on its own line, so the ladder explains itself. */}
+        <Text value={perMana(p)} size={S(19)} color={C.greenDark} align="middle-left" nowrap uiTransform={{ height: S(26) }} />
       </UiEntity>
       <Button
         key={`buy-pack-${p.id}`}
@@ -1337,12 +1330,10 @@ function ResourcePacks() {
       {/* Hero packs: the same amount of all four, which is exactly how a Hero stat step is priced. */}
       {bundles.length > 0 ? (
         <Panel flat color={C.paper} uiTransform={{ width: S(1704), flexGrow: 2, flexBasis: 0, flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(14), left: S(24), right: S(24) }, margin: { top: S(16) } }}>
-          {/* Clean hero promo: character art sits above the title instead of being stretched behind the whole card. */}
-          <UiEntity uiTransform={{ flexDirection: 'column', width: S(500), height: '100%', alignItems: 'center', justifyContent: 'center', padding: { left: S(20), right: S(20) } }} uiBackground={{ color: C.paper2 }}>
-            <UiEntity uiTransform={{ width: S(176), height: S(176), alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circleFlat }, textureSlices: SLICE_128, color: C.navySoft }}>
-              <Sprite src={HERO_SHEET.assassin.own} anim="idle" frame={loopFrame('idle', Date.now())} size={S(166)} />
-            </UiEntity>
-            <OutlinedText value="HERO PACKS" size={S(36)} color={C.purple} uiTransform={{ height: S(46), margin: { top: -S(8) } }} />
+          {/* Hero promo: the idle hero above the title, nothing behind him. */}
+          <UiEntity uiTransform={{ flexDirection: 'column', width: S(500), height: '100%', alignItems: 'center', justifyContent: 'center', padding: { left: S(20), right: S(20) } }}>
+            <Sprite src={HERO_SHEET.assassin.own} anim="idle" frame={loopFrame('idle', Date.now())} size={S(190)} />
+            <OutlinedText value="HERO PACKS" size={S(36)} color={C.purple} uiTransform={{ height: S(46), margin: { top: -S(14) } }} />
             <Text value="Power up your hero faster" size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
             <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: S(50), margin: { top: S(4) } }}>
               {BASE_RESOURCES.map((r) => <Icon key={`hero-pack-${r}`} src={RESOURCE_INFO[r].icon} size={S(42)} uiTransform={{ margin: { left: S(4), right: S(4) } }} />)}
