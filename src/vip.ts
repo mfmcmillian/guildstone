@@ -19,6 +19,8 @@ export const VIP_GATHER_PCT = [0, 0.02, 0.04, 0.06, 0.08, 0.12, 0.14, 0.16, 0.18
 export const VIP_BAG_PCT = [0, 0, 0, 0.05, 0.05, 0.1, 0.1, 0.15, 0.15, 0.2, 0.25]
 /** Raid HP/ATK per level (server rule `vipPerLevel`, shown here only). */
 export const VIP_RAID_PCT_PER_LEVEL = 0.04
+/** From this tier the lobby posts an entrance line when the player logs in (mirrors the server's VIP_TOAST_MIN_LEVEL). */
+export const VIP_TOAST_MIN_LEVEL = 3
 
 /** One colour per tier, tuned for the dark navy rows (online list, raid lists). Index 0 is unused (no tag). */
 const VIP_HEX = ['#b9c0d0', '#d6dce8', '#ffd23f', '#7ef0e0', '#3aa0ff', '#c084ff', '#ff9f1c', '#ff4d4d', '#3ddc84', '#ff66d9', '#fff3a0']

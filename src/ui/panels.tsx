@@ -83,7 +83,7 @@ import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCra
 import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
 import { buyPack, canAfford, canUseCredit, GET_MANA_URL, isCreditReceipt, isPackBusy, packById, packCostWithFee, packs, packVipPoints, redeemCredit, refreshHistory, refreshPacks, refreshVip, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, vip, windowResetIn, type Pack } from '../packs'
 import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
-import { VIP_BAG_PCT, VIP_GATHER_PCT, VIP_MAX, VIP_MIN_SCORE, VIP_NAMES, VIP_POINTS_PER_MANA, VIP_RAID_PCT_PER_LEVEL, vipColor, vipName } from '../vip'
+import { VIP_BAG_PCT, VIP_GATHER_PCT, VIP_MAX, VIP_MIN_SCORE, VIP_NAMES, VIP_POINTS_PER_MANA, VIP_RAID_PCT_PER_LEVEL, VIP_TOAST_MIN_LEVEL, vipColor, vipName, vipTag } from '../vip'
 import { VipName } from './vipName'
 import { stepTarget } from './guide'
 import { HERO_SHEET, Sprite, loopFrame } from './sprite'
@@ -1342,9 +1342,15 @@ function VipTab() {
         </Pill>
 
         <Text value="YOUR PERKS NOW" size={S(22)} color={C.text} nowrap uiTransform={{ height: S(32), margin: { top: S(26) } }} />
-        <Text value={`Gathering yield ${pct(me.gatherPct)}`} size={S(24)} color={me.gatherPct > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: S(4) } }} />
-        <Text value={`Backpack capacity ${pct(me.bagPct)}`} size={S(24)} color={me.bagPct > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(34) }} />
-        <Text value={`Raid HP and ATK ${pct(VIP_RAID_PCT_PER_LEVEL * level)}`} size={S(24)} color={level > 0 ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(34) }} />
+        {([
+          [me.gatherPct > 0, me.gatherPct > 0 ? `Gathering yield ${pct(me.gatherPct)}` : 'Gathering yield', 1],
+          [me.bagPct > 0, me.bagPct > 0 ? `Backpack capacity ${pct(me.bagPct)}` : 'Backpack capacity', tiers.findIndex((t) => t.bagPct > 0)],
+          [level > 0, level > 0 ? `Raid HP and ATK ${pct(VIP_RAID_PCT_PER_LEVEL * level)}` : 'Raid HP and ATK', 1],
+          [level > 0, level > 0 ? `${vipTag(level)} tag in your tier colour by your name` : 'Coloured VIP tag by your name', 1],
+          [level >= VIP_TOAST_MIN_LEVEL, 'Lobby announces when you log in', VIP_TOAST_MIN_LEVEL]
+        ] as [boolean, string, number][]).map(([on, label, from], i) => (
+          <Text key={`perk-${i}`} value={on ? label : `${label} - from VIP ${from}`} size={S(24)} color={on ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(34), margin: { top: i === 0 ? S(4) : 0 } }} />
+        ))}
         <Spacer />
         <Text value={level > 0 ? 'Your name shows your VIP tag in chat, the online list, guild rosters and raids.' : 'Buy any pack to start climbing. Your tag shows next to your name everywhere.'} size={S(20)} color={C.textMuted} uiTransform={{ height: S(56) }} />
       </Panel>
