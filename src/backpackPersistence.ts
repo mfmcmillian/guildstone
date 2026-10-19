@@ -41,6 +41,7 @@ import { sanitizeAssassinPieces } from './suits'
 import { sanitizeHeroes, sanitizeHeroId } from './hero'
 import { showAwaySummary } from './ui/uiState'
 import { playSuccessSound } from './uiSounds'
+import { refreshPacks } from './packs'
 
 let initialized = false
 
@@ -206,6 +207,8 @@ export function initializeBackpackPersistence() {
       // Away progress runs after the guild so the summary can't race the guild bonus load.
       // Only the real client claims: the scene copy inside the preview/multiplayer server can't sign requests.
       if (isServer()) return
+      // A pack payment that was still confirming when the ring last closed: finish crediting it without a shop visit.
+      if (profileState.profile?.pendingManaPurchase?.txHash) refreshPacks(true)
       const away = await claimAwayProgress()
       if (away) {
         showAwaySummary(away)

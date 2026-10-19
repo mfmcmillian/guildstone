@@ -80,7 +80,8 @@ import { campHint, remoteConfig, ringStationsEnabled } from '../remoteConfig'
 import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
-import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
+import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces, usdLabel } from '../suits'
+import { buyPack, isPackBusy, packs, refreshPacks, type Pack } from '../packs'
 import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
 import { withVip } from '../vip'
 import { stepTarget } from './guide'
@@ -1081,14 +1082,136 @@ function activeBoost(): { item: (typeof SHOP_ITEMS)[number]; until: number } | n
   return null
 }
 
+/** BERRY SHOP (boosts) · RESOURCES (packs for MANA). Remembered while the ring is on so reopening lands where you were. */
+type ShopTabId = 'berries' | 'resources'
+let shopTab: ShopTabId = 'berries'
+const SHOP_TAB_ICON: Record<ShopTabId, string> = { berries: 'images/icons/berry.png', resources: 'images/icons/wood.png' }
+
+function ShopTab(props: { key?: string; id: ShopTabId; label: string }) {
+  return (
+    <Button
+      label={props.label}
+      icon={SHOP_TAB_ICON[props.id]}
+      color={shopTab === props.id ? C.purple : C.navySoft}
+      size={S(30)}
+      uiTransform={{ width: S(360), height: S(70), margin: { left: S(8), right: S(8) } }}
+      onClick={() => {
+        shopTab = props.id
+        if (props.id === 'resources') refreshPacks()
+      }}
+    />
+  )
+}
+
 export function ShopPanel() {
+  const fit = fitBig()
+  const title = shopTab === 'resources' ? 'RESOURCES' : 'BERRY SHOP'
+  // The RESOURCES tab also refreshes when the panel opens on it (prices are server-configured and can change).
+  if (shopTab === 'resources') refreshPacks()
+  return (
+    <Modal title={title} color={C.purple} {...bigFrame(fit, 'BERRY SHOP', 'shop')} onClose={closePanel}>
+      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(4), bottom: S(10) } }}>
+          <ShopTab key="stab-berries" id="berries" label="BERRY SHOP" />
+          <ShopTab key="stab-resources" id="resources" label="RESOURCES" />
+        </UiEntity>
+        {shopTab === 'resources' ? <ResourcePacks /> : <BerryShop />}
+      </UiEntity>
+    </Modal>
+  )
+}
+
+/** Resource packs for MANA. Everything shown comes from the server catalog; the server also does all the crediting. */
+function ResourcePacks() {
+  const rate = remoteConfig.manaUsd
+  const usd = (mana: number) => (rate > 0 ? `  ·  ${usdLabel(Math.round(mana * rate * 100) / 100)}` : '')
+  const busy = isPackBusy()
+  const singles = packs.list.filter((p) => p.resource !== 'all')
+  const bundles = packs.list.filter((p) => p.resource === 'all')
+  const header =
+    packs.phase === 'signing' ? 'Confirm the MANA transfer in your wallet...'
+    : packs.phase === 'verifying' ? 'Payment sent - waiting for Polygon to confirm (usually under a minute)...'
+    : packs.message ? packs.message
+    : packs.status === 'loading' || packs.status === 'idle' ? 'Loading prices...'
+    : packs.status === 'error' ? 'Could not load the shop. Reopen to try again.'
+    : !packs.enabled ? 'The resource shop is closed right now.'
+    : 'Paid in MANA on Polygon. Resources land in Depot storage - Hero upgrades draw from storage first.'
+  const headerColor = packs.phase !== 'idle' ? C.yellow : packs.message ? (packs.messageOk ? C.greenDark : C.red) : C.textMuted
+  const bySize = (a: Pack, b: Pack) => a.units - b.units
+  /** One buy row: "SACK · 1,000" on the left, the MANA button (with live USD) on the right. */
+  const buyRow = (p: Pack, wide: boolean) => {
+    const mine = packs.busySku === p.id
+    const label = mine ? (packs.phase === 'signing' ? 'CONFIRM IN WALLET' : 'CONFIRMING...') : `${p.mana} MANA${usd(p.mana)}`
+    return (
+      <UiEntity key={`row-${p.id}`} uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(86) }}>
+        <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
+          <Text value={PACK_SIZE_NAME(p.units)} size={S(26)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(32) }} />
+          <Text value={wide ? `${p.units.toLocaleString('en-US')} of each` : p.units.toLocaleString('en-US')} size={S(24)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30) }} raw={!wide} />
+        </UiEntity>
+        <Button
+          key={`buy-pack-${p.id}`}
+          label={label}
+          color={mine ? C.yellow : C.purple}
+          textColor={mine ? C.text : C.white}
+          disabled={busy || !packs.enabled}
+          size={S(mine ? 20 : 24)}
+          uiTransform={{ width: S(wide ? 300 : 220), height: S(70), minWidth: 0 }}
+          onClick={() => buyPack(p.id)}
+        />
+      </UiEntity>
+    )
+  }
+  return (
+    <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
+      <Text value={header} size={S(26)} color={headerColor} nowrap uiTransform={{ height: S(36), margin: { top: S(4) } }} />
+      {packs.status === 'ready' && packs.list.length === 0 ? <Text value="No packs on sale right now." size={S(28)} color={C.textMuted} uiTransform={{ margin: { top: S(40) } }} /> : null}
+      {/* One column per base resource: Sack / Crate / Wagon. */}
+      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', width: '100%', margin: { top: S(10) } }}>
+        {BASE_RESOURCES.map((r) => {
+          const rows = singles.filter((p) => p.resource === r).sort(bySize)
+          if (rows.length === 0) return null
+          return (
+            <Panel key={`packs-${r}`} flat color={C.paper} uiTransform={{ width: S(410), height: S(380), flexDirection: 'column', padding: { top: S(10), bottom: S(10), left: S(20), right: S(20) }, margin: { left: S(8), right: S(8) } }}>
+              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(80) }}>
+                <Icon src={RESOURCE_INFO[r].icon} size={S(64)} />
+                <OutlinedText value={RESOURCE_INFO[r].name.toUpperCase()} size={S(32)} uiTransform={{ width: 'auto', margin: { left: S(10) } }} align="middle-left" />
+              </UiEntity>
+              {rows.map((p) => buyRow(p, false))}
+            </Panel>
+          )
+        })}
+      </UiEntity>
+      {/* Hero packs: the same amount of all four, which is exactly how a Hero stat step is priced. */}
+      {bundles.length > 0 ? (
+        <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(300), flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
+          <UiEntity uiTransform={{ flexDirection: 'column', width: S(520), height: '100%', justifyContent: 'center' }}>
+            <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(80) }}>
+              <Icon src="images/icons/assassin.png" size={S(64)} />
+              <OutlinedText value="HERO PACKS" size={S(32)} uiTransform={{ width: 'auto', margin: { left: S(10) } }} align="middle-left" />
+            </UiEntity>
+            <Text value="Everything one Hero stat step needs, x4" size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(60) }} />
+            <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(44) }}>
+              {BASE_RESOURCES.map((r) => <Icon key={`hero-pack-${r}`} src={RESOURCE_INFO[r].icon} size={S(40)} uiTransform={{ margin: { right: S(8) } }} />)}
+            </UiEntity>
+          </UiEntity>
+          <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0, justifyContent: 'center' }}>
+            {bundles.sort(bySize).map((p) => buyRow(p, true))}
+          </UiEntity>
+        </Panel>
+      ) : null}
+      <Spacer />
+    </UiEntity>
+  )
+}
+/** Sack / Crate / Wagon by size, so a price change in the admin config doesn't rename anything. */
+const PACK_SIZE_NAME = (units: number) => (units >= 15_000 ? 'WAGON' : units >= 5_000 ? 'CRATE' : 'SACK')
+
+function BerryShop() {
   const active = activeBoost()
   // Live m:ss, same as the HUD pill, so the shop never says "1 min left" for 59 seconds.
   const timeLeft = active ? timerText(active.until) : ''
-  const fit = fitBig()
   return (
-    <Modal title="BERRY SHOP" color={C.purple} {...bigFrame(fit, 'BERRY SHOP', 'shop')} onClose={closePanel}>
-      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
+    <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: { top: S(4) } }}>
           <Pill color={C.paper} uiTransform={{ height: S(96), padding: { left: S(12), right: S(36) } }}>
             <Icon src={RESOURCE_INFO.berry.icon} size={S(76)} />
@@ -1167,8 +1290,7 @@ export function ShopPanel() {
           })}
         </UiEntity>
         <Spacer />
-      </UiEntity>
-    </Modal>
+    </UiEntity>
   )
 }
 

@@ -113,6 +113,8 @@ export interface AfkPlayerProfile {
   settings?: ProfileSettings
   /** Where the player dragged each window, as fractions of the canvas (see ui/drag.ts). */
   uiLayout?: Partial<Record<string, { x?: number; y?: number }>>
+  /** A MANA pack payment the server saw but couldn't settle yet (tx not mined when we asked). See packs.ts. */
+  pendingManaPurchase?: { txHash?: string; sku?: string; at?: number } | null
   legacyGuildMigrationVersion?: number
   legacyGuildImportedAt?: number
   legacyStorageMigrationVersion?: number

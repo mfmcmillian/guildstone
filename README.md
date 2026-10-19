@@ -21,8 +21,9 @@ npm run pack              # produce smart-wearable.zip for the Builder (2 MB unc
 - `src/work.ts`: profession loop (replaces the land scene's zones).
 - `src/ui/dock.tsx`: wearable-only dock (profession picker + station buttons).
 - `src/ui/*`, `src/state.ts`, `src/transactions.ts`, `src/playerProfile.ts`, `src/backpackPersistence.ts`: shared with AntromAFK.
+- `src/packs.ts`: resource packs for MANA (Polygon transfer via `~system/EthereumController`, server-verified crediting).
 - `wearable.json`: Builder metadata (hands_wear, legendary, `antrom_guildstone_ring.glb`).
-- `scene.json`: `isPortableExperience: true`, `requiredPermissions: ["USE_FETCH"]`.
+- `scene.json`: `isPortableExperience: true`, `requiredPermissions: ["USE_FETCH", "OPEN_EXTERNAL_LINK", "USE_WEB3_API"]`.
 
 ## Publishing
 

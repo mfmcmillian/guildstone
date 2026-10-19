@@ -16,7 +16,8 @@
   "main": "bin/game.js",
   "requiredPermissions": [
     "USE_FETCH",
-    "OPEN_EXTERNAL_LINK"
+    "OPEN_EXTERNAL_LINK",
+    "USE_WEB3_API"
   ],
   "featureToggles": {},
   "scene": {

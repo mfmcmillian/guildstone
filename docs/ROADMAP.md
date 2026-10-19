@@ -88,7 +88,20 @@ Not in this publish, cheap next time (from the 2026-10-15 polish list): Escape c
 
 # 2. Gems
 
-Status: planning, no code yet.
+Status: **RESOURCES tab built 2026-10-19** (shop switched off in admin config until the wallet flow is tested live). Gems / SPEED UP are deferred; the long sink list further down is the backlog.
+
+## V1 — RESOURCES tab: base resource packs for MANA (built 2026-10-19)
+
+Scope was narrowed during planning from "berry · resources · speed-up" to **base resource packs only**, because their real purpose is Hero upgrades (`afkHero.js`: each stat step costs the same amount of wood, rock, meat and bone — 200 × 1.18^(n−1), no modifiers). Decisions, so they are not reopened:
+
+- **Payment is inside the ring.** The ring sends an ERC-20 `transfer(shopWallet, mana × 1e18)` on Polygon MANA via `~system/EthereumController` (`eth_sendTransaction`; the explorer relays it gaslessly) and gets the tx hash back immediately. `dcl-crypto-toolkit` / `@dcl/sdk/ethereum-provider` were dropped on purpose: `eth-connect` (+680 KB) or the `text-encoding` polyfill (+560 KB) each push the packed wearable past the 2 MB smart-wearable cap (we sit at ~2.01 MB). `USE_WEB3_API` is now in `scene.json` `requiredPermissions`; curators will see it at reapproval and the wearer is prompted once.
+- **Server does all the crediting.** `POST /antrom-afk/player/:address/packs/purchase { txHash, sku }` reads the receipt from public Polygon RPCs (`AFK_POLYGON_RPC` env overrides the list), requires `status 0x1` and a MANA `Transfer` log from that wallet to the shop wallet for exactly the pack price, writes `afk_mana_purchases/{txHash}` (one row per hash, ever) and adds the resources to Depot storage in one transaction. Unmined → `202 pending` + `pendingManaPurchase` on the profile; the ring polls for up to 4 min, resumes on the next RESOURCES tab open, and also on session start if the profile still carries the hash. Reverted / wrong amount / wrong wallet → `failed` / `mismatch`, never credited. The relayer's own fee transfer (≈2.5 % to `0x184e…`) is a separate log and is ignored.
+- **Receiving wallet** is the KoA shop wallet `0x12B0D322949273e5D622fFB0Cb387A3b75C0d2dd`. Replay across games is impossible by construction: the AFK ledger is keyed by hash and the amount must equal an AFK SKU.
+- **SKUs** (`afkAdminConfig.js` → `shop.packs`, served in the catalog so retuning never needs a republish): per resource Sack 1,000 / 6 MANA · Crate 5,000 / 25 · Wagon 15,000 / 60, flat across wood/rock/meat/bone for now (the 1.5× meat/bone option from the economy review is a config change if selling turns out to matter); **Hero packs** = the same amount of all four at the summed price (24 / 100 / 240). A fully maxed hero is 535,568 of each resource (≈ 36 Hero Wagons, ≈ 8,570 MANA); all three ≈ 25,700 MANA. The hero curve is **frozen** now that it has a MANA price.
+- **Ops**: `shop.enabled` (default off) gates players; admin routes `POST /admin/packs/credit { address, txHash, sku, force?, dryRun? }` for support, `GET /admin/packs/receipt?txHash=` (decoded transfers), `GET /admin/packs/incoming?blocks=` (every MANA transfer into the shop wallet with whether the ledger knows it — "paid but not credited" is the `credited: false` rows), `GET /admin/packs/ledger`.
+- **Deferred, in order**: gems + SPEED UP tab (sinks: finish crafting now, skip ahead), meat/bone pricing after live data, guild-tech coin donation cap (1,000 + 100 × HQ was the recommendation; "unlimited" rejected), KoA buyer gem credit.
+
+Before switching `shop.enabled` on: buy one Wood Sack from a test wallet in the published ring and check `GET /admin/packs/ledger` shows it with the right `blockNumber`.
 
 ## Decisions so far
 
