@@ -103,7 +103,8 @@ export function Dock() {
               return (
                 <UiEntity
                   key={`lang-${lang.code}`}
-                  uiTransform={{ width: S(94), height: S(74), flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+                  // Five tiles share the panel width equally (~75 px each at scale 1); labels are sized to fit "Français".
+                  uiTransform={{ flexGrow: 1, flexBasis: 0, minWidth: 0, height: S(74), flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
                   uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: active ? C.purple : Color4.create(0, 0, 0, 0) }}
                   onMouseDown={() => {
                     playButtonSound()
@@ -112,7 +113,7 @@ export function Dock() {
                   }}
                 >
                   <Icon src={lang.flag} size={S(30)} uiTransform={{ width: S(41), height: S(30) }} />
-                  <OutlinedText value={lang.label} size={S(20)} color={active ? C.white : C.gray} uiTransform={{ height: S(26), margin: { top: S(2) } }} />
+                  <OutlinedText value={lang.label} size={S(16)} color={active ? C.white : C.gray} uiTransform={{ height: S(24), margin: { top: S(2) } }} />
                 </UiEntity>
               )
             })}

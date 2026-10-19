@@ -2,7 +2,7 @@
 
 Working list of everything queued for AntromAFK (wearable client `AntromAFK-Wearable` + backend `dcl-firebase-backend`). Client changes are batched into as few wearable republishes as possible because each publish goes through curation. Last updated 2026-10-19.
 
-**Published state:** v1.5.0 is packed (2026-10-19) and waiting on curation: friends list, private nicknames, whisper translation, ▲/▼ chat history. v1.4.0 is still the live ring until then. Everything marked "live in v1.3.0" or "packed as v1.4.0" below is already in players' hands. The rollout was announced the same day with a grey LOBBY line ("Ring updated to v1.4.0: restart your client … open MAIL to see what changed") posted through the new admin route `POST /antrom-afk/admin/announce` (admin key, same as the in-ring `/announce`), four "what's new" letters to all 60 profiles (headline / Heroes rebuilt / Chat / Smaller things), and a personal "Your hero refund" letter to the three players whose heroes were reset (the refund itself had already been paid by `admin/hero-reset`). Anything below without a "live" date is server-only (live as soon as it is deployed) or waits for the next publish.
+**Published state:** v1.5.0 is packed and announced (2026-10-19): friends list, private nicknames, whisper translation, ▲/▼ chat history. Lobby line plus two MAIL letters to all 63 profiles. v1.4.0 stays live until curation approves the new zip. The v1.4.0 rollout (2026-10-18) used the same announce route plus four "what's new" letters and hero-refund letters. Anything below without a "live" date is server-only (live as soon as it is deployed) or waits for the next publish.
 
 Sections:
 
@@ -205,7 +205,8 @@ Status: **built 2026-10-17** (English, Français, Español, 中文), live in v1.
 
 - `src/i18n.ts` + `src/i18n.dict.ts`: ~700 rows of `[en, fr, es, zh]`. English is the key; the two text primitives (`Text`, `OutlinedText`) call `t()` so every label, toast, title and feed line is translated at render time with no `t()` at call sites. Rows with `{0}`… match as patterns ("SOLD {0} ITEMS") and each captured piece is translated again (item, profession and zone names inside sentences). Lookups are case-insensitive and keep the source casing (ALL CAPS / Title Case), which covers every `.toUpperCase()`. Player text (names, tags, chat) never matches and passes through. Memoised; ~0.6 µs per lookup.
 - Picker: the flag in the dock header opens a row of four flags with native names. Saved as `settings.language` via the signed `/settings` route, which also sets `chatLanguage` (+ `chatLanguageSource: 'user'`) so lobby translation follows the UI language. No AFK choice yet → the ring adopts KoA's `selectedLanguage` for the session (public read of the KoA doc); the first flag tap persists it.
-- Adding a language = one more column in the dictionary + a flag PNG in `images/ui/` + the code in `LANGUAGES` and the server's `AFK_UI_LANGUAGES`. German / Portuguese / Japanese were left out until there is demand.
+- Adding a language = one more column in the dictionary + a flag PNG in `images/ui/` + the code in `LANGUAGES` and the server's `AFK_UI_LANGUAGES`. Portuguese / Japanese were left out until there is demand.
+- **Deutsch added 2026-10-19** (fifth column on all 868 rows, `flag_de.png`, picker tiles now share the width equally with a smaller label). Ships with the next ring publish; the server allow-list line (`AFK_UI_LANGUAGES` + `'de'`) is edited in the backend repo and goes out with its next deploy.
 - Not covered: strings the server composes (guild event lines, error messages), which stay English. Text-fit in French/Spanish was checked by eye on the long rows only; report anything clipped.
 
 ## Original plan (kept for reference)

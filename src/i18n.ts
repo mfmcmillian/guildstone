@@ -3,7 +3,7 @@
  * render time. The two text primitives (`Text`, `OutlinedText` in ui/components.tsx) call it, so call sites stay
  * plain English and a string is translated wherever it ends up (labels, toasts, titles, feed lines).
  *
- * Dictionary rows (i18n.dict.ts) are `[en, fr, es, zh]`. A row may carry `{0}`, `{1}`… placeholders: it then
+ * Dictionary rows (i18n.dict.ts) are `[en, fr, es, zh, de]`. A row may carry `{0}`, `{1}`… placeholders: it then
  * matches at runtime as a pattern ("SOLD {0} ITEMS" matches "SOLD 12 ITEMS") and each captured piece is itself
  * translated (so "Wear {0} L{1}+" turns "Lumberjack" into "Bûcheron" too). Lookups are case-insensitive and an
  * all-caps source stays all-caps in the translation, which covers every `.toUpperCase()` in the UI.
@@ -12,16 +12,17 @@
  */
 import { ROWS } from './i18n.dict'
 
-export type Language = 'en' | 'fr' | 'es' | 'zh'
+export type Language = 'en' | 'fr' | 'es' | 'zh' | 'de'
 export const LANGUAGES: { code: Language; label: string; flag: string }[] = [
   { code: 'en', label: 'English', flag: 'images/ui/flag_en.png' },
   { code: 'fr', label: 'Français', flag: 'images/ui/flag_fr.png' },
   { code: 'es', label: 'Español', flag: 'images/ui/flag_es.png' },
+  { code: 'de', label: 'Deutsch', flag: 'images/ui/flag_de.png' },
   { code: 'zh', label: '中文', flag: 'images/ui/flag_zh.png' }
 ]
-const COLUMN: Record<Language, number> = { en: 0, fr: 1, es: 2, zh: 3 }
+const COLUMN: Record<Language, number> = { en: 0, fr: 1, es: 2, zh: 3, de: 4 }
 
-export const isLanguage = (v: unknown): v is Language => v === 'en' || v === 'fr' || v === 'es' || v === 'zh'
+export const isLanguage = (v: unknown): v is Language => v === 'en' || v === 'fr' || v === 'es' || v === 'zh' || v === 'de'
 
 let current: Language = 'en'
 export const getLanguage = () => current
@@ -35,7 +36,7 @@ export function setLanguage(code: Language) {
 }
 
 // --- Dictionary indexes (built once) -------------------------------------------------------------------------------
-type Row = readonly [string, string, string, string]
+type Row = readonly [string, string, string, string, string]
 const exact = new Map<string, Row>()
 interface Pattern { re: RegExp; row: Row; weight: number }
 const patterns: Pattern[] = []

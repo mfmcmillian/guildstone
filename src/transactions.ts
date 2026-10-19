@@ -1115,7 +1115,7 @@ export function setFriend(address: string, on: boolean) {
   }))
 }
 
-const KOA_LANGUAGE: Record<string, Language> = { English: 'en', French: 'fr', Spanish: 'es', Chinese: 'zh' }
+const KOA_LANGUAGE: Record<string, Language> = { English: 'en', French: 'fr', Spanish: 'es', Chinese: 'zh', German: 'de' }
 
 /**
  * No AFK choice yet: adopt the language the player picked in KoA (`players/{wallet}.selectedLanguage`, a public
