@@ -307,12 +307,15 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   const invites = guildChannel ? [] : lobby.invites.filter((i) => !dismissedInvites.has(i.guildId))
   const inviteH = invites.length > 0 ? 66 : 0
   const feedH = props.height - 20 - inviteH - 64 - 10
-  // Newest at the bottom (or the page the arrows moved to); walk back until the feed is full. Two lines for long messages, one otherwise.
+  // Newest at the bottom (or the page the arrows moved to); walk back until the feed is full.
   const visible = st.messages.filter((m) => !lobby.muted.has(m.from))
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.tag, g.id]))
   // Guild channel: everyone shares the tag, so skip it. System lines read as "— X joined the guild".
   const lineOf = (m: typeof visible[number]) => (m.system ? `—  ${m.text}` : `${m.tag && !guildChannel ? `[${m.tag}] ` : ''}${withVip(labelFor(m.from, m.name), m.vip)}:  ${m.text}`)
-  const heightOf = (m: typeof visible[number]) => (lineOf(m).length > 80 ? 56 : 30)
+  // Row height follows the wrapped line count: the text box is ~970 px wide at 22 px, which fits about 80 characters per
+  // line (a little less when the paging arrows take the right edge), so estimate on 75 and add 26 px per extra line.
+  // Under-estimating makes rows overlap; over-estimating only leaves a small gap.
+  const heightOf = (m: typeof visible[number]) => 30 + 26 * (Math.min(8, Math.ceil(lineOf(m).length / 75)) - 1)
   const feedKey = `ch-${channel}`
   const page = pageBack(visible, heightOf, feedH, feedKey)
   const rows = page.rows.map(({ m, h }) => ({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', stamp: chatStamp(m.at), line: lineOf(m), h, system: m.system === true, me: mentionsMe(m) }))
