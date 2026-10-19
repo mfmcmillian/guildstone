@@ -168,7 +168,16 @@ export const serverNow = () => Date.now() + raid.clockOffset
 type RaidAction = 'view' | 'join' | 'leave' | 'go' | 'home' | 'skip' | 'signup' | 'withdraw' | 'hero'
 interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; tester?: boolean; features?: unknown; rules?: Partial<RaidRules>; pickup?: PickupInfo; battle?: BattleInfo; me: MyRaid; serverNow: number; updatedAt: number }
 
-function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: (result: RaidResponse) => void) {
+/**
+ * The walk the player just asked for, drawn before the server answers (no frozen beat between the click and the
+ * round trip). `from` is the token's on-screen spot at the click (field %); the renderer predicts the leg with the
+ * server's own distance / speed rule and hands over to the server's walk when a view carries it. Cleared on refusal.
+ */
+export const pendingGo = { to: null as PointId | 'camp' | null, from: null as [number, number] | null, at: 0 }
+/** A GO clicked while another action was in flight: sent the moment the line is free instead of being dropped. */
+let queuedGo: PointId | 'camp' | null = null
+
+function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: (result: RaidResponse) => void, onFail?: () => void) {
   if (isServer() || profileState.status !== 'ready' || !profileState.walletAddress || !player.guild) return
   const isView = action === 'view'
   if (isView ? raid.polling : raid.busy) return
@@ -195,6 +204,7 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
           playErrorSound()
           flash(message.toUpperCase())
         }
+        onFail?.()
         return
       }
       const result = JSON.parse(response.body) as RaidResponse
@@ -218,9 +228,18 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
       onOk?.(result)
     } catch (error) {
       console.error('[raid] request failed:', error instanceof Error ? error.message : String(error))
+      onFail?.()
     } finally {
       if (isView) raid.polling = false
-      else raid.busy = false
+      else {
+        raid.busy = false
+        if (queuedGo !== null) {
+          const next = queuedGo
+          queuedGo = null
+          if (next === 'camp') requestHome()
+          else requestGo(next)
+        }
+      }
     }
   })
 }
@@ -271,11 +290,25 @@ export function requestLeaveRaid() {
     flash(raid.view?.mode === 'battle' ? 'YOU LEFT THE GUILD WAR' : 'YOU LEFT THE STORM')
   })
 }
-export function requestGo(point: PointId) {
-  send('go', { point })
+/** Click on a building: the token sets off at once (pendingGo, from `from` in field %); the server is told in parallel. */
+export function requestGo(point: PointId, from: [number, number] | null = null) {
+  if (raid.busy) { queuedGo = point; return }
+  pendingGo.to = point
+  pendingGo.from = from
+  pendingGo.at = serverNow()
+  send('go', { point }, undefined, clearPendingGo)
 }
-export function requestHome() {
-  send('home')
+export function requestHome(from: [number, number] | null = null) {
+  if (raid.busy) { queuedGo = 'camp'; return }
+  pendingGo.to = 'camp'
+  pendingGo.from = from
+  pendingGo.at = serverNow()
+  send('home', {}, undefined, clearPendingGo)
+}
+export function clearPendingGo() {
+  pendingGo.to = null
+  pendingGo.from = null
+  pendingGo.at = 0
 }
 /** Tester only, test raids only: pull the clocks forward to the next event or the end. */
 export function requestSkip(to: 'next' | 'end') {

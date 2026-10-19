@@ -13,11 +13,11 @@ import { withVip } from '../vip'
 import { VipName } from './vipName'
 import {
   BoardEntry, Fighter, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId,
-  fighterName, myFighter, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestSkip,
+  clearPendingGo, fighterName, myFighter, pendingGo, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestSkip,
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
 
-import { ANIM, ART, HERO_SHEET, Sprite, loopFrame, onceFrame, type Anim } from './sprite'
+import { ART, HERO_SHEET, Sprite, attackPose, idlePose, loopFrame, msUntilImpact, onceFrame, walkPose, type Anim } from './sprite'
 
 const BG = `${ART}/battlefield_v1.jpg`
 // Side a (the caller) wears the player palette, side b the enemy palette. Sheets per hero live in sprite.tsx.
@@ -76,53 +76,135 @@ let dismissedResult = ''
 // Where each fighter was last seen standing, so a walk can be drawn from the right place.
 const lastSeen: Record<string, PointId | 'camp'> = {}
 
-/** Live position of a fighter in design px (feet). */
 /** Both sides standing with HP in the same building: the fight is on there. */
 function contested(v: RaidView, point: PointId): boolean {
   return standingAt(v.sides.a, point).length > 0 && standingAt(v.sides.b, point).length > 0
 }
 
-function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): { x: number; y: number; anim: Anim; frame: number; flip: boolean } {
+// --- Movement -------------------------------------------------------------------------------------------------------
+// Three things used to make walks feel laggy, none of them the walk itself:
+//  1. A click did nothing on screen until the server answered (~0.5-1.5 s), then the token jumped to where it should
+//     already have been. Now the token sets off on the click (raid.ts pendingGo) along the leg the server will compute,
+//     and the server's version takes over when it arrives; the small difference is eased out, not snapped.
+//  2. Everyone else's walks only become known on a poll, so they popped in up to 3 s down the road. Every token now
+//     renders through a short exponential smoother, so corrections glide.
+//  3. A walker at the end of its leg kept walking on the spot until the next poll said "arrived". The renderer now
+//     treats t >= 1 as arrived (idle at the door) and asks for a poll right then for your own fighter.
+
+/** The server's walk-time rule (afkRaid.js startWalk), so the predicted leg matches the real one. */
+const SERVER_FIELD_PX: [number, number] = [18.22, 9.75]
+const MIN_WALK_MS = 3000
+const fieldDist = (p: [number, number], q: [number, number]) => Math.hypot((p[0] - q[0]) * SERVER_FIELD_PX[0], (p[1] - q[1]) * SERVER_FIELD_PX[1])
+const REF_DIST: Record<SideId, number> = { a: fieldDist(CAMP.a, FIELD.citadel.stand), b: fieldDist(CAMP.b, FIELD.citadel.stand) }
+const spotBase = (side: SideId, where: PointId | 'camp'): [number, number] => (where === 'camp' ? CAMP[side] : FIELD[where].stand)
+function predictWalkMs(v: RaidView, side: SideId, from: [number, number], to: PointId | 'camp', speed: number | undefined): number {
+  const base = to === 'camp' ? v.rules.homeMs : v.rules.walkMs
+  return Math.max(MIN_WALK_MS, Math.round((base * fieldDist(from, spotBase(side, to))) / REF_DIST[side] / (speed || 1)))
+}
+
+/** Last drawn position per fighter (field %), for the smoother and for the click-to-walk start point. */
+const shown: Record<string, { x: number; y: number; at: number }> = {}
+const SMOOTH_TAU_MS = 110
+const SNAP_DIST = 25 // a correction this big (field %) is a new raid or a teleport, not a walk: don't glide it
+function smooth(key: string, x: number, y: number, now: number): [number, number] {
+  const prev = shown[key]
+  if (!prev || Math.hypot(x - prev.x, y - prev.y) > SNAP_DIST || now - prev.at > 2000) {
+    shown[key] = { x, y, at: now }
+    return [x, y]
+  }
+  const a = 1 - Math.exp(-(now - prev.at) / SMOOTH_TAU_MS)
+  const sx = prev.x + (x - prev.x) * a
+  const sy = prev.y + (y - prev.y) * a
+  shown[key] = { x: sx, y: sy, at: now }
+  return [sx, sy]
+}
+/** The field spot my own token is drawn at right now, for the optimistic walk's starting point. */
+function myShownSpot(): [number, number] | null {
+  const v = raid.view
+  if (!v || !v.you) return null
+  const p = shown[`${v.id}:${v.you}`]
+  return p ? [p.x, p.y] : null
+}
+/** Arrivals already polled for, by arriveAt, so each leg asks once. */
+const arrivalPolled: Record<string, number> = {}
+
+interface Pose { x: number; y: number; anim: Anim; frame: number; flip: boolean; lift: number; scale: number; punch: number }
+
+/** Live pose of a fighter: field % (feet), sheet row/column, facing, and the whole-body accents (px lift, scale, punch). */
+function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): Pose {
   const key = `${v.id}:${f.id}`
   const spot = (where: PointId | 'camp', i: number): [number, number] => {
-    const base = where === 'camp' ? CAMP[side] : FIELD[where].stand
+    const base = spotBase(side, where)
     const dir = where === 'camp' ? (side === 'a' ? 1 : -1) : side === 'a' ? -1 : 1
     return [base[0] + ((dir * (i + 0.5) * TOKEN_GAP) / W) * 100, base[1]]
   }
   if (f.state === 'in' && f.at) lastSeen[key] = f.at
   if (f.state === 'camp') lastSeen[key] = 'camp'
   const now = Date.now()
+  const phase = index * 173
+  const you = v.you === f.id
+
+  // My click, before the server has echoed it: walk the predicted leg. Hand over once a view shows the server's walk
+  // (or shows me already there); give up on a stale one so a lost response can't leave a ghost walk.
+  if (you && pendingGo.to !== null && f.state !== 'ko') {
+    const echoed = (f.state === 'walk' && f.target === pendingGo.to) || (f.state === 'in' && f.at === pendingGo.to) || (f.state === 'camp' && pendingGo.to === 'camp')
+    if (echoed || serverNow() - pendingGo.at > 12_000) clearPendingGo()
+    else {
+      const from = pendingGo.from ?? (shown[key] ? [shown[key].x, shown[key].y] : spot(lastSeen[key] ?? 'camp', index))
+      const [tx, ty] = spot(pendingGo.to, index)
+      const total = predictWalkMs(v, side, from, pendingGo.to, f.speed)
+      const t = Math.min(1, (serverNow() - pendingGo.at) / total)
+      const dist = fieldDist(from, [tx, ty]) * t
+      const walk = walkPose(dist)
+      return { x: from[0] + (tx - from[0]) * t, y: from[1] + (ty - from[1]) * t, anim: t < 1 ? 'walk' : 'idle', frame: t < 1 ? walk.frame : loopFrame('idle', now), flip: tx < from[0], lift: t < 1 ? walk.bob : 0, scale: 1, punch: 0 }
+    }
+  }
+
   if (f.state === 'in' && f.at) {
     const [x, y] = spot(f.at, index)
     if (f.hp > 0 && contested(v, f.at)) {
-      // Attack loop: step toward the enemy and back on a per-fighter phase so a pack doesn't move in lockstep.
-      const period = ANIM.attack.frames * ANIM.attack.ms
-      const phase = ((now + index * 173) % period) / period
-      const lunge = Math.sin(phase * Math.PI) * 1.4 * (side === 'a' ? 1 : -1)
-      return { x: x + lunge, y, anim: 'attack', frame: loopFrame('attack', now, index * 173), flip: side === 'b' }
+      // Attack loop: one continuous lunge curve toward the enemy with a scale punch on the impact frame.
+      const a = attackPose(now, phase)
+      const lunge = a.travel * 2.2 * (side === 'a' ? 1 : -1)
+      return { x: x + lunge, y, anim: 'attack', frame: a.frame, flip: side === 'b', lift: 0, scale: 1 + a.punch * 0.09, punch: a.punch }
     }
-    return { x, y, anim: 'idle', frame: loopFrame('idle', now), flip: side === 'b' }
+    const idle = idlePose(now, phase)
+    return { x, y, anim: 'idle', frame: loopFrame('idle', now, phase), flip: side === 'b', lift: idle.lift, scale: idle.scale, punch: 0 }
   }
   if (f.state === 'camp') {
     const [x, y] = spot('camp', index)
-    return { x, y, anim: 'idle', frame: loopFrame('idle', now), flip: side === 'b' }
+    const idle = idlePose(now, phase)
+    return { x, y, anim: 'idle', frame: loopFrame('idle', now, phase), flip: side === 'b', lift: idle.lift, scale: idle.scale, punch: 0 }
   }
   // Walking (by choice or knocked out). The server says where the leg started and when; its length depends on distance.
   const to: PointId | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
   const [tx, ty] = spot(to, index)
   const [sx, sy] = spot(lastSeen[key] ?? 'camp', index)
-  const fx = f.fromX !== null ? f.fromX + (tx - (to === 'camp' ? CAMP[side][0] : FIELD[to].stand[0])) : sx
+  const fx = f.fromX !== null ? f.fromX + (tx - spotBase(side, to)[0]) : sx
   const fy = f.fromY !== null ? f.fromY : sy
   const total = f.departAt > 0 ? f.arriveAt - f.departAt : f.state === 'ko' ? v.rules.koWalkMs : to === 'camp' ? v.rules.homeMs : v.rules.walkMs
   const t = total > 0 ? Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total)) : 1
-  const anim: Anim = f.state === 'ko' ? 'ko' : 'walk'
-  // KO plays the fall once from the moment of the knock-out, then holds the last frame on the way back to camp.
-  const koStart = f.arriveAt - total
-  const frame = anim === 'ko' ? onceFrame('ko', now - raid.clockOffset, koStart) : loopFrame(anim, now)
-  return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, anim, frame, flip: tx < fx }
+  if (f.state === 'ko') {
+    // KO plays the fall once from the moment of the knock-out, then holds the last frame on the way back to camp.
+    const koStart = f.arriveAt - total
+    return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, anim: 'ko', frame: onceFrame('ko', now - raid.clockOffset, koStart), flip: tx < fx, lift: 0, scale: 1, punch: 0 }
+  }
+  if (t >= 1) {
+    // At the door: stand there instead of walking on the spot until the server confirms. Ask it now, once per leg.
+    if (you && arrivalPolled[key] !== f.arriveAt) {
+      arrivalPolled[key] = f.arriveAt
+      refreshRaid()
+    }
+    const idle = idlePose(now, phase)
+    return { x: tx, y: ty, anim: 'idle', frame: loopFrame('idle', now, phase), flip: tx < fx, lift: idle.lift, scale: idle.scale, punch: 0 }
+  }
+  const walk = walkPose(fieldDist([fx, fy], [tx, ty]) * t)
+  return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, anim: 'walk', frame: walk.frame, flip: tx < fx, lift: walk.bob, scale: 1, punch: 0 }
 }
 
-// Damage feedback. HP only changes when a poll lands, so the drop is turned into a floating number and a red flash.
+// Damage feedback. HP only changes when a poll lands, so the drop is turned into a floating number, a red flash and a
+// recoil. A poll lands at a random instant of the swing; the feedback waits for the attackers' next impact frame so
+// the blow and the number land together (the first attacker in a pack swings on phase 0).
 const lastHp: Record<string, number> = {}
 const hitAt: Record<string, number> = {}
 let floats: { id: string; text: string; color: Color4; x: number; y: number; at: number; lift?: number; size?: number }[] = []
@@ -132,10 +214,17 @@ function noteDamage(v: RaidView, f: Fighter, x: number, y: number) {
   lastHp[key] = f.hp
   if (prev === undefined || f.hp >= prev) return
   const now = Date.now()
-  hitAt[key] = now
-  floats.push({ id: `${key}:${now}`, text: `-${prev - f.hp}`, color: C.red, x, y, at: now })
-  if (f.hp <= 0) floats.push({ id: `${key}:ko:${now}`, text: 'KO!', color: C.yellow, x, y: y - 6, at: now + 200 })
+  const at = now + msUntilImpact(now, 0)
+  hitAt[key] = at
+  floats.push({ id: `${key}:${at}`, text: `-${prev - f.hp}`, color: C.red, x, y, at })
+  if (f.hp <= 0) floats.push({ id: `${key}:ko:${at}`, text: 'KO!', color: C.yellow, x, y: y - 6, at: at + 200 })
   if (floats.length > 40) floats = floats.slice(-40)
+}
+/** 0..1 strength of the hit reaction right now (1 at the blow, gone after HIT_FLASH_MS), 0 if none is due. */
+function hitStrength(key: string, now: number): number {
+  const at = hitAt[key] ?? 0
+  if (now < at || now - at >= HIT_FLASH_MS) return 0
+  return 1 - (now - at) / HIT_FLASH_MS
 }
 // Scoring feedback: when a poll shows the tick moved on, every building that paid its holder (not contested, not
 // being taken) floats its pips in the holder's colour.
@@ -173,18 +262,25 @@ function Floats() {
 
 function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; index: number }) {
   const { v, side, f } = props
+  const key = `${v.id}:${f.id}`
+  const now = Date.now()
   const p = fighterPos(v, side, f, props.index)
-  noteDamage(v, f, p.x, p.y)
-  const flashing = Date.now() - (hitAt[`${v.id}:${f.id}`] ?? 0) < HIT_FLASH_MS
-  const hitPose = flashing && p.anim !== 'ko'
+  // Smooth the ground position (server corrections glide); accents ride on top of it unsmoothed so impacts stay crisp.
+  const [gx, gy] = smooth(key, p.x, p.y, now)
+  noteDamage(v, f, gx, gy)
+  const hit = hitStrength(key, now)
+  const hitPose = hit > 0 && p.anim !== 'ko'
   const anim: Anim = hitPose ? 'hit' : p.anim
-  const frame = hitPose ? onceFrame('hit', Date.now(), hitAt[`${v.id}:${f.id}`] ?? 0) : p.frame
+  const frame = hitPose ? onceFrame('hit', now, hitAt[key] ?? 0) : p.frame
+  // Recoil: shoved away from the enemy on the blow, settling back over the flash.
+  const recoil = hitPose ? hit * hit * 1.6 * (side === 'a' ? -1 : 1) : 0
   const ko = f.state === 'ko' || f.hp <= 0
-  const tint = ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : flashing ? Color4.create(1, 0.45, 0.45, 1) : C.white
+  const tint = ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : hit > 0 ? Color4.create(1, 0.45, 0.45, 1) : C.white
   const you = v.you === f.id
   const size = S(TOKEN)
+  const scale = hitPose ? 1 + hit * 0.05 : p.scale
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(p.x) - size / 2, top: py(p.y) - size }, width: size, height: size + S(14), flexDirection: 'column', alignItems: 'center' }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(gx + recoil) - size / 2, top: py(gy) - size - S(p.lift) }, width: size, height: size + S(14), flexDirection: 'column', alignItems: 'center' }}>
       <UiEntity
         uiTransform={{ positionType: 'absolute', position: { top: -S(26), left: 0 }, width: size, height: S(26), alignItems: 'center', justifyContent: 'center' }}
       >
@@ -195,7 +291,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : you ? 'YOU' : f.name.toUpperCase().slice(0, 8)} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
-      <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} color={tint} />
+      <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} scale={scale} color={tint} />
       <UiEntity uiTransform={{ width: S(64), height: S(10), margin: { top: S(2) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}>
         <UiEntity uiTransform={{ width: `${Math.max(0, Math.min(100, (f.hp / f.hpMax) * 100))}%`, height: '100%' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: hpColor(f) }} />
       </UiEntity>
@@ -273,7 +369,7 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
   const { v, point, me } = props
   const [cx, cy, w, h] = FIELD[point].hit
   const here = me.state === 'in' && me.at === point
-  const heading = me.state === 'walk' && me.target === point
+  const heading = (me.state === 'walk' && me.target === point) || pendingGo.to === point
   const hovered = hoverPoint === point && !here
   const color = hovered ? GLOW_GOLD : here ? GLOW_PURPLE : heading ? GLOW_HEADING : null
   return (
@@ -282,8 +378,8 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
       onMouseEnter={() => { hoverPoint = point }}
       onMouseLeave={() => { if (hoverPoint === point) hoverPoint = null }}
       onMouseDown={() => {
-        if (here || heading || raid.busy) return
-        requestGo(point)
+        if (here || heading || pendingGo.to === point) return
+        requestGo(point, myShownSpot())
       }}
     >
       {color ? (
@@ -396,7 +492,7 @@ function ActionRow(props: { v: RaidView }) {
   const btn = { height: S(56), margin: { left: S(10) } }
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: S(26), right: S(30) }, flexDirection: 'row', alignItems: 'center' }}>
-      {me && v.status === 'live' && me.state === 'in' ? <Button label="BACK TO CAMP" color={C.blue} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => requestHome()} /> : null}
+      {me && v.status === 'live' && me.state === 'in' ? <Button label="BACK TO CAMP" color={C.blue} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => requestHome(myShownSpot())} /> : null}
       {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(210), ...btn }} onClick={() => requestLeaveRaid()} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}
