@@ -34,7 +34,15 @@ const CATALOG_TTL_MS = 60_000
 /** Minimum gap between catalog attempts, so a failing server isn't hammered once per frame. */
 const RETRY_GAP_MS = 5_000
 
-export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; window: 'none' | 'day' | 'week'; chain: string | null; tier: number; grants: Record<BaseResource, number> }
+export type PackWindow = 'none' | 'day' | 'week' | 'once'
+export type Pack = { id: string; resource: BaseResource | 'all'; units: number; mana: number; window: PackWindow; chain: string | null; tier: number; grants: Record<BaseResource, number> }
+export type Receipt = { txHash: string; sku: string; mana: number; grants: Partial<Record<BaseResource, number>>; at: number }
+/** Decentraland's gasless relay takes its cut as a second MANA transfer in the same tx; the wallet shows pack + this. */
+export const RELAY_FEE_PCT = 2.5
+export const packCostWithFee = (mana: number) => Math.ceil(mana * (1 + RELAY_FEE_PCT / 100) * 100) / 100
+/** Where a player with too little MANA is sent: Decentraland's own account page (buy MANA with card, bridge to Polygon). */
+export const GET_MANA_URL = 'https://account.decentraland.org/'
+export const txUrl = (hash: string) => `https://polygonscan.com/tx/${hash}`
 
 /** ms until the next Monday 00:00 UTC (weekly windows) or next 00:00 UTC (daily). */
 export function windowResetIn(window: 'day' | 'week', now = Date.now()): number {
@@ -70,15 +78,66 @@ export const packs = {
   busySku: '',
   /** Last outcome line shown under the tab header; cleared on the next attempt. */
   message: '',
-  messageOk: true
+  messageOk: true,
+  /** This wallet's Polygon MANA (from the catalog, so up to a minute old); -1 while unknown. */
+  balance: -1,
+  /** Receipts for the PURCHASES tab, newest first. */
+  history: [] as Receipt[],
+  historyStatus: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
+  historyAt: 0,
+  /** The last credited pack, for the delivery banner (at = 0 once dismissed). */
+  celebration: { at: 0, pack: null as Pack | null }
 }
 
 export const packById = (id: string): Pack | undefined => packs.list.find((p) => p.id === id)
 export const isPackBusy = () => packs.phase !== 'idle'
+/** Can this wallet cover the pack plus the relay fee? Unknown balance never blocks (the wallet itself is the final check). */
+export const canAfford = (p: Pack) => packs.balance < 0 || packs.balance >= packCostWithFee(p.mana)
 
 let refreshInFlight = false
 let lastRefreshAt = 0
 let pollingHash = ''
+let historyInFlight = false
+
+/** One funnel counter (tab / confirm / cancel / wallet_*). Fire-and-forget; a failure is nobody's problem. */
+export function trackShop(step: 'tab' | 'confirm' | 'cancel' | 'wallet_open' | 'wallet_rejected' | 'wallet_failed', sku = '') {
+  if (profileState.status !== 'ready' || !profileState.walletAddress) return
+  executeTask(async () => {
+    try {
+      await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs/event`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step, sku }) }
+      })
+    } catch {
+      /* analytics only */
+    }
+  })
+}
+
+/** Receipts for the PURCHASES tab; cheap no-op while fresh (called every render of that tab). */
+export function refreshHistory(force = false) {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || historyInFlight) return
+  const now = Date.now()
+  if (!force && packs.historyStatus === 'ready' && now - packs.historyAt < CATALOG_TTL_MS) return
+  if (!force && packs.historyStatus === 'error' && now - packs.historyAt < RETRY_GAP_MS) return
+  historyInFlight = true
+  if (packs.historyStatus !== 'ready') packs.historyStatus = 'loading'
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs/history`, init: { method: 'GET', headers: {} } })
+      if (!response.ok) throw new Error(`history ${response.status}`)
+      const body = JSON.parse(response.body) as { rows?: Receipt[] }
+      packs.history = Array.isArray(body.rows) ? body.rows.filter((r) => r && TX_PATTERN.test(String(r.txHash))) : []
+      packs.historyStatus = 'ready'
+    } catch (error) {
+      packs.historyStatus = 'error'
+      console.error('[packs] history failed:', error instanceof Error ? error.message : String(error))
+    } finally {
+      packs.historyAt = Date.now()
+      historyInFlight = false
+    }
+  })
+}
 
 /** Load the catalog (+ any unsettled hash) when the tab opens; cheap no-op while it's fresh (called every render). */
 export function refreshPacks(force = false) {
@@ -93,12 +152,13 @@ export function refreshPacks(force = false) {
     try {
       const response = await signedFetch({ url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/packs`, init: { method: 'GET', headers: {} } })
       if (!response.ok) throw new Error(`catalog ${response.status}`)
-      const body = JSON.parse(response.body) as { enabled: boolean; wallet: string; mana: string; packs: Pack[]; pending: PendingPurchase | null; bought?: Record<string, boolean> }
+      const body = JSON.parse(response.body) as { enabled: boolean; wallet: string; mana: string; packs: Pack[]; pending: PendingPurchase | null; bought?: Record<string, boolean>; balance?: number }
       if (String(body.mana).toLowerCase() !== MANA_POLYGON) throw new Error('token mismatch')
       packs.enabled = body.enabled === true
       packs.wallet = String(body.wallet || '').toLowerCase()
       packs.list = Array.isArray(body.packs) ? body.packs.filter((p) => p && typeof p.id === 'string' && p.mana > 0 && p.units > 0) : []
       packs.bought = body.bought && typeof body.bought === 'object' ? body.bought : {}
+      packs.balance = typeof body.balance === 'number' && body.balance >= 0 ? body.balance : -1
       packs.loadedAt = Date.now()
       packs.status = 'ready'
       // A hash the server is still waiting on (e.g. the ring closed mid-purchase): resume polling for it.
@@ -124,6 +184,7 @@ export function buyPack(sku: string) {
   packs.phase = 'signing'
   packs.busySku = sku
   packs.message = ''
+  trackShop('wallet_open', sku)
   executeTask(async () => {
     let txHash = ''
     try {
@@ -131,7 +192,9 @@ export function buyPack(sku: string) {
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error)
       console.error('[packs] send failed:', text.slice(0, 200))
-      finish(false, /denied|reject|cancel/i.test(text) ? 'PAYMENT CANCELLED' : 'PAYMENT DID NOT GO THROUGH')
+      const cancelled = /denied|reject|cancel/i.test(text)
+      trackShop(cancelled ? 'wallet_rejected' : 'wallet_failed', sku)
+      finish(false, cancelled ? 'PAYMENT CANCELLED' : 'PAYMENT DID NOT GO THROUGH')
       return
     }
     if (!TX_PATTERN.test(txHash)) {
@@ -187,6 +250,11 @@ async function verify(pending: PendingPurchase) {
         playBoostSound()
         const pack = packById(pending.sku)
         finish(true, pack ? `+${pack.units.toLocaleString('en-US')} ${pack.resource === 'all' ? 'OF EACH RESOURCE' : pack.resource.toUpperCase()} IN STORAGE` : 'PACK CREDITED')
+        // The delivery banner, then fresh balance / windows / receipts.
+        packs.celebration = { at: Date.now(), pack: pack ?? null }
+        packs.loadedAt = 0
+        refreshPacks(true)
+        refreshHistory(true)
         return
       }
       if (outcome === 'failed') { finish(false, 'TRANSACTION FAILED ON-CHAIN - NOTHING WAS CHARGED'); return }

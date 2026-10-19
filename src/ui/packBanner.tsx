@@ -1,0 +1,78 @@
+// Delivery banner for a credited MANA pack: the resources pop in with the boost chime, hang for a few seconds, then
+// fade. Same shape as the rare-find banner so the two celebrations read as one family. Rendered above every panel
+// (the shop is usually still open underneath), tap anywhere to dismiss.
+import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import { Color4 } from '@dcl/sdk/math'
+import { C, TEX, SLICE_128 } from './theme'
+import { OutlinedText, Icon, CloseButton } from './components'
+import { BASE_RESOURCES, RESOURCE_INFO } from '../state'
+import { packs } from '../packs'
+import { S, setScale, hudScale, getCanvas } from './responsive'
+
+const SHOW_SECS = 5
+const POP_SECS = 0.45
+const FADE_SECS = 0.6
+
+const dismiss = () => { packs.celebration = { at: 0, pack: null } }
+
+function easeOutBack(t: number): number {
+  const c1 = 1.70158
+  const c3 = c1 + 1
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
+}
+
+function withAlpha(color: Color4, alpha: number): Color4 {
+  return Color4.create(color.r, color.g, color.b, color.a * alpha)
+}
+
+export function PackCreditedBanner() {
+  const { at, pack } = packs.celebration
+  if (!at || !pack) return null
+  const elapsed = (Date.now() - at) / 1000
+  if (elapsed > SHOW_SECS) return null
+
+  setScale(hudScale())
+  const canvas = getCanvas()
+  const k = elapsed < POP_SECS ? Math.max(0.2, easeOutBack(elapsed / POP_SECS)) : 1
+  const alpha = elapsed > SHOW_SECS - FADE_SECS ? Math.max(0, (SHOW_SECS - elapsed) / FADE_SECS) : 1
+  const items = BASE_RESOURCES.filter((r) => (pack.grants?.[r] ?? 0) > 0)
+  const W = (items.length > 1 ? 1180 : 760) * k
+  const H = 440 * k
+
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + S(340), left: '50%' }, width: 0, height: 0, alignItems: 'flex-start', justifyContent: 'center' }}>
+      <UiEntity
+        uiTransform={{ width: S(W), height: S(H), flexShrink: 0, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: S(26 * k) }}
+        uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panel }, textureSlices: SLICE_128, color: withAlpha(C.navy, alpha) }}
+        onMouseDown={dismiss}
+      >
+        {k >= 1 ? <CloseButton onClick={dismiss} scale={S(1)} /> : null}
+        <UiEntity
+          uiTransform={{ width: S(620 * k), height: S(84 * k), alignItems: 'center', justifyContent: 'center', margin: { bottom: S(16 * k) } }}
+          uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: withAlpha(C.purple, alpha) }}
+        >
+          <OutlinedText value="PACK DELIVERED!" size={S(54 * k)} color={withAlpha(C.white, alpha)} uiTransform={{ width: S(600 * k), height: S(80 * k), margin: { bottom: S(8 * k) } }} />
+        </UiEntity>
+
+        <UiEntity uiTransform={{ width: '100%', height: S(210 * k), flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+          {items.map((r) => (
+            <UiEntity key={`pack-credited-${r}`} uiTransform={{ flexDirection: 'column', alignItems: 'center', width: S(270 * k), margin: { left: S(6 * k), right: S(6 * k) } }}>
+              <UiEntity
+                uiTransform={{ width: S(140 * k), height: S(140 * k), alignItems: 'center', justifyContent: 'center' }}
+                uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: withAlpha(C.yellow, alpha) }}
+              >
+                <Icon src={RESOURCE_INFO[r].icon} size={S(118 * k)} />
+              </UiEntity>
+              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', height: S(60 * k), margin: { top: S(6 * k) } }}>
+                <OutlinedText value={`+${(pack.grants[r] ?? 0).toLocaleString('en-US')}`} size={S(40 * k)} color={withAlpha(C.yellow, alpha)} uiTransform={{ width: 'auto', minWidth: S(60 * k), height: S(60 * k), margin: { right: S(10 * k) } }} align="middle-right" raw />
+                <OutlinedText value={RESOURCE_INFO[r].name.toUpperCase()} size={S(28 * k)} color={withAlpha(C.white, alpha)} uiTransform={{ width: 'auto', height: S(60 * k) }} align="middle-left" />
+              </UiEntity>
+            </UiEntity>
+          ))}
+        </UiEntity>
+
+        <OutlinedText value="Added to your Depot storage" size={S(26 * k)} color={withAlpha(C.gray, alpha)} uiTransform={{ width: S(900 * k), height: S(40 * k), margin: { top: S(10 * k) } }} />
+      </UiEntity>
+    </UiEntity>
+  )
+}

@@ -1,7 +1,7 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
 import { t } from '../i18n'
 import { Color4 } from '@dcl/sdk/math'
-import { C, TEX, SLICE_128, glow } from './theme'
+import { C, TEX, SLICE_128, SLICE_PILL, glow } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal, CONTENT_W } from './responsive'
 import { LobbyTab, RankingsTab, resetLobbyView } from './lobby'
@@ -80,11 +80,12 @@ import { campHint, remoteConfig, ringStationsEnabled } from '../remoteConfig'
 import { profileState } from '../playerProfile'
 import { playButtonSound } from '../uiSounds'
 import { refreshGuild, requestBoost, requestCraft, requestCraftRelic, requestCraftSuit, requestDepot, requestGuild, requestGuildDonate, requestTool, requestEquipSuit, guildDirectory, refreshGuildDirectory, GuildRank } from '../transactions'
-import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces, usdLabel } from '../suits'
-import { buyPack, isPackBusy, packs, refreshPacks, tierLocked, windowResetIn, type Pack } from '../packs'
+import { assassinPriceLine, canEquipLevel, isSetLine, ownedPieceCount, ownedSuitsKnown, ownsPiece, ownsRelic, pieceMarketplaceUrl, pieceThumbnail, refreshOwnedSuits, relicCraftable, relicThumbnail, suitPieces } from '../suits'
+import { buyPack, canAfford, GET_MANA_URL, isPackBusy, packById, packCostWithFee, packs, refreshHistory, refreshPacks, RELAY_FEE_PCT, tierLocked, trackShop, txUrl, windowResetIn, type Pack } from '../packs'
 import { crownHolder, isCrownHolder, refreshBoard, vipOf } from '../lobby'
 import { withVip } from '../vip'
 import { stepTarget } from './guide'
+import { HERO_SHEET, Sprite, loopFrame } from './sprite'
 
 const skillColor = (s: Skill) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
 
@@ -1083,10 +1084,11 @@ function activeBoost(): { item: (typeof SHOP_ITEMS)[number]; until: number } | n
 }
 
 /** BERRY SHOP (boosts) · RESOURCES (packs for MANA). Remembered while the ring is on so reopening lands where you were. */
-type ShopTabId = 'berries' | 'resources' | 'deals' | 'whale'
+type ShopTabId = 'berries' | 'resources' | 'deals' | 'whale' | 'history'
 let shopTab: ShopTabId = 'berries'
-const SHOP_TAB_ICON: Record<ShopTabId, string> = { berries: 'images/icons/berry.png', resources: 'images/icons/wood.png', deals: 'images/icons/coin.png', whale: 'images/icons/assassin.png' }
-const SHOP_TAB_TITLE: Record<ShopTabId, string> = { berries: 'BERRY SHOP', resources: 'RESOURCES', deals: 'DEALS', whale: 'WHALE PACKS' }
+let confirmingPackId = ''
+const SHOP_TAB_ICON: Record<ShopTabId, string> = { berries: 'images/icons/berry.png', resources: 'images/icons/wood.png', deals: 'images/icons/coin.png', whale: 'images/icons/assassin.png', history: 'images/icons/backpack.png' }
+const SHOP_TAB_TITLE: Record<ShopTabId, string> = { berries: 'BERRY SHOP', resources: 'RESOURCES', deals: 'DEALS', whale: 'WHALE PACKS', history: 'PURCHASES' }
 const isPackTab = (id: ShopTabId) => id !== 'berries'
 
 function ShopTab(props: { key?: string; id: ShopTabId; label: string }) {
@@ -1095,11 +1097,14 @@ function ShopTab(props: { key?: string; id: ShopTabId; label: string }) {
       label={props.label}
       icon={SHOP_TAB_ICON[props.id]}
       color={shopTab === props.id ? C.purple : C.navySoft}
-      size={S(28)}
-      uiTransform={{ width: S(400), height: S(70), margin: { left: S(8), right: S(8) } }}
+      size={S(26)}
+      uiTransform={{ width: S(330), height: S(70), margin: { left: S(7), right: S(7) } }}
       onClick={() => {
+        confirmingPackId = ''
+        if (shopTab !== props.id && isPackTab(props.id)) trackShop('tab', props.id)
         shopTab = props.id
         if (isPackTab(props.id)) refreshPacks()
+        if (props.id === 'history') refreshHistory()
       }}
     />
   )
@@ -1109,24 +1114,154 @@ export function ShopPanel() {
   const fit = fitBig()
   // Pack tabs refresh when the panel opens on them (prices are server-configured and can change).
   if (isPackTab(shopTab)) refreshPacks()
+  if (shopTab === 'history') refreshHistory()
   return (
-    <Modal title={SHOP_TAB_TITLE[shopTab]} color={C.purple} {...bigFrame(fit, 'BERRY SHOP', 'shop')} onClose={closePanel}>
+    <Modal title={SHOP_TAB_TITLE[shopTab]} color={C.purple} {...bigFrame(fit, 'BERRY SHOP', 'shop')} onClose={() => { confirmingPackId = ''; closePanel() }}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(4), bottom: S(10) } }}>
           <ShopTab key="stab-berries" id="berries" label="BERRY SHOP" />
           <ShopTab key="stab-resources" id="resources" label="RESOURCES" />
           <ShopTab key="stab-deals" id="deals" label="DEALS" />
           <ShopTab key="stab-whale" id="whale" label="WHALE PACKS" />
+          <ShopTab key="stab-history" id="history" label="PURCHASES" />
         </UiEntity>
-        {shopTab === 'resources' ? <ResourcePacks /> : shopTab === 'deals' ? <DealPacks /> : shopTab === 'whale' ? <WhalePacks /> : <BerryShop />}
+        {shopTab === 'resources' ? <ResourcePacks /> : shopTab === 'deals' ? <DealPacks /> : shopTab === 'whale' ? <WhalePacks /> : shopTab === 'history' ? <PurchaseHistory /> : <BerryShop />}
+        {confirmingPackId ? <PackPurchaseConfirm /> : null}
       </UiEntity>
     </Modal>
   )
 }
 
-// ---- Shared pieces for the three MANA pack tabs ----------------------------------------------------------------
-const packUsd = (mana: number) => (remoteConfig.manaUsd > 0 ? `  ·  ${usdLabel(Math.round(mana * remoteConfig.manaUsd * 100) / 100)}` : '')
+// ---- Shared pieces for the MANA pack tabs ----------------------------------------------------------------------
 const bySize = (a: Pack, b: Pack) => a.units - b.units
+/** Price label: the MANA amount only (no fiat), or the purchase/bought state. */
+const packLabel = (p: Pack, mine: boolean, used: boolean) => (mine ? (packs.phase === 'signing' ? 'CONFIRM IN WALLET' : 'CONFIRMING...') : used ? 'BOUGHT' : `${p.mana} MANA`)
+/** "167 / MANA" (singles) or "42 of each / MANA" (bundles): makes the ladder self-explanatory. */
+const perMana = (p: Pack) => `${Math.round(p.units / p.mana).toLocaleString('en-US')}${p.resource === 'all' ? ' of each' : ''} / MANA`
+/** Shown on the confirm card and the PURCHASES tab. */
+const PACK_TERMS = 'Resources are virtual goods delivered to Depot storage. Purchases are final. Problem? REPORT BUG in the Lobby.'
+const requestPackConfirmation = (id: string) => {
+  if (isPackBusy() || packs.bought[id]) return
+  confirmingPackId = id
+  trackShop('confirm', id)
+  // A fresh balance for the "you have X MANA" check if the catalog is more than a few seconds old.
+  if (Date.now() - packs.loadedAt > 15_000) refreshPacks(true)
+}
+const packTitle = (p: Pack) =>
+  p.id === 'deal_daily' ? 'DAILY DEAL'
+  : p.id === 'deal_weekly' ? 'WEEKLY DEAL'
+  : p.id === 'starter' ? 'STARTER PACK'
+  : p.id.startsWith('whale_') ? `WHALE PACK · TIER ${p.tier}`
+  : p.id.startsWith('hero_') ? `HERO ${PACK_SIZE_NAME(p.units)}`
+  : p.resource === 'all' ? 'HERO PACK'
+  : `${RESOURCE_INFO[p.resource].name.toUpperCase()} ${PACK_SIZE_NAME(p.units)}`
+
+/** In-game confirmation before opening the wallet's own transaction confirmation. */
+function PackPurchaseConfirm() {
+  const p = packs.list.find((pack) => pack.id === confirmingPackId)
+  if (!p) {
+    confirmingPackId = ''
+    return null
+  }
+  // Bundles say "of each"; singles already name the resource in the title, so the amount alone is enough.
+  const amount = p.resource === 'all' ? `${p.units.toLocaleString('en-US')} of each` : p.units.toLocaleString('en-US')
+  const limit = p.window === 'day' ? 'Available once per day' : p.window === 'week' ? 'Available once per week' : p.window === 'once' ? 'One time only' : ''
+  const short = !canAfford(p)
+  const total = packCostWithFee(p.mana)
+  return (
+    <UiEntity
+      uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+      uiBackground={{ color: C.dim }}
+    >
+      <Panel flat color={C.paper} uiTransform={{ width: S(800), height: S(640), flexDirection: 'column', alignItems: 'center', padding: S(34) }}>
+        <Icon src={p.resource === 'all' ? 'images/icons/assassin.png' : RESOURCE_INFO[p.resource].icon} size={S(86)} />
+        <OutlinedText value="CONFIRM PURCHASE" size={S(38)} color={C.purple} uiTransform={{ height: S(52), margin: { top: S(8) } }} />
+        <Text value={packTitle(p)} size={S(28)} color={C.text} nowrap uiTransform={{ height: S(38), margin: { top: S(4) } }} />
+        <Text value={amount} size={S(25)} color={C.textMuted} nowrap uiTransform={{ height: S(34) }} />
+        {limit ? <Text value={limit} size={S(21)} color={C.purple} nowrap uiTransform={{ height: S(30), margin: { top: S(4) } }} /> : null}
+        <OutlinedText value={`${p.mana} MANA`} size={S(48)} color={C.gold} uiTransform={{ height: S(66), margin: { top: S(12) } }} raw />
+        {/* The relay fee is charged in the same transaction, so the wallet will show more than the pack price. */}
+        <Text value={`Plus a ~${RELAY_FEE_PCT}% Decentraland relay fee: your wallet will ask for about ${total} MANA`} size={S(21)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+        {short ? (
+          <Text value={`You have ${packs.balance.toLocaleString('en-US')} MANA on Polygon - not enough for this pack`} size={S(22)} color={C.red} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} />
+        ) : (
+          <Text value="This will request a real Polygon MANA transfer from your wallet." size={S(21)} color={C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(6) } }} />
+        )}
+        <Spacer />
+        <Text value={PACK_TERMS} size={S(18)} color={C.textMuted} nowrap uiTransform={{ height: S(26), margin: { bottom: S(10) } }} />
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', height: S(76) }}>
+          <Button label="CANCEL" sound="cancel" color={C.navySoft} size={S(26)} uiTransform={{ width: S(240), height: '100%', margin: { right: S(14) } }} onClick={() => { confirmingPackId = ''; trackShop('cancel', p.id) }} />
+          {short ? (
+            <Button label="GET MANA" color={C.green} size={S(26)} uiTransform={{ width: S(360), height: '100%' }} onClick={() => openUrl(GET_MANA_URL)} />
+          ) : (
+            <Button
+              label={`BUY FOR ${p.mana} MANA`}
+              color={C.purple}
+              size={S(25)}
+              uiTransform={{ width: S(360), height: '100%' }}
+              onClick={() => {
+                confirmingPackId = ''
+                buyPack(p.id)
+              }}
+            />
+          )}
+        </UiEntity>
+      </Panel>
+    </UiEntity>
+  )
+}
+
+/** PURCHASES: this wallet's receipts (what, when, how much MANA, the Polygonscan link) and the terms. */
+function PurchaseHistory() {
+  const rows = packs.history
+  const total = rows.reduce((sum, r) => sum + r.mana, 0)
+  const status =
+    packs.historyStatus === 'loading' || packs.historyStatus === 'idle' ? 'Loading receipts...'
+    : packs.historyStatus === 'error' ? 'Could not load receipts. Reopen to try again.'
+    : rows.length === 0 ? 'No purchases yet.'
+    : `${rows.length} purchases  ·  ${total.toLocaleString('en-US')} MANA total`
+  return (
+    <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
+      <Text value={status} size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(36), margin: { top: S(4) } }} raw={rows.length > 0 && packs.historyStatus === 'ready'} />
+      <UiEntity uiTransform={{ width: S(1704), flexGrow: 1, flexDirection: 'column', margin: { top: S(10) }, overflow: 'scroll' }}>
+        {rows.map((r) => {
+          const p = packById(r.sku)
+          const name = p ? packTitle(p) : r.sku.toUpperCase()
+          const grants = BASE_RESOURCES.filter((res) => (r.grants[res] ?? 0) > 0)
+          const date = new Date(r.at)
+          const when = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')} ${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')} UTC`
+          return (
+            <Panel key={`receipt-${r.txHash}`} flat color={C.paper} uiTransform={{ width: '100%', height: S(96), flexShrink: 0, flexDirection: 'row', alignItems: 'center', padding: { left: S(24), right: S(24) }, margin: { bottom: S(10) } }}>
+              <UiEntity uiTransform={{ flexDirection: 'column', width: S(560), minWidth: 0 }}>
+                <Text value={name} size={S(28)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(36) }} />
+                <Text value={when} size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(28) }} raw />
+              </UiEntity>
+              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', flexGrow: 1, minWidth: 0 }}>
+                {grants.map((res) => (
+                  <UiEntity key={`receipt-${r.txHash}-${res}`} uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { right: S(22) } }}>
+                    <Icon src={RESOURCE_INFO[res].icon} size={S(40)} />
+                    <Text value={`+${(r.grants[res] ?? 0).toLocaleString('en-US')}`} size={S(24)} color={C.greenDark} nowrap uiTransform={{ width: 'auto', height: S(40), margin: { left: S(6) } }} raw />
+                  </UiEntity>
+                ))}
+              </UiEntity>
+              <OutlinedText value={`${r.mana} MANA`} size={S(28)} color={C.gold} uiTransform={{ width: S(200), height: S(40) }} align="middle-right" raw />
+              <Button label="RECEIPT" color={C.navySoft} size={S(20)} uiTransform={{ width: S(170), height: S(56), minWidth: 0, margin: { left: S(20) } }} onClick={() => openUrl(txUrl(r.txHash))} />
+            </Panel>
+          )
+        })}
+      </UiEntity>
+      <Text value={PACK_TERMS} size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(8), bottom: S(8) } }} />
+    </UiEntity>
+  )
+}
+/**
+ * Deal discount vs the cheapest way to buy the same amount of each with regular Hero packs
+ * (e.g. 2,000 of each = two Hero sacks = 48 MANA, so a 30 MANA daily is -37%). 0 when there is no saving.
+ */
+const dealDiscount = (deal: Pack, bundles: Pack[]) => {
+  const regular = Math.min(...bundles.filter((b) => b.units > 0).map((b) => Math.ceil(deal.units / b.units) * b.mana))
+  return Number.isFinite(regular) && regular > deal.mana ? Math.round((1 - deal.mana / regular) * 100) : 0
+}
 
 /** Status line under the tab row: purchase progress, last outcome, or the tab's own blurb. */
 function PackHeader(props: { blurb: string }) {
@@ -1142,50 +1277,57 @@ function PackHeader(props: { blurb: string }) {
   return <Text value={text} size={S(26)} color={color} nowrap uiTransform={{ height: S(36), margin: { top: S(4) } }} />
 }
 
-/** One buy row: the tier name and amount on the left, the MANA button (with live USD) on the right. */
+/** One buy row: the tier name and amount on the left, the MANA button on the right. Rows share their column's height. */
 function PackRow(props: { key?: string; pack: Pack; wide: boolean; name: string }) {
   const p = props.pack
   const mine = packs.busySku === p.id
   const used = packs.bought[p.id] === true
-  const label = mine ? (packs.phase === 'signing' ? 'CONFIRM IN WALLET' : 'CONFIRMING...') : used ? 'BOUGHT' : `${p.mana} MANA${packUsd(p.mana)}`
   return (
-    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', height: S(86) }}>
+    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', width: '100%', flexGrow: 1, minHeight: S(90) }}>
       <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
-        <Text value={props.name} size={S(26)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(32) }} />
-        <Text value={props.wide ? `${p.units.toLocaleString('en-US')} of each` : p.units.toLocaleString('en-US')} size={S(24)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30) }} raw={!props.wide} />
+        <Text value={props.name} size={S(30)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(36) }} />
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(32) }}>
+          <Text value={props.wide ? `${p.units.toLocaleString('en-US')} of each` : p.units.toLocaleString('en-US')} size={S(26)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', height: S(32) }} raw={!props.wide} />
+          {/* Value per MANA, so the ladder explains itself (the bundle version says "of each" via its own row). */}
+          <Text value="  ·  " size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', height: S(32) }} raw />
+          <Text value={perMana(p)} size={S(20)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ width: 'auto', height: S(32) }} />
+        </UiEntity>
       </UiEntity>
       <Button
         key={`buy-pack-${p.id}`}
-        label={label}
+        label={packLabel(p, mine, used)}
         color={mine ? C.yellow : used ? C.gray : C.purple}
         textColor={mine ? C.text : C.white}
         disabled={isPackBusy() || !packs.enabled || used}
-        size={S(mine ? 20 : 24)}
-        uiTransform={{ width: S(props.wide ? 300 : 220), height: S(70), minWidth: 0 }}
-        onClick={() => buyPack(p.id)}
+        size={S(mine ? 20 : 28)}
+        uiTransform={{ width: S(props.wide ? 340 : 200), height: S(80), minWidth: 0 }}
+        onClick={() => requestPackConfirmation(p.id)}
       />
     </UiEntity>
   )
 }
 
-/** RESOURCES: per-resource Sack / Crate / Wagon columns and the Hero packs. */
+/** RESOURCES: per-resource Sack / Crate / Wagon columns on top, the Hero packs below; together they fill the frame. */
 function ResourcePacks() {
   const singles = packs.list.filter((p) => p.resource !== 'all')
   const bundles = packs.list.filter((p) => p.resource === 'all' && p.id.startsWith('hero_'))
   return (
-    <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
-      <PackHeader blurb="Paid in MANA on Polygon. Resources land in Depot storage - Hero upgrades draw from storage first." />
+    <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', alignItems: 'center', padding: { bottom: S(16) } }}>
+      <PackHeader blurb="Resources land in Depot storage - Hero upgrades draw from storage first." />
+      <Pill color={C.navySoft} flat uiTransform={{ width: S(760), height: S(42), justifyContent: 'center', margin: { top: S(4) } }}>
+        <Text value={`DAILY LIMIT  •  Each pack once  •  Resets in ${resetText(windowResetIn('day'))}`} size={S(22)} color={C.white} nowrap uiTransform={{ width: '100%', height: '100%' }} />
+      </Pill>
       {packs.status === 'ready' && packs.list.length === 0 ? <Text value="No packs on sale right now." size={S(28)} color={C.textMuted} uiTransform={{ margin: { top: S(40) } }} /> : null}
-      {/* One column per base resource: Sack / Crate / Wagon. */}
-      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', width: '100%', margin: { top: S(10) } }}>
+      {/* One column per base resource: Sack / Crate / Wagon. Takes ~3/5 of the height, the Hero card the rest. */}
+      <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', width: '100%', flexGrow: 3, flexBasis: 0, margin: { top: S(10) } }}>
         {BASE_RESOURCES.map((r) => {
           const rows = singles.filter((p) => p.resource === r).sort(bySize)
           if (rows.length === 0) return null
           return (
-            <Panel key={`packs-${r}`} flat color={C.paper} uiTransform={{ width: S(410), height: S(380), flexDirection: 'column', padding: { top: S(10), bottom: S(10), left: S(20), right: S(20) }, margin: { left: S(8), right: S(8) } }}>
-              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(80) }}>
-                <Icon src={RESOURCE_INFO[r].icon} size={S(64)} />
-                <OutlinedText value={RESOURCE_INFO[r].name.toUpperCase()} size={S(32)} uiTransform={{ width: 'auto', margin: { left: S(10) } }} align="middle-left" />
+            <Panel key={`packs-${r}`} flat color={C.paper} uiTransform={{ width: S(410), height: '100%', flexDirection: 'column', padding: { top: S(10), bottom: S(14), left: S(20), right: S(20) }, margin: { left: S(8), right: S(8) } }}>
+              <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(84) }}>
+                <Icon src={RESOURCE_INFO[r].icon} size={S(68)} />
+                <OutlinedText value={RESOURCE_INFO[r].name.toUpperCase()} size={S(34)} uiTransform={{ width: 'auto', margin: { left: S(10) } }} align="middle-left" />
               </UiEntity>
               {rows.map((p) => <PackRow key={`row-${p.id}`} pack={p} wide={false} name={PACK_SIZE_NAME(p.units)} />)}
             </Panel>
@@ -1194,61 +1336,72 @@ function ResourcePacks() {
       </UiEntity>
       {/* Hero packs: the same amount of all four, which is exactly how a Hero stat step is priced. */}
       {bundles.length > 0 ? (
-        <Panel flat color={C.paper} uiTransform={{ width: S(1704), height: S(40 + 86 * bundles.length), flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(10), left: S(24), right: S(24) }, margin: { top: S(14) } }}>
-          <UiEntity uiTransform={{ flexDirection: 'column', width: S(520), height: '100%', justifyContent: 'center' }}>
-            <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(80) }}>
-              <Icon src="images/icons/assassin.png" size={S(64)} />
-              <OutlinedText value="HERO PACKS" size={S(32)} uiTransform={{ width: 'auto', margin: { left: S(10) } }} align="middle-left" />
+        <Panel flat color={C.paper} uiTransform={{ width: S(1704), flexGrow: 2, flexBasis: 0, flexDirection: 'row', alignItems: 'center', padding: { top: S(10), bottom: S(14), left: S(24), right: S(24) }, margin: { top: S(16) } }}>
+          {/* Clean hero promo: character art sits above the title instead of being stretched behind the whole card. */}
+          <UiEntity uiTransform={{ flexDirection: 'column', width: S(500), height: '100%', alignItems: 'center', justifyContent: 'center', padding: { left: S(20), right: S(20) } }} uiBackground={{ color: C.paper2 }}>
+            <UiEntity uiTransform={{ width: S(176), height: S(176), alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circleFlat }, textureSlices: SLICE_128, color: C.navySoft }}>
+              <Sprite src={HERO_SHEET.assassin.own} anim="idle" frame={loopFrame('idle', Date.now())} size={S(166)} />
             </UiEntity>
-            <Text value="Everything one Hero stat step needs, x4" size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ height: S(60) }} />
-            <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(44) }}>
-              {BASE_RESOURCES.map((r) => <Icon key={`hero-pack-${r}`} src={RESOURCE_INFO[r].icon} size={S(40)} uiTransform={{ margin: { right: S(8) } }} />)}
+            <OutlinedText value="HERO PACKS" size={S(36)} color={C.purple} uiTransform={{ height: S(46), margin: { top: -S(8) } }} />
+            <Text value="Power up your hero faster" size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(32) }} />
+            <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: S(50), margin: { top: S(4) } }}>
+              {BASE_RESOURCES.map((r) => <Icon key={`hero-pack-${r}`} src={RESOURCE_INFO[r].icon} size={S(42)} uiTransform={{ margin: { left: S(4), right: S(4) } }} />)}
             </UiEntity>
           </UiEntity>
-          <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0, justifyContent: 'center' }}>
+          <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, minWidth: 0, height: '100%', justifyContent: 'center' }}>
             {bundles.sort(bySize).map((p) => <PackRow key={`row-${p.id}`} pack={p} wide name={PACK_SIZE_NAME(p.units)} />)}
           </UiEntity>
         </Panel>
       ) : null}
-      <Spacer />
     </UiEntity>
   )
 }
 
-/** DEALS: one Daily and one Weekly hero-style pack per wallet, priced under the ladder. */
+/** DEALS: the one-time Starter pack, then one Daily and one Weekly hero-style pack per wallet, all priced under the ladder. */
 function DealPacks() {
-  const deals = packs.list.filter((p) => p.id.startsWith('deal_')).sort((a, b) => (a.window === 'week' ? 1 : 0) - (b.window === 'week' ? 1 : 0))
+  const order = (p: Pack) => (p.window === 'once' ? 0 : p.window === 'day' ? 1 : 2)
+  const deals = packs.list.filter((p) => p.id.startsWith('deal_') || p.window === 'once').sort((a, b) => order(a) - order(b))
+  const bundles = packs.list.filter((p) => p.resource === 'all' && p.id.startsWith('hero_'))
   return (
     <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
       <PackHeader blurb="One of each per wallet. Daily resets at midnight UTC, weekly on Monday 00:00 UTC." />
       {packs.status === 'ready' && deals.length === 0 ? <Text value="No packs on sale right now." size={S(28)} color={C.textMuted} uiTransform={{ margin: { top: S(40) } }} /> : null}
       <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', width: '100%', margin: { top: S(30) } }}>
         {deals.map((p) => {
+          const once = p.window === 'once'
           const weekly = p.window === 'week'
           const used = packs.bought[p.id] === true
           const mine = packs.busySku === p.id
-          const label = mine ? (packs.phase === 'signing' ? 'CONFIRM IN WALLET' : 'CONFIRMING...') : used ? 'BOUGHT' : `${p.mana} MANA${packUsd(p.mana)}`
+          const off = dealDiscount(p, bundles)
+          const reset = once ? '' : resetText(windowResetIn(weekly ? 'week' : 'day'))
           return (
-            <Panel key={`deal-${p.id}`} flat color={mine ? C.yellow : C.paper} uiTransform={{ width: S(700), height: S(560), flexDirection: 'column', alignItems: 'center', padding: S(26), margin: { left: S(20), right: S(20) } }}>
-              <OutlinedText value={weekly ? 'WEEKLY DEAL' : 'DAILY DEAL'} size={S(40)} />
-              <Text value={weekly ? 'Once a week' : 'Once a day'} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(4) } }} />
-              <OutlinedText value={p.units.toLocaleString('en-US')} size={S(72)} uiTransform={{ margin: { top: S(24) } }} raw />
+            <Panel key={`deal-${p.id}`} flat color={mine ? C.yellow : C.paper} uiTransform={{ width: S(540), height: S(600), flexDirection: 'column', alignItems: 'center', padding: S(24), margin: { left: S(14), right: S(14) } }}>
+              <OutlinedText value={once ? 'STARTER PACK' : weekly ? 'WEEKLY DEAL' : 'DAILY DEAL'} size={S(38)} color={once ? C.gold : C.white} />
+              <Text value={once ? 'One time only' : weekly ? 'Once a week' : 'Once a day'} size={S(24)} color={C.textMuted} nowrap uiTransform={{ height: S(32), margin: { top: S(4) } }} />
+              {/* Fixed-width badge stays inside the card instead of overlapping its frame. */}
+              {off > 0 ? (
+                <Pill color={used ? C.gray : C.red} flat uiTransform={{ width: S(210), height: S(50), justifyContent: 'center', margin: { top: S(14) } }}>
+                  <Text value={used ? (once ? 'CLAIMED' : 'SOLD') : `SAVE ${off}%`} size={S(26)} color={C.white} nowrap uiTransform={{ width: '100%', height: '100%' }} />
+                </Pill>
+              ) : null}
+              <OutlinedText value={p.units.toLocaleString('en-US')} size={S(68)} uiTransform={{ margin: { top: S(12) } }} raw />
               <Text value="of each" size={S(26)} color={C.textMuted} nowrap uiTransform={{ height: S(34) }} />
-              <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', height: S(70), margin: { top: S(10) } }}>
-                {BASE_RESOURCES.map((r) => <Icon key={`deal-${p.id}-${r}`} src={RESOURCE_INFO[r].icon} size={S(56)} uiTransform={{ margin: { left: S(8), right: S(8) } }} />)}
+              <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', height: S(64), margin: { top: S(8) } }}>
+                {BASE_RESOURCES.map((r) => <Icon key={`deal-${p.id}-${r}`} src={RESOURCE_INFO[r].icon} size={S(52)} uiTransform={{ margin: { left: S(6), right: S(6) } }} />)}
               </UiEntity>
+              <Text value={perMana(p)} size={S(22)} color={C.greenDark} nowrap uiTransform={{ height: S(30), margin: { top: S(6) } }} />
               <Spacer />
               <Button
                 key={`buy-deal-${p.id}`}
-                label={label}
-                color={mine ? C.yellow : used ? C.gray : C.purple}
+                label={packLabel(p, mine, used)}
+                color={mine ? C.yellow : used ? C.gray : once ? C.green : C.purple}
                 textColor={mine ? C.text : C.white}
                 disabled={isPackBusy() || !packs.enabled || used}
-                size={S(30)}
-                uiTransform={{ width: S(440), height: S(84) }}
-                onClick={() => buyPack(p.id)}
+                size={S(28)}
+                uiTransform={{ width: S(400), height: S(84) }}
+                onClick={() => requestPackConfirmation(p.id)}
               />
-              <Text value={used ? `Next one in ${resetText(windowResetIn(weekly ? 'week' : 'day'))}` : `Resets in ${resetText(windowResetIn(weekly ? 'week' : 'day'))}`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(10) } }} />
+              <Text value={once ? (used ? 'Thanks for your first purchase!' : 'A welcome price for your first purchase') : used ? `Next one in ${reset}` : `Resets in ${reset}`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { top: S(10) } }} />
             </Panel>
           )
         })}
@@ -1261,7 +1414,6 @@ function DealPacks() {
 /** WHALE PACKS: the tier chain, bought in order, each tier once a week. BOUGHT · next (buyable) · LOCKED. */
 function WhalePacks() {
   const whales = packs.list.filter((p) => p.id.startsWith('whale_')).sort((a, b) => a.tier - b.tier)
-  const rate = remoteConfig.manaUsd
   const busy = isPackBusy()
   const done = whales.filter((p) => packs.bought[p.id]).length
   return (
@@ -1289,7 +1441,7 @@ function WhalePacks() {
               <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', height: S(56), margin: { top: S(6) } }}>
                 {BASE_RESOURCES.map((r) => <Icon key={`whale-${p.id}-${r}`} src={RESOURCE_INFO[r].icon} size={S(44)} uiTransform={{ margin: { left: S(6), right: S(6) } }} />)}
               </UiEntity>
-              <Text value={rate > 0 && !used && !locked ? usdLabel(Math.round(p.mana * rate * 100) / 100) : locked ? `Unlocks after tier ${p.tier - 1}` : ' '} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} raw={!locked} />
+              <Text value={locked ? `Unlocks after tier ${p.tier - 1}` : perMana(p)} size={S(22)} color={locked ? C.textMuted : C.greenDark} nowrap uiTransform={{ height: S(30) }} />
               <Spacer />
               <Button
                 key={`buy-whale-${p.id}`}
@@ -1299,7 +1451,7 @@ function WhalePacks() {
                 disabled={busy || !packs.enabled || used || locked}
                 size={S(mine ? 22 : 28)}
                 uiTransform={{ width: S(360), height: S(78), minWidth: 0 }}
-                onClick={() => buyPack(p.id)}
+                onClick={() => requestPackConfirmation(p.id)}
               />
             </Panel>
           )
