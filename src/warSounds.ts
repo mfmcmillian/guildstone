@@ -5,16 +5,16 @@ import { AudioSource, engine, Entity, Transform } from '@dcl/sdk/ecs'
 import { Vector3 } from '@dcl/sdk/math'
 import { isMuted } from './uiSounds'
 
-export type WarSfx = 'hit' | 'ko' | 'horn' | 'bellStart' | 'bellEnd' | 'tick'
+export type WarSfx = 'hit' | 'ko' | 'capture' | 'bellStart' | 'bellEnd' | 'tick'
 const FILE: Record<WarSfx, string> = {
   hit: 'sounds/war/hit_a.mp3',
   ko: 'sounds/war/ko.mp3',
-  horn: 'sounds/war/horn.mp3',
+  capture: 'sounds/war/capture.mp3',
   bellStart: 'sounds/war/bell_start.mp3',
   bellEnd: 'sounds/war/bell_end.mp3',
   tick: 'sounds/war/tick.mp3'
 }
-const VOLUME: Record<WarSfx, number> = { hit: 0.35, ko: 0.55, horn: 0.5, bellStart: 0.6, bellEnd: 0.6, tick: 0.35 }
+const VOLUME: Record<WarSfx, number> = { hit: 0.35, ko: 0.55, capture: 0.5, bellStart: 0.6, bellEnd: 0.6, tick: 0.35 }
 
 function source(path: string, volume: number): Entity {
   const e = engine.addEntity()

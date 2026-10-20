@@ -48,10 +48,10 @@ const LEAF_COUNT = 6
 const LEAF_FALL_S = 2.8
 /** Tree tops leaves let go from (field %). */
 const LEAF_SPOTS: [number, number][] = [[3, 3], [7, 6], [1.5, 15], [4, 58], [9, 76], [2, 88], [92, 4], [97, 13], [90, 61], [96, 79], [87, 93]]
-// Effects sheet (mock/opt/fx_sheet.js): 8 x 2 cells of 64 px, white or black so the UI tints them.
-const FX = `${ART}/fx_v1.png`
-const FX_CELL = { shadow: 0, ring: 1, spark: 2, dust: 6, puff: 8, bird: 12, cloud: 14, glint: 15 }
-const fxUvs = (cell: number, flip = false) => gridUvs(8, 2, cell, flip)
+// Effects sheet (mock/opt/fx_sheet.js): 8 x 3 cells of 64 px, white or black so the UI tints them.
+const FX = `${ART}/fx_v2.png`
+const FX_CELL = { shadow: 0, ring: 1, spark: 2, dust: 6, puff: 8, bird: 12, cloud: 14, glint: 15, glow: 16 }
+const fxUvs = (cell: number, flip = false) => gridUvs(8, 3, cell, flip)
 /** One cell of the effects sheet, `w` x `h` design px centred on field point (x, y). Never takes the pointer. */
 function Fx(props: { key?: string; cell: number; x: number; y: number; w: number; h: number; color: Color4; flip?: boolean }) {
   return (
@@ -333,7 +333,7 @@ function shakeOffset(now: number): { dx: number; dy: number } {
   return { dx: Math.sin(t / 18) * amp, dy: Math.cos(t / 23) * amp * 0.7 }
 }
 // Capture feedback: when a poll shows a building changed hands, a ring in the new owner's colour bursts from the
-// label, the name floats up and the horn sounds.
+// label, the name floats up and a stinger plays.
 const lastHeld: Record<string, Partial<Record<PointId, SideId | null>>> = {}
 let captures: { point: PointId; side: SideId; at: number }[] = []
 const CAPTURE_MS = 1100
@@ -350,7 +350,7 @@ function noteCaptures(v: RaidView) {
     captures.push({ point, side, at: now })
     const [lx, ly] = FIELD[point].label
     floats.push({ id: `cap:${point}:${now}`, text: `${POINT_LABEL[point]} TAKEN`, color: sideColor(side), x: lx, y: ly, at: now, lift: 64, size: 30 })
-    warSfx('horn')
+    warSfx('capture')
   }
   if (floats.length > 40) floats = floats.slice(-40)
 }
@@ -455,8 +455,8 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(gx + recoil) - size / 2, top: py(gy) - size - S(p.lift) }, width: size, height: size + S(14), flexDirection: 'column', alignItems: 'center' }}>
       {you ? (
         <UiEntity
-          uiTransform={{ positionType: 'absolute', position: { left: -S(14), top: size - S(20) + S(p.lift) }, width: size + S(28), height: S(44), pointerFilter: 'none' }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: FX }, uvs: fxUvs(FX_CELL.ring), color: Color4.create(0.75, 0.55, 1, 0.45 + 0.4 * youPulse) }}
+          uiTransform={{ positionType: 'absolute', position: { left: size * 0.05, top: size - S(16) + S(p.lift) }, width: size * 0.9, height: S(40), pointerFilter: 'none' }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: FX }, uvs: fxUvs(FX_CELL.glow), color: Color4.create(0.7, 0.45, 1, 0.4 + 0.3 * youPulse) }}
         />
       ) : null}
       <UiEntity
