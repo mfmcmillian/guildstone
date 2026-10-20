@@ -26,7 +26,7 @@ const BG = `${ART}/battlefield_v1.jpg`
 interface Live { src: string; cols: number; rows: number; frames: number; ms: number; box: [number, number, number, number] }
 const LIVE: Live[] = [
   { src: `${ART}/river_v1.png`, cols: 4, rows: 2, frames: 8, ms: 110, box: [40.78, 0.29, 27.81, 99.42] },
-  { src: `${ART}/wheel_v6.png`, cols: 6, rows: 4, frames: 24, ms: 100, box: [62.89, 19.27, 7.89, 20.44] },
+  { src: `${ART}/wheel_v7.png`, cols: 6, rows: 4, frames: 24, ms: 100, box: [62.89, 19.27, 7.89, 20.44] },
   { src: `${ART}/flag_citadel_v1.png`, cols: 4, rows: 2, frames: 8, ms: 100, box: [47.73, 23.94, 7.19, 9.49] },
   { src: `${ART}/flag_ltent_v1.png`, cols: 4, rows: 2, frames: 8, ms: 100, box: [9.61, 27.88, 2.97, 4.67] },
   { src: `${ART}/flag_rtent_v1.png`, cols: 4, rows: 2, frames: 8, ms: 100, box: [90.55, 28.61, 3.13, 4.67] }
