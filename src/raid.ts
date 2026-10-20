@@ -119,6 +119,8 @@ export interface BattleInfo {
   endAt?: number
   signupCloseAt?: number
   when?: string
+  /** The event runs the whole local day (midnight to midnight); `when` is then a date, `endWhen` 'midnight EDT'. */
+  allDay?: boolean
   closeWhen?: string
   endWhen?: string
   tz?: string
@@ -323,7 +325,7 @@ export function requestJoinRaid() {
 /** Leader only: sign the guild up for (or withdraw it from) this week's Guild Battle. */
 export function requestBattleSignup(on: boolean) {
   send(on ? 'signup' : 'withdraw', {}, () => {
-    flash(on ? 'SIGNED UP  •  SEE YOU WEDNESDAY' : 'WITHDRAWN FROM THE BATTLE')
+    flash(on ? 'SIGNED UP  •  SEE YOU THURSDAY' : 'WITHDRAWN FROM THE BATTLE')
     playSuccessSound()
   })
 }

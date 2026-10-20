@@ -968,7 +968,7 @@ function ResultCard(props: { v: RaidView }) {
   const color = cancelled ? C.textMuted : won ? C.green : lost ? C.red : C.blue
   const sub = cancelled
     ? (v.feed.length > 0 ? v.feed[v.feed.length - 1].text : '')
-    : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${rewardText(won ? v.battle.reward.win : v.battle.reward.lose)} banked for every fighter${won ? '. Bragging rights are yours until next Wednesday.' : '.'}` : won ? 'One for the record. Hold the Citadel longer next time for a bigger margin.' : lost ? 'One on the other side of the record. The buildings pay every clash you hold them: spread out and strike back.' : 'Even on points. A draw on the record.'
+    : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${rewardText(won ? v.battle.reward.win : v.battle.reward.lose)} banked for every fighter${won ? '. Bragging rights are yours until next Thursday.' : '.'}` : won ? 'One for the record. Hold the Citadel longer next time for a bigger margin.' : lost ? 'One on the other side of the record. The buildings pay every clash you hold them: spread out and strike back.' : 'Even on points. A draw on the record.'
   // The verdict lands with a beat: the title grows in over the first half second, then the MVP line and the final
   // building tally fade up under it.
   if (resultShownFor !== v.id) { resultShownFor = v.id; resultShownAt = Date.now() }
@@ -1033,7 +1033,7 @@ function BoardRow(props: { key?: string; e: BoardEntry }) {
 }
 
 // Intro screen: the battlefield dimmed under the ANTROM STORM logo, then two cards side by side (the everyday Storm
-// and the Wednesday Guild War) and whatever is going on right now (WATCH).
+// and the Thursday Guild War) and whatever is going on right now (WATCH).
 const LOGO = `${ART}/antrom_storm_v1.png`
 const LOGO_W = 460
 const LOGO_H = Math.round(LOGO_W * (538 / 867))
@@ -1083,7 +1083,7 @@ function WarCard() {
   const sum = raid.summary ?? g?.raid ?? null
   const record = sum ? line(`${g ? `[${g.tag}]  ` : ''}${sum.wins} W · ${sum.losses} L · ${sum.draws} D  •  Guild Valor ${sum.score}`, MUTED, 20, 'wr-rec') : null
   if (!b || !b.enabled || !b.startAt) {
-    return <IdleCard title="GUILD WAR" sub="Wednesdays" color={C.gold}>{line('Guild War is paused for now', PALE, 22, 'wr-off')}<Spacer />{record}</IdleCard>
+    return <IdleCard title="GUILD WAR" sub="Thursdays" color={C.gold}>{line('Guild War is paused for now', PALE, 22, 'wr-off')}<Spacer />{record}</IdleCard>
   }
   const now = serverNow()
   const signupOpen = now < (b.signupCloseAt ?? 0)
@@ -1097,16 +1097,16 @@ function WarCard() {
     if (b.leader) rows.push(<Button key="wr-btn" label={b.signedUp ? 'WITHDRAW' : 'SIGN UP'} color={b.signedUp ? C.red : C.gold} sound={b.signedUp ? 'cancel' : undefined} disabled={raid.busy} size={S(26)} uiTransform={{ width: S(300), height: S(70), margin: { top: S(10) } }} onClick={() => requestBattleSignup(!b.signedUp)} />)
     else rows.push(line(b.signedUp ? `✓  [${g?.tag ?? ''}] is signed up` : 'Ask your leader to sign the guild up', b.signedUp ? C.green : PALE, 24, 'wr-3'))
   } else if (!live) {
-    if (b.match) rows.push(line(`TONIGHT  •  ${vs(b.match)}`, C.gold, 26, 'wr-1'))
+    if (b.match) rows.push(line(`${b.allDay ? 'THIS WEEK' : 'TONIGHT'}  •  ${vs(b.match)}`, C.gold, 26, 'wr-1'))
     else if (b.bye) rows.push(line('An odd number of guilds signed up; yours drew the bye this week.', PALE, 22, 'wr-1'))
     else { rows.push(line(`[${g?.tag ?? ''}] is not in this week's war.`, PALE, 22, 'wr-1')); rows.push(line('Sign-ups for next week open after the event.', MUTED, 20, 'wr-1b')) }
     if (!b.match) (b.matches ?? []).slice(0, 3).forEach((m, i) => rows.push(line(vs(m), MUTED, 20, `wr-m${i}`)))
-    rows.push(line(`Be on WAR at ${b.when}`, MUTED, 20, 'wr-4'))
+    rows.push(line(b.allDay ? `Fight any time ${b.when}` : `Be on WAR at ${b.when}`, MUTED, 20, 'wr-4'))
     rows.push(line(`Starts when both guilds have ${b.teamSize}  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
   } else {
-    rows.push(line(`WAR NIGHT  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
+    rows.push(line(`${b.allDay ? 'WAR DAY' : 'WAR NIGHT'}  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
     if (b.match) { rows.push(line(vs(b.match), PALE, 22, 'wr-2')); rows.push(line("JOIN on the left: your guild's match is open", C.green, 22, 'wr-3')) }
-    else if ((b.matches?.length ?? 0) > 0) rows.push(line('Your guild is not matched tonight. Watch the matches below.', PALE, 22, 'wr-2'))
+    else if ((b.matches?.length ?? 0) > 0) rows.push(line(b.allDay ? 'Your guild is not matched this week. Watch the matches below.' : 'Your guild is not matched tonight. Watch the matches below.', PALE, 22, 'wr-2'))
     else rows.push(line('No matches this week.', PALE, 22, 'wr-2'))
   }
   return (

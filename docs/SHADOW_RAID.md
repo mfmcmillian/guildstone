@@ -117,20 +117,21 @@ The everyday mode: whoever shows up fights, any headcount, in random teams.
 5. **Valor cap, not a play cap.** You can fight all day. The first `raidsPerDay` (5) Storms you join per UTC day are *ranked* (`fighter.ranked = true`, from profile `raid.day / count`, which still counts every join and is refunded on LEAVE / call-off); after that you still fight and your wins, raids and KOs tally, but you earn **no Valor** (the result sheet shows "none"). Testers are never ranked.
 6. **The bell for everyone.** When a Storm opens the server writes one system line to the ALL lobby chat ("⚔ Matt [KOA] opened an Antrom Storm battle. JOIN on the WAR tab: 2 min to the bell") and the lobby poll (`/player/:address/lobby`, 30 s in the background, 4 s with the Lobby open) returns `storm` from the raid board: `{ id, status, gatherUntil, endAt, count, names, score }`. On every guild member's ring that is a gold bar under the zone block, above any window: "⚔ ANTROM STORM • BELL IN 1:42 • 3 IN • Matt, Kai, Rae" (live: "LIVE • DUSK 12 – 9 DAWN • 2:31 LEFT • WATCH"); tapping it opens the WAR tab. Two toasts, both hidden when ALERTS is off and when you are already in it: when it opens ("ANTROM STORM IS GATHERING • JOIN ON THE WAR TAB") and 30 s before the bell ("STORM BELL IN 30 S • LAST CALL").
 
-### 6b. Antrom Storm Guild War (Wednesdays 9 PM ET)
+### 6b. Antrom Storm Guild War (all day Thursday, ET)
 
 The weekly event: guild vs guild, 4 a side, for bragging rights and a resource payout.
 
-- **Schedule** (config `battle`): `weekday 3` (Wednesday), `hour 21`, `tz America/New_York` (so it is 9 PM local through DST), `windowMs 2 h` (21:00–23:00). All the week's times are derived from that.
-- **Sign-up**: the guild **leader** taps SIGN UP on the Guild Battle card any time from the previous Wednesday 23:00 until **Tuesday 23:59:59 ET** (`signupCloseAt = startAt − 21 h`). WITHDRAW until then. The card lists who has signed up so far.
-- **Pairing**: on the first request after sign-up closes (there are no cron jobs; everything is settled lazily), guilds are paired **in sign-up order**: 1v2, 3v4, … An odd guild out gets a bye and a system line. From then until the event the card shows **your matchup** ("Wednesday 9 PM ET: [KOA] vs [RAVN]").
-- **Event**: on the first request at or after 21:00 ET, every match gets a raid `mode 'battle'`, both guild sides set, no fighters, `gatherUntil = 23:00` (the window), rules `sideMin = sideMax = battle.teamSize (4)`. Members tap JOIN like any raid. **The moment both sides have 4** the start is pulled in to `now + battle.readyMs` (default 60 s) so the field gets a countdown; a LEAVE before then pushes it back to the window end. At 23:00 with either side short → **called off** ("[RAVN] fielded 3 of 4"), no winner, nothing paid. No Wraiths in a battle.
+- **Schedule** (config `battle`): `weekday 4` (Thursday), `hour 0`, `minute 0`, `tz America/New_York`, `windowMs 24 h`. A midnight start with a 24 h window is **all day** (`isAllDay`): the window ends at the next local midnight (so DST days are still one calendar day) and every time reads as a date ("Thu, Oct 22, all day", closes "midnight EDT"). Any other hour/window is a timed event as before (moved from Wednesday 9 PM, 2 h, on 2026-10-20). All the week's times are derived from that.
+- **Sign-up**: the guild **leader** taps SIGN UP on the Guild Battle card any time from the previous Thursday's midnight until **Tuesday 23:59:59 ET** (`signupCloseAt = startAt − 24 h`), so the matchups are up all Wednesday. WITHDRAW until then. The card lists who has signed up so far.
+- **Pairing**: on the first request after sign-up closes (there are no cron jobs; everything is settled lazily), guilds are paired **in sign-up order**: 1v2, 3v4, … An odd guild out gets a bye and a system line. From then until the event the card shows **your matchup** ("THIS WEEK • [KOA] vs [RAVN]").
+- **Event**: on the first request at or after Thursday 00:00 ET, every match gets a raid `mode 'battle'`, both guild sides set, no fighters, `gatherUntil = Friday 00:00` (the window), rules `sideMin = sideMax = battle.teamSize (4)`. Members tap JOIN like any raid. **The moment both sides have 4** the start is pulled in to `now + battle.readyMs` (default 60 s) so the field gets a countdown; a LEAVE before then pushes it back to the window end. At midnight with either side short → **called off** ("[RAVN] fielded 3 of 4"), no winner, nothing paid. No Wraiths in a battle.
+- **Scoring — OPEN (2026-10-20)**: the guild scoring rules are to change; the new rules are not decided yet. Today a match's guild points are still Valor `× pointsMult` (below), which the Storm board no longer uses. Until the rules land the code and the card are unchanged.
 - **Payout** (`battle.reward`, in `storage`): every fighter on the winning side gets `win` (default 300 wood / 300 rock / 150 meat / 150 bone), every fighter on the losing side `lose` (half). Draw → everyone gets `lose`. Guild points for the match are Valor `× battle.pointsMult` (default 3). History entries carry `battle: true`.
 - Guild War raids ignore `raidsPerDay` and are always ranked.
 
 **Mid-battle joins:** battle raids only, for your own guild, while a slot is free (< 4). Spawn at camp. LEAVE RAID frees the slot. Valor is per tick present, so late joiners earn less with no extra rule. Leaving forfeits the Valor of that raid.
 
-**Watching:** the WAR screen always shows the raid you are in, else the pickup raid gathering or live, else the idle screen with JOIN A RAID and the Guild Battle card. The board lists other live raids (battle matches on Wednesday night) with WATCH, read-only.
+**Watching:** the WAR screen always shows the raid you are in, else the pickup raid gathering or live, else the idle screen with JOIN A RAID and the Guild Battle card. The board lists other live raids (battle matches on Thursday) with WATCH, read-only.
 
 ## 7. Wraiths
 
@@ -218,7 +219,7 @@ Clicks dip and play the button sound like every other control.
 
 Defaults: `tickMs 3000`, `ticks 80` (4 min; was 15 s × 20, then 100 × 3 s), `gatherMs 120000`, `walkMs 7500`, `homeMs 5000`, `koWalkMs 20000` (was 30000), `sideMax 4`, `sideMin 2`, `pickupMin 1`, `raidsPerDay 5` (Valor Storms per player per day; play is unlimited), `captureTicks 2`, armour `{ citadel 0.30, corners 0.15 }`, pips `{ citadel 2, corners 1 }`, Valor `1/tick, ×1.5 win, +5/KO`, VIP `0.04/level`.
 
-Guild Battle (`battle`): `enabled true`, `weekday 3`, `hour 21`, `minute 0`, `tz America/New_York`, `windowMs 7200000`, `readyMs 60000`, `teamSize 4`, `pointsMult 3`, `reward.win { wood 300, rock 300, meat 150, bone 150 }`, `reward.lose { 150, 150, 75, 75 }`.
+Guild Battle (`battle`): `enabled true`, `weekday 4`, `hour 0`, `minute 0`, `tz America/New_York`, `windowMs 86400000` (all day), `readyMs 60000`, `teamSize 4`, `pointsMult 3`, `reward.win { wood 300, rock 300, meat 150, bone 150 }`, `reward.lose { 150, 150, 75, 75 }`.
 
 Note: the dashboard stores the **full** config, so changing a default in code does not change a deployment that has already saved its config; patch the live value from the dashboard (or `POST /antrom-afk/admin/config`) as well.
 
