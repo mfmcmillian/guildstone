@@ -144,19 +144,29 @@ function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): Pose 
   const phase = index * 173
   const you = v.you === f.id
 
-  // My click, before the server has echoed it: walk the predicted leg. Hand over once a view shows the server's walk
-  // (or shows me already there); give up on a stale one so a lost response can't leave a ghost walk.
-  if (you && pendingGo.to !== null && f.state !== 'ko') {
-    const echoed = (f.state === 'walk' && f.target === pendingGo.to) || (f.state === 'in' && f.at === pendingGo.to) || (f.state === 'camp' && pendingGo.to === 'camp')
-    if (echoed || serverNow() - pendingGo.at > 12_000) clearPendingGo()
+  // My click: walk the predicted leg from where the token stood, straight to the door, and stand there until the server
+  // says I am inside. The server's own walk (which started a round trip later, so it trails this one) is never drawn
+  // for me: handing over mid-leg slid the token backwards. Dropped on a knock-out or if nothing confirms it in time.
+  if (you && pendingGo.to !== null) {
+    const arrived = (f.state === 'in' && f.at === pendingGo.to) || (f.state === 'camp' && pendingGo.to === 'camp')
+    const stale = serverNow() - pendingGo.at > 60_000
+    if (arrived || stale || f.state === 'ko') clearPendingGo()
     else {
       const from = pendingGo.from ?? (shown[key] ? [shown[key].x, shown[key].y] : spot(lastSeen[key] ?? 'camp', index))
       const [tx, ty] = spot(pendingGo.to, index)
       const total = predictWalkMs(v, side, from, pendingGo.to, f.speed)
       const t = Math.min(1, (serverNow() - pendingGo.at) / total)
-      const dist = fieldDist(from, [tx, ty]) * t
-      const walk = walkPose(dist)
-      return { x: from[0] + (tx - from[0]) * t, y: from[1] + (ty - from[1]) * t, anim: t < 1 ? 'walk' : 'idle', frame: t < 1 ? walk.frame : loopFrame('idle', now), flip: tx < from[0], lift: t < 1 ? walk.bob : 0, scale: 1, punch: 0 }
+      if (t >= 1) {
+        // At the door on my clock: ask the server to settle the arrival now rather than on the next scheduled poll.
+        if (arrivalPolled[key] !== pendingGo.at) {
+          arrivalPolled[key] = pendingGo.at
+          refreshRaid()
+        }
+        const idle = idlePose(now, phase)
+        return { x: tx, y: ty, anim: 'idle', frame: loopFrame('idle', now, phase), flip: tx < from[0], lift: idle.lift, scale: idle.scale, punch: 0 }
+      }
+      const walk = walkPose(fieldDist(from, [tx, ty]) * t)
+      return { x: from[0] + (tx - from[0]) * t, y: from[1] + (ty - from[1]) * t, anim: 'walk', frame: walk.frame, flip: tx < from[0], lift: walk.bob, scale: 1, punch: 0 }
     }
   }
 
