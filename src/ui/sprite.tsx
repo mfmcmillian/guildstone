@@ -10,9 +10,11 @@ export const ART = 'https://guildstone.dev/img/raid'
 /** Per hero: the player's sheet and the enemy (Wraith) palette of the same sheet. */
 export const HERO_SHEET: Record<HeroId, { own: string; enemy: string }> = {
   assassin: { own: `${ART}/assassin_v2.png`, enemy: `${ART}/assassin_enemy_v2.png` },
-  knight: { own: `${ART}/knight_v3.png`, enemy: `${ART}/knight_enemy_v2.png` },
+  knight: { own: `${ART}/knight_v4.png`, enemy: `${ART}/knight_enemy_v3.png` },
   warlock: { own: `${ART}/warlock_v1.png`, enemy: `${ART}/warlock_enemy_v1.png` }
 }
+/** Frames filled in the walk row per hero: the knight has a 6-frame cycle (contact, recoil, passing, x2), the rest 4. */
+export const WALK_FRAMES: Record<HeroId, number> = { assassin: 4, knight: 6, warlock: 4 }
 /**
  * Sheet layout: 6 columns x 5 rows of 144 px cells, one row per animation, frames left to right, facing right, feet on
  * a shared baseline. Rows: idle, walk, attack, hit, ko.
@@ -79,16 +81,16 @@ export function msUntilImpact(now: number, phase = 0): number {
   return Math.round(wait * 1000)
 }
 
-/** Design px of ground covered per walk frame: feet plant with the ground instead of sliding on a wall clock. */
-export const STRIDE_PX = 34
+/** Design px of ground covered per full walk cycle (two steps): feet plant with the ground instead of sliding on a wall clock. */
+export const CYCLE_PX = 136
 /**
- * Walk cycle from distance travelled (design px): the frame column, and a bob (px, up is positive) with two foot
- * plants per 4-frame cycle. Legs stop the instant the body does, and a slow walker takes slow steps.
+ * Walk cycle from distance travelled (design px): the frame column of a `frames`-frame row, and a bob (px, up is
+ * positive) with two foot plants per cycle. Legs stop the instant the body does, and a slow walker takes slow steps.
+ * The 6-frame rows already bake the rise into the passing frames, so their bob is smaller.
  */
-export function walkPose(distPx: number): { frame: number; bob: number } {
-  const cycle = ANIM.walk.frames * STRIDE_PX
-  const phase = ((distPx % cycle) + cycle) % cycle / cycle
-  return { frame: Math.floor(phase * ANIM.walk.frames) % ANIM.walk.frames, bob: Math.abs(Math.sin(phase * Math.PI * 2)) * 3 }
+export function walkPose(distPx: number, frames = ANIM.walk.frames): { frame: number; bob: number } {
+  const phase = ((distPx % CYCLE_PX) + CYCLE_PX) % CYCLE_PX / CYCLE_PX
+  return { frame: Math.floor(phase * frames) % frames, bob: Math.abs(Math.sin(phase * Math.PI * 2)) * (frames > 4 ? 1.5 : 3) }
 }
 /** Breathing idle: lift (px) and scale pulse, per-fighter phase so a line of idlers doesn't bob as one. */
 export function idlePose(now: number, phase = 0): { lift: number; scale: number } {
@@ -103,10 +105,16 @@ export function onceFrame(anim: Anim, now: number, startedAt: number): number {
 
 /** uvs for one cell: bottom-left, top-left, top-right, bottom-right; v = 1 is the top of the texture. */
 export function sheetUvs(row: number, frame: number, flip: boolean): number[] {
-  const u0 = frame / SHEET_COLS
-  const u1 = (frame + 1) / SHEET_COLS
-  const v1 = 1 - row / SHEET_ROWS
-  const v0 = 1 - (row + 1) / SHEET_ROWS
+  return gridUvs(SHEET_COLS, SHEET_ROWS, row * SHEET_COLS + frame, flip)
+}
+/** uvs for cell `index` (left to right, then down) of a `cols` x `rows` grid. */
+export function gridUvs(cols: number, rows: number, index: number, flip = false): number[] {
+  const col = index % cols
+  const row = Math.floor(index / cols)
+  const u0 = col / cols
+  const u1 = (col + 1) / cols
+  const v1 = 1 - row / rows
+  const v0 = 1 - (row + 1) / rows
   return flip ? [u1, v0, u1, v1, u0, v1, u0, v0] : [u0, v0, u0, v1, u1, v1, u1, v0]
 }
 

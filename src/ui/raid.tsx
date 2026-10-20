@@ -17,9 +17,36 @@ import {
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
 
-import { ART, HERO_SHEET, Sprite, attackPose, idlePose, loopFrame, msUntilImpact, onceFrame, walkPose, type Anim } from './sprite'
+import { ART, HERO_SHEET, Sprite, WALK_FRAMES, attackPose, gridUvs, idlePose, loopFrame, msUntilImpact, onceFrame, walkPose, type Anim } from './sprite'
 
 const BG = `${ART}/battlefield_v1.jpg`
+// Live parts of the painting (mock/opt/field_anim.js cuts them from battlefield_v1.jpg): the river flowing and the
+// sawmill's wheel turning. Each is a grid of frames drawn over its own patch of the field (% of the field, as printed
+// by the script), cycling on the wall clock.
+interface Live { src: string; cols: number; rows: number; frames: number; ms: number; box: [number, number, number, number] }
+const LIVE: Live[] = [
+  { src: `${ART}/river_v1.png`, cols: 4, rows: 2, frames: 8, ms: 110, box: [40.78, 0.29, 27.81, 99.42] },
+  { src: `${ART}/wheel_v2.png`, cols: 6, rows: 2, frames: 12, ms: 100, box: [62.97, 19.27, 7.81, 19.42] },
+  { src: `${ART}/flag_citadel_v1.png`, cols: 4, rows: 2, frames: 8, ms: 100, box: [47.73, 23.94, 7.19, 9.49] },
+  { src: `${ART}/flag_ltent_v1.png`, cols: 4, rows: 2, frames: 8, ms: 100, box: [9.61, 27.88, 2.97, 4.67] },
+  { src: `${ART}/flag_rtent_v1.png`, cols: 4, rows: 2, frames: 8, ms: 100, box: [90.55, 28.61, 3.13, 4.67] }
+]
+// Wind: every GUST_MS the pines in the four corners play their 8-frame sway once (frame 0 is the still painting), and a
+// few leaves let go of the tree tops and drift down. All a function of the clock, no state.
+const GUST_MS = 7000
+const GUST_FRAME_MS = 110
+const GUST: Omit<Live, 'ms'>[] = [
+  { src: `${ART}/trees_tl_v1.png`, cols: 4, rows: 2, frames: 8, box: [0, 0, 13.75, 22.04] },
+  { src: `${ART}/trees_bl_v1.png`, cols: 4, rows: 2, frames: 8, box: [0, 48.18, 13.75, 51.82] },
+  { src: `${ART}/trees_tr_v1.png`, cols: 4, rows: 2, frames: 8, box: [85.55, 0, 14.45, 20.58] },
+  { src: `${ART}/trees_br_v1.png`, cols: 4, rows: 2, frames: 8, box: [85.55, 48.18, 14.45, 51.82] }
+]
+const LEAF = `${ART}/leaf_v1.png`
+const LEAF_PX = 18
+const LEAF_COUNT = 6
+const LEAF_FALL_S = 2.8
+/** Tree tops leaves let go from (field %). */
+const LEAF_SPOTS: [number, number][] = [[3, 3], [7, 6], [1.5, 15], [4, 58], [9, 76], [2, 88], [92, 4], [97, 13], [90, 61], [96, 79], [87, 93]]
 // Side a (the caller) wears the player palette, side b the enemy palette. Sheets per hero live in sprite.tsx.
 /** Sprite sheet for a fighter: its hero's art, own palette on our side and the Wraith palette on the other. */
 const sheetFor = (side: SideId, f: Fighter) => HERO_SHEET[sanitizeHeroId(f.kind)][side === 'a' ? 'own' : 'enemy']
@@ -81,7 +108,8 @@ function contested(v: RaidView, point: PointId): boolean {
 // --- Movement -------------------------------------------------------------------------------------------------------
 // Where a fighter is comes straight from the server's leg (from, departAt → arriveAt) read on the server clock; my own
 // click is written into the view as such a leg the moment I click (raid.ts pendingGo), so I set off at once, the old
-// building stops counting me, and nothing hands over mid-leg. One screen-side rule on top: a token never teleports.
+// building stops counting me, and nothing hands over mid-leg. Two screen-side rules on top: a leg starts from the
+// token's own feet (legFrom), and a token never teleports.
 // Legs other people started only become known on a poll, so the drawn token hurries (CATCH_UP x the leg's pace) along
 // the line to where the server says it is, legs moving, and settles when it gets there.
 
@@ -123,6 +151,22 @@ function approach(key: string, x: number, y: number, pxPerS: number, now: number
   d.dist += step
   return { x: d.x, y: d.y, moving: true }
 }
+/**
+ * Where each token's current leg starts (field %): the spot it was drawn at when the leg was first seen. The server's
+ * `from` is the building's base spot, and the fan-out offset of the walk group differs from the one the token stood
+ * with (and a click's `from` already carries the standing offset), so starting from the computed point made the token
+ * step sideways to it before setting off. A token that was not on screen (or is a teleport away) uses the computed start.
+ */
+const legStart: Record<string, { departAt: number; x: number; y: number }> = {}
+function legFrom(key: string, departAt: number, fx: number, fy: number, now: number): [number, number] {
+  const l = legStart[key]
+  if (l && l.departAt === departAt) return [l.x, l.y]
+  const d = drawn[key]
+  const onScreen = d !== undefined && now - d.at <= 2000 && Math.hypot(d.x - fx, d.y - fy) <= SNAP_DIST
+  const start = onScreen ? { departAt, x: d.x, y: d.y } : { departAt, x: fx, y: fy }
+  legStart[key] = start
+  return [start.x, start.y]
+}
 /** The field spot my own token is drawn at right now: where a click's leg starts. */
 function myDrawnSpot(v: RaidView, me: Fighter): [number, number] {
   const d = drawn[`${v.id}:${me.id}`]
@@ -156,8 +200,9 @@ function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose
     const to: PointId | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
     const [tx, ty] = spot(to, index)
     const base = spotBase(side, to)
-    const fx = f.fromX !== null ? f.fromX + (tx - base[0]) : spot('camp', index)[0]
-    const fy = f.fromY !== null ? f.fromY + (ty - base[1]) : spot('camp', index)[1]
+    const sx = f.fromX !== null ? f.fromX + (tx - base[0]) : spot('camp', index)[0]
+    const sy = f.fromY !== null ? f.fromY + (ty - base[1]) : spot('camp', index)[1]
+    const [fx, fy] = legFrom(key, f.departAt, sx, sy, now)
     const total = f.arriveAt - f.departAt
     const t = total > 0 ? Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total)) : 1
     x = fx + (tx - fx) * t
@@ -176,7 +221,7 @@ function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose
   }
   const d = drawn[key]
   if (anim === 'walk') {
-    const w = walkPose(d ? d.dist : 0)
+    const w = walkPose(d ? d.dist : 0, WALK_FRAMES[sanitizeHeroId(f.kind)])
     return { x: g.x, y: g.y, anim, frame: w.frame, flip, lift: w.bob, scale: 1, punch: 0 }
   }
   if (anim === 'ko') return { x: g.x, y: g.y, anim, frame: onceFrame('ko', serverNow(), koStart), flip, lift: 0, scale: 1, punch: 0 }
@@ -488,6 +533,45 @@ function ActionRow(props: { v: RaidView }) {
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}
       {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(250), ...btn }} onClick={() => stopSpectating()} /> : null}
+    </UiEntity>
+  )
+}
+
+/** The river and the wheel, over the painting and under everything else, in every state of the tab. */
+function FieldAnim() {
+  const now = Date.now()
+  const gust = Math.floor(now / GUST_MS)
+  const gustT = (now - gust * GUST_MS) / 1000
+  const gustFrame = Math.min(GUST[0].frames - 1, Math.floor((now - gust * GUST_MS) / GUST_FRAME_MS))
+  const cell = (l: Omit<Live, 'ms'>, frame: number, key: string) => (
+    <UiEntity
+      key={key}
+      uiTransform={{ positionType: 'absolute', position: { left: px(l.box[0]), top: py(l.box[1]) }, width: px(l.box[2]), height: py(l.box[3]), pointerFilter: 'none' }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: l.src }, uvs: gridUvs(l.cols, l.rows, frame) }}
+    />
+  )
+  const leaves: ReactEcs.JSX.Element[] = []
+  for (let i = 0; i < LEAF_COUNT; i++) {
+    const u = (gustT - 0.3 - i * 0.22) / LEAF_FALL_S
+    if (u < 0 || u >= 1) continue
+    const [sx, sy] = LEAF_SPOTS[(gust * 7 + i * 5) % LEAF_SPOTS.length]
+    const drift = sx < 50 ? 1.6 : -1.6 // blown in off the edge, toward the field
+    const x = sx + drift * u + 0.7 * Math.sin((u * 3 + i) * Math.PI)
+    const y = sy + 10 * u * u + 2 * u
+    const alpha = u > 0.75 ? 1 - (u - 0.75) / 0.25 : 1
+    leaves.push(
+      <UiEntity
+        key={`leaf-${i}`}
+        uiTransform={{ positionType: 'absolute', position: { left: px(x) - S(LEAF_PX) / 2, top: py(y) }, width: S(LEAF_PX), height: S(LEAF_PX), pointerFilter: 'none' }}
+        uiBackground={{ textureMode: 'stretch', texture: { src: LEAF }, uvs: gridUvs(4, 1, (Math.floor(gustT * 7) + i) % 4), color: Color4.create(1, 1, 1, alpha) }}
+      />
+    )
+  }
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>
+      {LIVE.map((l, i) => cell(l, Math.floor(now / l.ms) % l.frames, `live-${i}`))}
+      {GUST.map((l, i) => cell(l, gustFrame, `gust-${i}`))}
+      {leaves}
     </UiEntity>
   )
 }
@@ -816,6 +900,7 @@ export function WarTab(props: { height: number }) {
   return (
     <UiEntity uiTransform={{ width: S(W), flexDirection: 'column' }}>
       <UiEntity uiTransform={{ width: S(W), height: S(props.height), positionType: 'relative', overflow: 'hidden' }} uiBackground={{ textureMode: 'stretch', texture: { src: BG } }}>
+        <FieldAnim />
         {!idle && v ? <Field v={v} /> : null}
         {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
         {!idle && v && showResult ? <ResultCard v={v} /> : null}
