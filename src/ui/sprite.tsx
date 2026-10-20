@@ -10,7 +10,7 @@ export const ART = 'https://guildstone.dev/img/raid'
 /** Per hero: the player's sheet and the enemy (Wraith) palette of the same sheet. */
 export const HERO_SHEET: Record<HeroId, { own: string; enemy: string }> = {
   assassin: { own: `${ART}/assassin_v2.png`, enemy: `${ART}/assassin_enemy_v2.png` },
-  knight: { own: `${ART}/knight_v1.png`, enemy: `${ART}/knight_enemy_v1.png` },
+  knight: { own: `${ART}/knight_v2.png`, enemy: `${ART}/knight_enemy_v1.png` },
   warlock: { own: `${ART}/warlock_v1.png`, enemy: `${ART}/warlock_enemy_v1.png` }
 }
 /**
