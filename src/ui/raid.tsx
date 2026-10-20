@@ -3,7 +3,8 @@
 // only renders `raid.view` and sends clicks.
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, TEX, SLICE_128, SLICE_PILL } from './theme'
+import { C, TEX, SLICE_128, SLICE_PILL, pulse } from './theme'
+import { warAudioTick, warSfx } from '../warSounds'
 import { OutlinedText, Text, Panel, Button, Bar, Modal, Spacer, timerText } from './components'
 import { S, fitModal } from './responsive'
 import { dragOffsetPx, startDrag } from './drag'
@@ -17,7 +18,7 @@ import {
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
 
-import { ART, HERO_SHEET, Sprite, WALK_FRAMES, attackPose, gridUvs, idlePose, loopFrame, msUntilImpact, onceFrame, walkPose, type Anim } from './sprite'
+import { ART, CYCLE_PX, HERO_SHEET, Sprite, WALK_FRAMES, attackPose, ease, gridUvs, idlePose, loopFrame, msUntilImpact, onceFrame, walkPose, type Anim } from './sprite'
 
 const BG = `${ART}/battlefield_v1.jpg`
 // Live parts of the painting (mock/opt/field_anim.js cuts them from battlefield_v1.jpg): the river flowing and the
@@ -47,6 +48,34 @@ const LEAF_COUNT = 6
 const LEAF_FALL_S = 2.8
 /** Tree tops leaves let go from (field %). */
 const LEAF_SPOTS: [number, number][] = [[3, 3], [7, 6], [1.5, 15], [4, 58], [9, 76], [2, 88], [92, 4], [97, 13], [90, 61], [96, 79], [87, 93]]
+// Effects sheet (mock/opt/fx_sheet.js): 8 x 2 cells of 64 px, white or black so the UI tints them.
+const FX = `${ART}/fx_v1.png`
+const FX_CELL = { shadow: 0, ring: 1, spark: 2, dust: 6, puff: 8, bird: 12, cloud: 14, glint: 15 }
+const fxUvs = (cell: number, flip = false) => gridUvs(8, 2, cell, flip)
+/** One cell of the effects sheet, `w` x `h` design px centred on field point (x, y). Never takes the pointer. */
+function Fx(props: { key?: string; cell: number; x: number; y: number; w: number; h: number; color: Color4; flip?: boolean }) {
+  return (
+    <UiEntity
+      uiTransform={{ positionType: 'absolute', position: { left: px(props.x) - S(props.w) / 2, top: py(props.y) - S(props.h) / 2 }, width: S(props.w), height: S(props.h), pointerFilter: 'none' }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: FX }, uvs: fxUvs(props.cell, props.flip), color: props.color }}
+    />
+  )
+}
+// Weather. Two cloud shadows drift across the field; now and then (on the clock, so everyone sees the same storm)
+// lightning flickers over the whole field and thunder rolls in a second and a half later.
+const CLOUDS = [{ w: 760, h: 400, speed: 1.1, y: 28, start: 0 }, { w: 560, h: 300, speed: 0.8, y: 66, start: 61 }]
+const CLOUD_ALPHA = 0.17
+const BOLT_MS = 53000
+const THUNDER_DELAY_MS = 1400
+// Birds: a flock crosses the sky every few minutes, alternating direction.
+const FLOCK_MS = 150000
+const FLOCK_CROSS_S = 15
+const FLOCK: [number, number][] = [[0, 0], [-3, -2.2], [-3, 2.2], [-6, -4.4], [-6, 4.4], [-9.2, -1.2]]
+// Shrine crystal motes and the wheel's spray stand in for chimney smoke (the painting has no chimneys).
+const CRYSTAL: [number, number] = [71.4, 79]
+const SPRAY: [number, number] = [64.2, 33.6]
+const DUST_MS = 560
+const FLOURISH_MS = 900
 // Side a (the caller) wears the player palette, side b the enemy palette. Sheets per hero live in sprite.tsx.
 /** Sprite sheet for a fighter: its hero's art, own palette on our side and the Wraith palette on the other. */
 const sheetFor = (side: SideId, f: Fighter) => HERO_SHEET[sanitizeHeroId(f.kind)][side === 'a' ? 'own' : 'enemy']
@@ -222,6 +251,7 @@ function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose
   const d = drawn[key]
   if (anim === 'walk') {
     const w = walkPose(d ? d.dist : 0, WALK_FRAMES[sanitizeHeroId(f.kind)])
+    notePlant(key, d ? d.dist : 0, g.x, g.y, flip, now)
     return { x: g.x, y: g.y, anim, frame: w.frame, flip, lift: w.bob, scale: 1, punch: 0 }
   }
   if (anim === 'ko') return { x: g.x, y: g.y, anim, frame: onceFrame('ko', serverNow(), koStart), flip, lift: 0, scale: 1, punch: 0 }
@@ -232,7 +262,45 @@ function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose
     return { x: g.x + lunge, y: g.y, anim: 'attack', frame: a.frame, flip: side === 'b', lift: 0, scale: 1 + a.punch * 0.09, punch: a.punch }
   }
   const idle = idlePose(now, phase)
+  const fl = flourish(now, phase)
+  if (fl) return { x: g.x, y: g.y, anim: fl.anim, frame: fl.frame, flip: fl.turn ? side === 'a' : side === 'b', lift: idle.lift + fl.hop, scale: idle.scale, punch: 0 }
   return { x: g.x, y: g.y, anim: 'idle', frame: loopFrame('idle', now, phase), flip: side === 'b', lift: idle.lift, scale: idle.scale, punch: 0 }
+}
+/**
+ * Idle variety without new art: every nine to fourteen seconds (per fighter) a one-off beat - glance over the shoulder,
+ * turn back with a little hop, then a moment in the weapon-ready pose (the attack wind-up frame) before idling on.
+ */
+function flourish(now: number, phase: number): { anim: Anim; frame: number; turn: boolean; hop: number } | null {
+  const period = 9000 + (phase * 37) % 5000
+  const t = (now + phase * 11) % period
+  if (t >= FLOURISH_MS) return null
+  if (t < 320) return { anim: 'idle', frame: 0, turn: true, hop: 0 }
+  if (t < 600) { const u = (t - 320) / 280; return { anim: 'idle', frame: 1, turn: false, hop: Math.sin(u * Math.PI) * 7 } }
+  return { anim: 'attack', frame: 0, turn: false, hop: 0 }
+}
+// Dust: a puff at each foot plant of a walking token (every half cycle of ground covered), drifting back and fading.
+let puffs: { x: number; y: number; at: number; back: number }[] = []
+const lastPlant: Record<string, number> = {}
+function notePlant(key: string, dist: number, x: number, y: number, flip: boolean, now: number) {
+  const plant = Math.floor(dist / (CYCLE_PX / 2))
+  const prev = lastPlant[key]
+  lastPlant[key] = plant
+  if (prev === undefined || plant <= prev || plant - prev > 3) return
+  puffs.push({ x: x + (flip ? 0.6 : -0.6), y, at: now, back: flip ? 1 : -1 })
+  if (puffs.length > 40) puffs = puffs.slice(-40)
+}
+function Puffs() {
+  const now = Date.now()
+  puffs = puffs.filter((p) => now - p.at < DUST_MS)
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>
+      {puffs.map((p) => {
+        const u = (now - p.at) / DUST_MS
+        const size = 22 + 26 * u
+        return <Fx key={`puff-${p.at}-${p.x.toFixed(1)}`} cell={u < 0.45 ? FX_CELL.dust : FX_CELL.dust + 1} x={p.x + p.back * u * 1.1} y={p.y - u * 1.2} w={size} h={size * 0.8} color={Color4.create(0.86, 0.8, 0.66, 0.5 * (1 - u))} />
+      })}
+    </UiEntity>
+  )
 }
 
 // Damage feedback. HP only changes when a poll lands, so the drop is turned into a floating number, a red flash and a
@@ -250,8 +318,91 @@ function noteDamage(v: RaidView, f: Fighter, x: number, y: number) {
   const at = now + msUntilImpact(now, 0)
   hitAt[key] = at
   floats.push({ id: `${key}:${at}`, text: `-${prev - f.hp}`, color: C.red, x, y, at })
-  if (f.hp <= 0) floats.push({ id: `${key}:ko:${at}`, text: 'KO!', color: C.yellow, x, y: y - 6, at: at + 200 })
+  warSfx('hit', at)
+  if (f.hp <= 0) {
+    floats.push({ id: `${key}:ko:${at}`, text: 'KO!', color: C.yellow, x, y: y - 6, at: at + 200 })
+    warSfx('ko', at + 200)
+    shakeAt = Math.max(shakeAt, at + 200)
+  }
   if (floats.length > 40) floats = floats.slice(-40)
+}
+// A KO jolts the field layer: a few pixels of decaying wobble (the rosters and header stay put).
+let shakeAt = 0
+const SHAKE_MS = 280
+function shakeOffset(now: number): { dx: number; dy: number } {
+  const t = now - shakeAt
+  if (t < 0 || t >= SHAKE_MS) return { dx: 0, dy: 0 }
+  const amp = 4 * (1 - t / SHAKE_MS)
+  return { dx: Math.sin(t / 18) * amp, dy: Math.cos(t / 23) * amp * 0.7 }
+}
+// Capture feedback: when a poll shows a building changed hands, a ring in the new owner's colour bursts from the
+// label, the name floats up and the horn sounds.
+const lastHeld: Record<string, Partial<Record<PointId, SideId | null>>> = {}
+let captures: { point: PointId; side: SideId; at: number }[] = []
+const CAPTURE_MS = 1100
+function noteCaptures(v: RaidView) {
+  const prev = lastHeld[v.id]
+  const cur: Partial<Record<PointId, SideId | null>> = {}
+  for (const point of POINT_IDS) cur[point] = v.held[point]
+  lastHeld[v.id] = cur
+  if (!prev || v.status !== 'live') return
+  const now = Date.now()
+  for (const point of POINT_IDS) {
+    const side = v.held[point]
+    if (!side || prev[point] === side) continue
+    captures.push({ point, side, at: now })
+    const [lx, ly] = FIELD[point].label
+    floats.push({ id: `cap:${point}:${now}`, text: `${POINT_LABEL[point]} TAKEN`, color: sideColor(side), x: lx, y: ly, at: now, lift: 64, size: 30 })
+    warSfx('horn')
+  }
+  if (floats.length > 40) floats = floats.slice(-40)
+}
+function Captures() {
+  const now = Date.now()
+  captures = captures.filter((c) => now - c.at < CAPTURE_MS)
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>
+      {captures.map((c) => {
+        const u = ease((now - c.at) / CAPTURE_MS)
+        const [lx, ly] = FIELD[c.point].label
+        const col = sideColor(c.side)
+        const size = 120 + 420 * u
+        return <Fx key={`cap-${c.point}-${c.at}`} cell={FX_CELL.ring} x={lx} y={ly} w={size} h={size * 0.5} color={Color4.create(col.r, col.g, col.b, 0.9 * (1 - u))} />
+      })}
+    </UiEntity>
+  )
+}
+// Raid beats: a bell when the storm opens and when it closes, ticks through the last ten seconds.
+const lastStatus: Record<string, RaidView['status']> = {}
+let lastTickSecond = -1
+function noteBeats(v: RaidView) {
+  const prev = lastStatus[v.id]
+  lastStatus[v.id] = v.status
+  if (prev && prev !== v.status) {
+    if (v.status === 'live') warSfx('bellStart')
+    if (v.status === 'done' && prev === 'live') warSfx('bellEnd')
+  }
+  if (v.status === 'live') {
+    const s = Math.ceil((v.endAt - serverNow()) / 1000)
+    if (s >= 1 && s <= 10 && s !== lastTickSecond) {
+      lastTickSecond = s
+      warSfx('tick')
+    }
+  }
+}
+// Lightning: on the shared clock, a double flicker over the whole field; thunder follows a beat later.
+function boltStrength(now: number): number {
+  const t = now % BOLT_MS
+  if (t < 90) return 0.28 * Math.sin((t / 90) * Math.PI)
+  if (t >= 160 && t < 320) return 0.2 * Math.sin(((t - 160) / 160) * Math.PI)
+  return 0
+}
+let lastBolt = -1
+function noteThunder(now: number) {
+  const bolt = Math.floor(now / BOLT_MS)
+  if (bolt === lastBolt) return
+  if (lastBolt >= 0) warSfx('thunder', bolt * BOLT_MS + THUNDER_DELAY_MS)
+  lastBolt = bolt
 }
 /** 0..1 strength of the hit reaction right now (1 at the blow, gone after HIT_FLASH_MS), 0 if none is due. */
 function hitStrength(key: string, now: number): number {
@@ -312,19 +463,40 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
   const you = v.you === f.id
   const size = S(TOKEN)
   const scale = hitPose ? 1 + hit * 0.05 : p.scale
+  const youPulse = you ? pulse(1400) : 0
+  // Impact spark: four frames over the strike, out at the weapon's reach on the enemy's side.
+  const spark = p.anim === 'attack' && p.punch > 0 && !hitPose
+  const sparkFrame = Math.min(3, Math.floor((1 - p.punch) * 4))
+  const reach = (side === 'a' ? 1 : -1) * 2.6
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(gx + recoil) - size / 2, top: py(gy) - size - S(p.lift) }, width: size, height: size + S(14), flexDirection: 'column', alignItems: 'center' }}>
+      {you ? (
+        <UiEntity
+          uiTransform={{ positionType: 'absolute', position: { left: -S(14), top: size - S(20) + S(p.lift) }, width: size + S(28), height: S(44), pointerFilter: 'none' }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: FX }, uvs: fxUvs(FX_CELL.ring), color: Color4.create(0.75, 0.55, 1, 0.45 + 0.4 * youPulse) }}
+        />
+      ) : null}
+      <UiEntity
+        uiTransform={{ positionType: 'absolute', position: { left: size * 0.2, top: size - S(6) + S(p.lift) * 1.1 }, width: size * 0.6, height: S(22), pointerFilter: 'none' }}
+        uiBackground={{ textureMode: 'stretch', texture: { src: FX }, uvs: fxUvs(FX_CELL.shadow), color: Color4.create(0, 0, 0, ko ? 0.18 : 0.38 - Math.min(0.2, p.lift * 0.012)) }}
+      />
       <UiEntity
         uiTransform={{ positionType: 'absolute', position: { top: -S(26), left: 0 }, width: size, height: S(26), alignItems: 'center', justifyContent: 'center' }}
       >
         <UiEntity
           uiTransform={{ height: S(26), padding: { left: S(8), right: S(8) }, alignItems: 'center', justifyContent: 'center' }}
-          uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: you ? C.purple : DARK }}
+          uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: you ? Color4.create(0.62 + 0.12 * youPulse, 0.4 + 0.14 * youPulse, 1, 1) : DARK }}
         >
           <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : you ? 'YOU' : f.name.toUpperCase().slice(0, 8)} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
       <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} scale={scale} color={tint} />
+      {spark ? (
+        <UiEntity
+          uiTransform={{ positionType: 'absolute', position: { left: size / 2 + S(reach * 18.5) - S(30), top: size * 0.3 }, width: S(60), height: S(60), pointerFilter: 'none' }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: FX }, uvs: fxUvs(FX_CELL.spark + sparkFrame, side === 'b'), color: Color4.create(1, 0.95, 0.7, 0.95) }}
+        />
+      ) : null}
       <UiEntity uiTransform={{ width: S(64), height: S(10), margin: { top: S(2) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}>
         <UiEntity uiTransform={{ width: `${Math.max(0, Math.min(100, (f.hp / f.hpMax) * 100))}%`, height: '100%' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: hpColor(f) }} />
       </UiEntity>
@@ -503,13 +675,19 @@ function Header(props: { v: RaidView }) {
   const big = v.status === 'gathering' ? ''
     : v.status === 'live' ? `${left(v.endAt)} LEFT`
     : v.status === 'done' ? 'FINAL' : 'CALLED OFF'
+  // Urgency: the countdown turns red and pulses through the last minute, faster in the last ten seconds.
+  const secs = v.status === 'live' ? (v.endAt - serverNow()) / 1000 : Infinity
+  const urgent = secs <= 60
+  const beat = urgent ? pulse(secs <= 10 ? 500 : 1000) : 0
+  const bigColor = urgent ? Color4.create(1, 0.35 + 0.35 * beat, 0.35 + 0.35 * beat, 1) : C.white
+  const bigSize = S(38 + (urgent ? 5 * beat : 0))
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(46), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
         <OutlinedText value={`${sideTag(a, v.mode)}  ${v.score.a}`} size={S(44)} color={PURPLE_LIGHT} align="middle-left" uiTransform={{ height: S(60) }} />
       </UiEntity>
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
-        {big ? <OutlinedText value={big} size={S(38)} uiTransform={{ height: S(50) }} /> : null}
+        {big ? <OutlinedText value={big} size={bigSize} color={bigColor} uiTransform={{ height: S(50) }} /> : null}
         {down ? <OutlinedText value={`YOU'RE DOWN  •  BACK IN ${backIn(me!)}s`} size={S(26)} color={C.red} uiTransform={{ height: S(34) }} /> : null}
       </UiEntity>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { right: S(24) } }}>
@@ -567,25 +745,85 @@ function FieldAnim() {
       />
     )
   }
+  // Shrine crystal motes: purple puffs rising off the crystal, one born every 700 ms, each living 2.8 s.
+  const motes: ReactEcs.JSX.Element[] = []
+  for (let i = 0; i < 4; i++) {
+    const u = ((now / 1000 + i * 0.7) % 2.8) / 2.8
+    const sway = Math.sin((u * 2 + i * 1.7) * Math.PI) * 0.6
+    const size = 16 + 22 * u
+    motes.push(<Fx key={`mote-${i}`} cell={FX_CELL.puff + Math.min(3, Math.floor(u * 4))} x={CRYSTAL[0] + sway} y={CRYSTAL[1] - 9 * u} w={size} h={size} color={Color4.create(0.78, 0.5, 1, 0.55 * (1 - u) * Math.min(1, u * 5))} />)
+  }
+  // Wheel spray: fine white puffs thrown off where the paddles meet the water.
+  for (let i = 0; i < 3; i++) {
+    const u = ((now / 1000 + i * 0.3) % 0.9) / 0.9
+    const size = 10 + 16 * u
+    motes.push(<Fx key={`spray-${i}`} cell={FX_CELL.puff + Math.min(3, Math.floor(u * 4))} x={SPRAY[0] - 1.1 * u + (i - 1) * 0.5} y={SPRAY[1] - 1.6 * Math.sin(u * Math.PI) + 0.5 * u} w={size} h={size} color={Color4.create(0.95, 0.98, 1, 0.5 * (1 - u))} />)
+  }
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>
       {LIVE.map((l, i) => cell(l, Math.floor(now / l.ms) % l.frames, `live-${i}`))}
       {GUST.map((l, i) => cell(l, gustFrame, `gust-${i}`))}
       {leaves}
+      {motes}
     </UiEntity>
   )
+}
+
+/** Weather over the field: drifting cloud shadows, the odd flock of birds, and lightning that whitens the whole scene. */
+function Weather(props: { sky: boolean }) {
+  const now = Date.now()
+  noteThunder(now)
+  const t = now / 1000
+  const clouds = CLOUDS.map((c, i) => {
+    const span = 100 + c.w / 18.5 + 20
+    const x = -c.w / 37 - 10 + (((t + c.start) * c.speed) % span)
+    return <Fx key={`cloud-${i}`} cell={FX_CELL.cloud} x={x} y={c.y + Math.sin(t * 0.07 + i) * 3} w={c.w} h={c.h} color={Color4.create(0, 0, 0, CLOUD_ALPHA)} flip={i === 1} />
+  })
+  const birds: ReactEcs.JSX.Element[] = []
+  if (props.sky) {
+    const flock = Math.floor(now / FLOCK_MS)
+    const u = (now - flock * FLOCK_MS) / 1000 / FLOCK_CROSS_S
+    if (u < 1) {
+      const dir = flock % 2 === 0 ? 1 : -1
+      const y0 = 10 + (flock * 7) % 12
+      FLOCK.forEach(([ox, oy], i) => {
+        const x = dir > 0 ? -8 + 116 * u + ox * dir : 108 - 116 * u + ox * dir
+        const flap = Math.floor(t * 6 + i * 0.8) % 2
+        birds.push(<Fx key={`bird-${i}`} cell={FX_CELL.bird + flap} x={x} y={y0 + oy + Math.sin(t * 1.3 + i) * 0.6} w={26} h={20} color={Color4.create(0.1, 0.08, 0.14, 0.85)} flip={dir < 0} />)
+      })
+    }
+  }
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>
+      {clouds}
+      {birds}
+    </UiEntity>
+  )
+}
+/** Lightning flash over everything on the field (but under the lobby and result cards). */
+function Lightning() {
+  const bolt = boltStrength(Date.now())
+  if (bolt <= 0) return null
+  return <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }} uiBackground={{ color: Color4.create(1, 1, 1, bolt) }} />
 }
 
 function Field(props: { v: RaidView }) {
   const v = props.v
   noteScores(v)
+  noteCaptures(v)
+  noteBeats(v)
   const me = myFighter()
   const canMove = v.status === 'live' && me !== null && me.state !== 'ko' && !raid.spectating
+  const shake = shakeOffset(Date.now())
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%' }}>
-      {POINT_IDS.map((p) => <Marker key={`marker-${p}`} v={v} point={p} />)}
-      <Tokens v={v} />
-      <Floats />
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(shake.dy), left: S(shake.dx) }, width: '100%', height: '100%', pointerFilter: 'none' }}>
+        <Captures />
+        {POINT_IDS.map((p) => <Marker key={`marker-${p}`} v={v} point={p} />)}
+        <Puffs />
+        <Tokens v={v} />
+        <Floats />
+      </UiEntity>
       {canMove ? POINT_IDS.map((p) => <HitArea key={`hit-${p}`} v={v} point={p} me={me!} />) : null}
       <Roster v={v} side="a" />
       <Roster v={v} side="b" />
@@ -733,6 +971,19 @@ function ResultColumn(props: { key?: string; v: RaidView; side: SideId }) {
   )
 }
 
+let resultShownFor = ''
+let resultShownAt = 0
+/** The fighter who dealt the most (KOs break ties), with their side; null when nobody landed a blow. */
+function mvpOf(v: RaidView): { f: Fighter; side: SideId } | null {
+  let best: { f: Fighter; side: SideId } | null = null
+  for (const side of SIDES_IDS) {
+    for (const f of v.sides[side]?.fighters ?? []) {
+      if (f.dealt <= 0) continue
+      if (!best || f.dealt > best.f.dealt || (f.dealt === best.f.dealt && f.kos > best.f.kos)) best = { f, side }
+    }
+  }
+  return best
+}
 function ResultCard(props: { v: RaidView }) {
   const v = props.v
   const r = v.result
@@ -745,12 +996,41 @@ function ResultCard(props: { v: RaidView }) {
   const sub = cancelled
     ? (v.feed.length > 0 ? v.feed[v.feed.length - 1].text : '')
     : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${rewardText(won ? v.battle.reward.win : v.battle.reward.lose)} banked for every fighter${won ? '. Bragging rights are yours until next Wednesday.' : '.'}` : won ? 'Valor banked. Hold the Citadel longer next time for more.' : lost ? 'The buildings pay every clash you hold them. Spread out and strike back.' : 'Even on points.'
+  // The verdict lands with a beat: the title grows in over the first half second, then the MVP line and the final
+  // building tally fade up under it.
+  if (resultShownFor !== v.id) { resultShownFor = v.id; resultShownAt = Date.now() }
+  const age = Date.now() - resultShownAt
+  const grow = ease(age / 500)
+  const fade = ease((age - 350) / 500)
+  const mvp = !cancelled ? mvpOf(v) : null
+  const pale = Color4.create(0.85, 0.82, 0.95, 1)
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.7) }}>
-      <OutlinedText value={title} size={S(84)} color={color} />
-      {sub ? <Text value={sub} size={S(22)} color={Color4.create(0.85, 0.82, 0.95, 1)} nowrap uiTransform={{ height: S(30), margin: { top: -S(6) } }} /> : null}
+      <UiEntity uiTransform={{ height: S(100), alignItems: 'center', justifyContent: 'center' }}>
+        <OutlinedText value={title} size={S(30 + 54 * grow)} color={Color4.create(color.r, color.g, color.b, 0.3 + 0.7 * grow)} />
+      </UiEntity>
+      {sub ? <Text value={sub} size={S(22)} color={Color4.create(pale.r, pale.g, pale.b, fade)} nowrap uiTransform={{ height: S(30), margin: { top: -S(6) } }} /> : null}
+      {mvp ? (
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { top: S(6) } }}>
+          <Text value="MVP" size={S(22)} color={Color4.create(C.yellow.r, C.yellow.g, C.yellow.b, fade)} nowrap uiTransform={{ width: 'auto', height: S(32), margin: { right: S(12) } }} />
+          <Text value={`${fighterName(v, mvp.f)}  •  ${mvp.f.dealt} dealt  •  ${mvp.f.kos} KO`} size={S(22)} color={Color4.create(sideColor(mvp.side).r, sideColor(mvp.side).g, sideColor(mvp.side).b, fade)} nowrap uiTransform={{ width: 'auto', height: S(32) }} />
+        </UiEntity>
+      ) : null}
       {!cancelled ? (
-        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'flex-start', margin: { top: S(18) } }}>
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(4) } }}>
+          {POINT_IDS.map((p) => {
+            const holder = v.held[p]
+            const col = holder ? sideColor(holder) : C.gray
+            return (
+              <UiEntity key={`tally-${p}`} uiTransform={{ height: S(30), padding: { left: S(12), right: S(12) }, margin: { left: S(4), right: S(4) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(col.r * 0.55, col.g * 0.55, col.b * 0.55, 0.9 * fade) }}>
+                <Text value={`${POINT_LABEL[p]}  ${holder ? sideTag(v.sides[holder], v.mode) : '—'}`} size={S(19)} color={Color4.create(1, 1, 1, fade)} nowrap uiTransform={{ width: 'auto', height: S(30) }} />
+              </UiEntity>
+            )
+          })}
+        </UiEntity>
+      ) : null}
+      {!cancelled ? (
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'flex-start', margin: { top: S(14) } }}>
           <ResultColumn v={v} side="a" />
           <ResultColumn v={v} side="b" />
         </UiEntity>
@@ -894,6 +1174,7 @@ function IdleScreen() {
 
 export function WarTab(props: { height: number }) {
   pollRaid()
+  warAudioTick()
   const v = raid.view
   const showResult = v !== null && (v.status === 'done' || v.status === 'cancelled') && dismissedResult !== v.id
   const idle = v === null || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
@@ -901,7 +1182,9 @@ export function WarTab(props: { height: number }) {
     <UiEntity uiTransform={{ width: S(W), flexDirection: 'column' }}>
       <UiEntity uiTransform={{ width: S(W), height: S(props.height), positionType: 'relative', overflow: 'hidden' }} uiBackground={{ textureMode: 'stretch', texture: { src: BG } }}>
         <FieldAnim />
+        <Weather sky={idle || (v !== null && v.status === 'live')} />
         {!idle && v ? <Field v={v} /> : null}
+        <Lightning />
         {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
         {!idle && v && showResult ? <ResultCard v={v} /> : null}
         {idle ? <IdleScreen /> : null}
