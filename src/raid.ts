@@ -281,11 +281,14 @@ export function pollRaid() {
   const hot = v !== null && (v.status === 'gathering' || v.status === 'live')
   const interval = hot ? 3_000 : 20_000
   let due = Date.now() - raid.loadedAt >= interval
-  if (!due && v !== null && v.status === 'live' && Date.now() - raid.loadedAt >= 500) {
+  if (!due && hot && Date.now() - raid.loadedAt >= 500) {
     const now = serverNow()
     const happened = (at: number) => at > 0 && at + EVENT_LAG_MS > pollSentAt && at + EVENT_LAG_MS <= now
-    due = happened(v.nextTickAt)
-    for (const side of ['a', 'b'] as const) for (const f of v.sides[side]?.fighters ?? []) if (!due && (f.state === 'walk' || f.state === 'ko')) due = happened(f.arriveAt)
+    if (v.status === 'gathering') due = happened(v.gatherUntil)
+    else {
+      due = happened(v.nextTickAt)
+      for (const side of ['a', 'b'] as const) for (const f of v.sides[side]?.fighters ?? []) if (!due && (f.state === 'walk' || f.state === 'ko')) due = happened(f.arriveAt)
+    }
   }
   if (!due) return
   raid.loadedAt = Date.now()
