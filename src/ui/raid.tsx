@@ -13,7 +13,7 @@ import { withVip } from '../vip'
 import { VipName } from './vipName'
 import {
   BoardEntry, Fighter, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId,
-  clearPendingGo, fighterName, myFighter, pendingGo, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestHome, requestJoinRaid, requestLeaveRaid, requestSkip,
+  fighterName, myFighter, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestJoinRaid, requestLeaveRaid, requestSkip,
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
 
@@ -73,143 +73,121 @@ const leftLong = (until: number) => { const sec = Math.max(0, Math.ceil((until -
 
 let hoverPoint: PointId | null = null
 let dismissedResult = ''
-// Where each fighter was last seen standing, so a walk can be drawn from the right place.
-const lastSeen: Record<string, PointId | 'camp'> = {}
-
 /** Both sides standing with HP in the same building: the fight is on there. */
 function contested(v: RaidView, point: PointId): boolean {
   return standingAt(v.sides.a, point).length > 0 && standingAt(v.sides.b, point).length > 0
 }
 
 // --- Movement -------------------------------------------------------------------------------------------------------
-// Three things used to make walks feel laggy, none of them the walk itself:
-//  1. A click did nothing on screen until the server answered (~0.5-1.5 s), then the token jumped to where it should
-//     already have been. Now the token sets off on the click (raid.ts pendingGo) along the leg the server will compute,
-//     and the server's version takes over when it arrives; the small difference is eased out, not snapped.
-//  2. Everyone else's walks only become known on a poll, so they popped in up to 3 s down the road. Every token now
-//     renders through a short exponential smoother, so corrections glide.
-//  3. A walker at the end of its leg kept walking on the spot until the next poll said "arrived". The renderer now
-//     treats t >= 1 as arrived (idle at the door) and asks for a poll right then for your own fighter.
+// Where a fighter is comes straight from the server's leg (from, departAt → arriveAt) read on the server clock; my own
+// click is written into the view as such a leg the moment I click (raid.ts pendingGo), so I set off at once, the old
+// building stops counting me, and nothing hands over mid-leg. One screen-side rule on top: a token never teleports.
+// Legs other people started only become known on a poll, so the drawn token hurries (CATCH_UP x the leg's pace) along
+// the line to where the server says it is, legs moving, and settles when it gets there.
 
-/** The server's walk-time rule (afkRaid.js startWalk), so the predicted leg matches the real one. */
+/** The server's walk-time rule (afkRaid.js startWalk), so the leg I draw on a click is the one the server computes. */
 const SERVER_FIELD_PX: [number, number] = [18.22, 9.75]
 const MIN_WALK_MS = 3000
 const fieldDist = (p: [number, number], q: [number, number]) => Math.hypot((p[0] - q[0]) * SERVER_FIELD_PX[0], (p[1] - q[1]) * SERVER_FIELD_PX[1])
 const REF_DIST: Record<SideId, number> = { a: fieldDist(CAMP.a, FIELD.citadel.stand), b: fieldDist(CAMP.b, FIELD.citadel.stand) }
 const spotBase = (side: SideId, where: PointId | 'camp'): [number, number] => (where === 'camp' ? CAMP[side] : FIELD[where].stand)
-function predictWalkMs(v: RaidView, side: SideId, from: [number, number], to: PointId | 'camp', speed: number | undefined): number {
+function walkMs(v: RaidView, side: SideId, from: [number, number], to: PointId | 'camp', speed: number | undefined): number {
   const base = to === 'camp' ? v.rules.homeMs : v.rules.walkMs
   return Math.max(MIN_WALK_MS, Math.round((base * fieldDist(from, spotBase(side, to))) / REF_DIST[side] / (speed || 1)))
 }
 
-/** Last drawn position per fighter (field %), for the smoother and for the click-to-walk start point. */
-const shown: Record<string, { x: number; y: number; at: number }> = {}
-const SMOOTH_TAU_MS = 110
-const SNAP_DIST = 25 // a correction this big (field %) is a new raid or a teleport, not a walk: don't glide it
-function smooth(key: string, x: number, y: number, now: number): [number, number] {
-  const prev = shown[key]
-  if (!prev || Math.hypot(x - prev.x, y - prev.y) > SNAP_DIST || now - prev.at > 2000) {
-    shown[key] = { x, y, at: now }
-    return [x, y]
+const CATCH_UP = 2
+const MIN_CATCH_PX_S = 120
+const SNAP_DIST = 30 // field %: a gap this big is a new raid or a knock-out teleport, not a walk
+/** Where each token is drawn (field %), when, and the design px it has walked so far (drives the walk frames). */
+const drawn: Record<string, { x: number; y: number; at: number; dist: number }> = {}
+/** Move the drawn token toward (x, y) at up to `pxPerS` design px/s. */
+function approach(key: string, x: number, y: number, pxPerS: number, now: number): { x: number; y: number; moving: boolean } {
+  const d = drawn[key]
+  if (!d || now - d.at > 2000 || Math.hypot(x - d.x, y - d.y) > SNAP_DIST) {
+    drawn[key] = { x, y, at: now, dist: 0 }
+    return { x, y, moving: false }
   }
-  const a = 1 - Math.exp(-(now - prev.at) / SMOOTH_TAU_MS)
-  const sx = prev.x + (x - prev.x) * a
-  const sy = prev.y + (y - prev.y) * a
-  shown[key] = { x: sx, y: sy, at: now }
-  return [sx, sy]
+  const gap = fieldDist([d.x, d.y], [x, y])
+  const step = (pxPerS * (now - d.at)) / 1000
+  d.at = now
+  if (gap <= step) {
+    d.dist += gap
+    d.x = x
+    d.y = y
+    return { x, y, moving: false }
+  }
+  const k = step / gap
+  d.x += (x - d.x) * k
+  d.y += (y - d.y) * k
+  d.dist += step
+  return { x: d.x, y: d.y, moving: true }
 }
-/** The field spot my own token is drawn at right now, for the optimistic walk's starting point. */
-function myShownSpot(): [number, number] | null {
-  const v = raid.view
-  if (!v || !v.you) return null
-  const p = shown[`${v.id}:${v.you}`]
-  return p ? [p.x, p.y] : null
+/** The field spot my own token is drawn at right now: where a click's leg starts. */
+function myDrawnSpot(v: RaidView, me: Fighter): [number, number] {
+  const d = drawn[`${v.id}:${me.id}`]
+  if (d) return [d.x, d.y]
+  return v.mine ? spotBase(v.mine, me.state === 'in' && me.at ? me.at : 'camp') : CAMP.a
 }
-/** Arrivals already polled for, by arriveAt, so each leg asks once. */
-const arrivalPolled: Record<string, number> = {}
 
 interface Pose { x: number; y: number; anim: Anim; frame: number; flip: boolean; lift: number; scale: number; punch: number }
 
-/** Live pose of a fighter: field % (feet), sheet row/column, facing, and the whole-body accents (px lift, scale, punch). */
-function fighterPos(v: RaidView, side: SideId, f: Fighter, index: number): Pose {
+/** Live pose of a fighter: drawn field % (feet), sheet row/column, facing, and whole-body accents (px lift, scale, punch). */
+function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose {
   const key = `${v.id}:${f.id}`
   const spot = (where: PointId | 'camp', i: number): [number, number] => {
     const base = spotBase(side, where)
     const dir = where === 'camp' ? (side === 'a' ? 1 : -1) : side === 'a' ? -1 : 1
     return [base[0] + ((dir * (i + 0.5) * TOKEN_GAP) / W) * 100, base[1]]
   }
-  if (f.state === 'in' && f.at) lastSeen[key] = f.at
-  if (f.state === 'camp') lastSeen[key] = 'camp'
   const now = Date.now()
   const phase = index * 173
-  const you = v.you === f.id
 
-  // My click: walk the predicted leg from where the token stood, straight to the door, and stand there until the server
-  // says I am inside. The server's own walk (which started a round trip later, so it trails this one) is never drawn
-  // for me: handing over mid-leg slid the token backwards. Dropped on a knock-out or if nothing confirms it in time.
-  if (you && pendingGo.to !== null) {
-    const arrived = (f.state === 'in' && f.at === pendingGo.to) || (f.state === 'camp' && pendingGo.to === 'camp')
-    const stale = serverNow() - pendingGo.at > 60_000
-    if (arrived || stale || f.state === 'ko') clearPendingGo()
-    else {
-      const from = pendingGo.from ?? (shown[key] ? [shown[key].x, shown[key].y] : spot(lastSeen[key] ?? 'camp', index))
-      const [tx, ty] = spot(pendingGo.to, index)
-      const total = predictWalkMs(v, side, from, pendingGo.to, f.speed)
-      const t = Math.min(1, (serverNow() - pendingGo.at) / total)
-      if (t >= 1) {
-        // At the door on my clock: ask the server to settle the arrival now rather than on the next scheduled poll.
-        if (arrivalPolled[key] !== pendingGo.at) {
-          arrivalPolled[key] = pendingGo.at
-          refreshRaid()
-        }
-        const idle = idlePose(now, phase)
-        return { x: tx, y: ty, anim: 'idle', frame: loopFrame('idle', now, phase), flip: tx < from[0], lift: idle.lift, scale: idle.scale, punch: 0 }
-      }
-      const walk = walkPose(fieldDist(from, [tx, ty]) * t)
-      return { x: from[0] + (tx - from[0]) * t, y: from[1] + (ty - from[1]) * t, anim: 'walk', frame: walk.frame, flip: tx < from[0], lift: walk.bob, scale: 1, punch: 0 }
-    }
+  // 1. Where the server puts the fighter right now, and how fast it is going there.
+  let x: number
+  let y: number
+  let pace = 0
+  let anim: Anim = 'idle'
+  let flip = side === 'b'
+  let koStart = 0
+  if (f.state === 'in' && f.at) [x, y] = spot(f.at, index)
+  else if (f.state === 'camp') [x, y] = spot('camp', index)
+  else {
+    const to: PointId | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
+    const [tx, ty] = spot(to, index)
+    const base = spotBase(side, to)
+    const fx = f.fromX !== null ? f.fromX + (tx - base[0]) : spot('camp', index)[0]
+    const fy = f.fromY !== null ? f.fromY + (ty - base[1]) : spot('camp', index)[1]
+    const total = f.arriveAt - f.departAt
+    const t = total > 0 ? Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total)) : 1
+    x = fx + (tx - fx) * t
+    y = fy + (ty - fy) * t
+    pace = total > 0 ? (fieldDist([fx, fy], [tx, ty]) * 1000) / total : 0
+    flip = tx < fx
+    anim = f.state === 'ko' ? 'ko' : t < 1 ? 'walk' : 'idle'
+    koStart = f.departAt
   }
 
-  if (f.state === 'in' && f.at) {
-    const [x, y] = spot(f.at, index)
-    if (f.hp > 0 && contested(v, f.at)) {
-      // Attack loop: one continuous lunge curve toward the enemy with a scale punch on the impact frame.
-      const a = attackPose(now, phase)
-      const lunge = a.travel * 2.2 * (side === 'a' ? 1 : -1)
-      return { x: x + lunge, y, anim: 'attack', frame: a.frame, flip: side === 'b', lift: 0, scale: 1 + a.punch * 0.09, punch: a.punch }
-    }
-    const idle = idlePose(now, phase)
-    return { x, y, anim: 'idle', frame: loopFrame('idle', now, phase), flip: side === 'b', lift: idle.lift, scale: idle.scale, punch: 0 }
+  // 2. Draw it there, walking the gap if there is one.
+  const g = approach(key, x, y, Math.max(MIN_CATCH_PX_S, pace * CATCH_UP), now)
+  if (g.moving && anim !== 'ko') {
+    anim = 'walk'
+    flip = x < g.x
   }
-  if (f.state === 'camp') {
-    const [x, y] = spot('camp', index)
-    const idle = idlePose(now, phase)
-    return { x, y, anim: 'idle', frame: loopFrame('idle', now, phase), flip: side === 'b', lift: idle.lift, scale: idle.scale, punch: 0 }
+  const d = drawn[key]
+  if (anim === 'walk') {
+    const w = walkPose(d ? d.dist : 0)
+    return { x: g.x, y: g.y, anim, frame: w.frame, flip, lift: w.bob, scale: 1, punch: 0 }
   }
-  // Walking (by choice or knocked out). The server says where the leg started and when; its length depends on distance.
-  const to: PointId | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
-  const [tx, ty] = spot(to, index)
-  const [sx, sy] = spot(lastSeen[key] ?? 'camp', index)
-  const fx = f.fromX !== null ? f.fromX + (tx - spotBase(side, to)[0]) : sx
-  const fy = f.fromY !== null ? f.fromY : sy
-  const total = f.departAt > 0 ? f.arriveAt - f.departAt : f.state === 'ko' ? v.rules.koWalkMs : to === 'camp' ? v.rules.homeMs : v.rules.walkMs
-  const t = total > 0 ? Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total)) : 1
-  if (f.state === 'ko') {
-    // KO plays the fall once from the moment of the knock-out, then holds the last frame on the way back to camp.
-    const koStart = f.arriveAt - total
-    return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, anim: 'ko', frame: onceFrame('ko', now - raid.clockOffset, koStart), flip: tx < fx, lift: 0, scale: 1, punch: 0 }
+  if (anim === 'ko') return { x: g.x, y: g.y, anim, frame: onceFrame('ko', serverNow(), koStart), flip, lift: 0, scale: 1, punch: 0 }
+  if (f.state === 'in' && f.at && f.hp > 0 && contested(v, f.at)) {
+    // Attack loop: one continuous lunge toward the enemy with a scale punch on the impact frame.
+    const a = attackPose(now, phase)
+    const lunge = a.travel * 2.2 * (side === 'a' ? 1 : -1)
+    return { x: g.x + lunge, y: g.y, anim: 'attack', frame: a.frame, flip: side === 'b', lift: 0, scale: 1 + a.punch * 0.09, punch: a.punch }
   }
-  if (t >= 1) {
-    // At the door: stand there instead of walking on the spot until the server confirms. Ask it now, once per leg.
-    if (you && arrivalPolled[key] !== f.arriveAt) {
-      arrivalPolled[key] = f.arriveAt
-      refreshRaid()
-    }
-    const idle = idlePose(now, phase)
-    return { x: tx, y: ty, anim: 'idle', frame: loopFrame('idle', now, phase), flip: tx < fx, lift: idle.lift, scale: idle.scale, punch: 0 }
-  }
-  const walk = walkPose(fieldDist([fx, fy], [tx, ty]) * t)
-  return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t, anim: 'walk', frame: walk.frame, flip: tx < fx, lift: walk.bob, scale: 1, punch: 0 }
+  const idle = idlePose(now, phase)
+  return { x: g.x, y: g.y, anim: 'idle', frame: loopFrame('idle', now, phase), flip: side === 'b', lift: idle.lift, scale: idle.scale, punch: 0 }
 }
 
 // Damage feedback. HP only changes when a poll lands, so the drop is turned into a floating number, a red flash and a
@@ -274,9 +252,9 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
   const { v, side, f } = props
   const key = `${v.id}:${f.id}`
   const now = Date.now()
-  const p = fighterPos(v, side, f, props.index)
-  // Smooth the ground position (server corrections glide); accents ride on top of it unsmoothed so impacts stay crisp.
-  const [gx, gy] = smooth(key, p.x, p.y, now)
+  const p = fighterPose(v, side, f, props.index)
+  const gx = p.x
+  const gy = p.y
   noteDamage(v, f, gx, gy)
   const hit = hitStrength(key, now)
   const hitPose = hit > 0 && p.anim !== 'ko'
@@ -379,7 +357,7 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
   const { v, point, me } = props
   const [cx, cy, w, h] = FIELD[point].hit
   const here = me.state === 'in' && me.at === point
-  const heading = (me.state === 'walk' && me.target === point) || pendingGo.to === point
+  const heading = me.state === 'walk' && me.target === point
   const hovered = hoverPoint === point && !here
   const color = hovered ? GLOW_GOLD : here ? GLOW_PURPLE : heading ? GLOW_HEADING : null
   return (
@@ -388,8 +366,9 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
       onMouseEnter={() => { hoverPoint = point }}
       onMouseLeave={() => { if (hoverPoint === point) hoverPoint = null }}
       onMouseDown={() => {
-        if (here || heading || pendingGo.to === point) return
-        requestGo(point, myShownSpot())
+        if (here || heading || !v.mine) return
+        const from = myDrawnSpot(v, me)
+        requestGo(point, from, walkMs(v, v.mine, from, point, me.speed))
       }}
     >
       {color ? (
@@ -502,7 +481,9 @@ function ActionRow(props: { v: RaidView }) {
   const btn = { height: S(56), margin: { left: S(10) } }
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: S(26), right: S(30) }, flexDirection: 'row', alignItems: 'center' }}>
-      {me && v.status === 'live' && me.state === 'in' ? <Button label="BACK TO CAMP" color={C.blue} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => requestHome(myShownSpot())} /> : null}
+      {me && v.mine && v.status === 'live' && (me.state === 'in' || (me.state === 'walk' && me.target !== 'camp')) ? (
+        <Button label="BACK TO CAMP" color={C.blue} size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => { const from = myDrawnSpot(v, me); requestGo('camp', from, walkMs(v, v.mine!, from, 'camp', me.speed)) }} />
+      ) : null}
       {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(210), ...btn }} onClick={() => requestLeaveRaid()} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}

@@ -169,13 +169,35 @@ type RaidAction = 'view' | 'join' | 'leave' | 'go' | 'home' | 'skip' | 'signup' 
 interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; tester?: boolean; features?: unknown; rules?: Partial<RaidRules>; pickup?: PickupInfo; battle?: BattleInfo; me: MyRaid; serverNow: number; updatedAt: number }
 
 /**
- * The walk the player just asked for, drawn before the server answers (no frozen beat between the click and the
- * round trip). `from` is the token's on-screen spot at the click (field %); the renderer predicts the leg with the
- * server's own distance / speed rule and hands over to the server's walk when a view carries it. Cleared on refusal.
+ * The walk I just clicked for. From the click until the server shows me standing at `to`, my fighter in every view is
+ * overwritten with this leg (state walk, from `from`, `at` → `at + ms`), so the token sets off at once, the old
+ * building stops counting me as a defender and nothing hands over mid-leg. Same distance / speed rule as the server,
+ * so the legs agree to within the uplink delay. Dropped if the server refuses, knocks me out or never confirms.
  */
-export const pendingGo = { to: null as PointId | 'camp' | null, from: null as [number, number] | null, at: 0 }
+export const pendingGo = { to: null as PointId | 'camp' | null, from: [0, 0] as [number, number], at: 0, ms: 0 }
 /** A GO clicked while another action was in flight: sent the moment the line is free instead of being dropped. */
 let queuedGo: PointId | 'camp' | null = null
+
+/** Overwrite my fighter in `v` with the clicked leg (see pendingGo); clears it once the server agrees I am there. */
+function applyPendingGo(v: RaidView | null) {
+  if (!v || pendingGo.to === null) return
+  const me = v.you && v.mine ? v.sides[v.mine]?.fighters.find((f) => f.id === v.you) : undefined
+  if (!me) return
+  const arrived = pendingGo.to === 'camp' ? me.state === 'camp' : me.state === 'in' && me.at === pendingGo.to
+  if (arrived || me.state === 'ko' || serverNow() - pendingGo.at > 60_000) {
+    clearPendingGo()
+    return
+  }
+  // Never arrive on screen before the server's own clock says so, or the token waits at the door for the next poll.
+  const serverArrive = me.state === 'walk' && me.target === pendingGo.to ? me.arriveAt : 0
+  me.state = 'walk'
+  me.target = pendingGo.to
+  me.at = null
+  me.fromX = pendingGo.from[0]
+  me.fromY = pendingGo.from[1]
+  me.departAt = pendingGo.at
+  me.arriveAt = Math.max(pendingGo.at + pendingGo.ms, serverArrive)
+}
 
 function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: (result: RaidResponse) => void, onFail?: () => void) {
   if (isServer() || profileState.status !== 'ready' || !profileState.walletAddress || !player.guild) return
@@ -210,7 +232,12 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
       const result = JSON.parse(response.body) as RaidResponse
       if (result.serverNow < raid.appliedAt) return
       raid.appliedAt = result.serverNow
+      // The server stamps serverNow the moment the request lands, then spends most of the round trip working, so the
+      // offset is "stamp minus send time" (off by the uplink delay only). Halving the round trip put the clock a
+      // second behind: every walk drew behind the server and jumped when the arrival landed.
+      raid.clockOffset = result.serverNow - sentAt
       raid.view = result.raid
+      applyPendingGo(raid.view)
       raid.board = result.board ?? []
       raid.summary = result.guildRaid
       raid.me = result.me
@@ -220,8 +247,6 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
       raid.tester = result.tester === true
       if (result.rules && typeof result.rules === 'object') raid.rules = { ...DEFAULT_RULES, ...result.rules }
       applyFeatures(result.features)
-      // Half the round trip is a fair guess at the one-way delay.
-      raid.clockOffset = result.serverNow - (sentAt + (Date.now() - sentAt) / 2)
       raid.loadedAt = Date.now()
       raid.error = ''
       if (player.guild && result.guildRaid) player.guild.raid = result.guildRaid
@@ -236,21 +261,35 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
         if (queuedGo !== null) {
           const next = queuedGo
           queuedGo = null
-          if (next === 'camp') requestHome()
-          else requestGo(next)
+          sendGo(next)
         }
       }
     }
   })
 }
 
-/** Poll cadence: live or gathering raids every 3 s, otherwise every 20 s. The WAR tab calls this every frame. */
+/** Server-clock time the last poll was sent, so each tick / arrival is asked about once. */
+let pollSentAt = 0
+const EVENT_LAG_MS = 300
+/**
+ * Poll cadence: live or gathering raids every 3 s, otherwise every 20 s, plus a poll EVENT_LAG_MS after anything the
+ * server does on a schedule (a tick, a walker's arrival) so the field shows it without waiting out the interval.
+ * The WAR tab calls this every frame.
+ */
 export function pollRaid() {
   const v = raid.view
   const hot = v !== null && (v.status === 'gathering' || v.status === 'live')
   const interval = hot ? 3_000 : 20_000
-  if (Date.now() - raid.loadedAt < interval) return
+  let due = Date.now() - raid.loadedAt >= interval
+  if (!due && v !== null && v.status === 'live' && Date.now() - raid.loadedAt >= 500) {
+    const now = serverNow()
+    const happened = (at: number) => at > 0 && at + EVENT_LAG_MS > pollSentAt && at + EVENT_LAG_MS <= now
+    due = happened(v.nextTickAt)
+    for (const side of ['a', 'b'] as const) for (const f of v.sides[side]?.fighters ?? []) if (!due && (f.state === 'walk' || f.state === 'ko')) due = happened(f.arriveAt)
+  }
+  if (!due) return
   raid.loadedAt = Date.now()
+  pollSentAt = serverNow()
   send('view', raid.spectating ? { raidId: raid.spectating } : {})
 }
 
@@ -290,25 +329,29 @@ export function requestLeaveRaid() {
     flash(raid.view?.mode === 'battle' ? 'YOU LEFT THE GUILD WAR' : 'YOU LEFT THE STORM')
   })
 }
-/** Click on a building: the token sets off at once (pendingGo, from `from` in field %); the server is told in parallel. */
-export function requestGo(point: PointId, from: [number, number] | null = null) {
-  if (raid.busy) { queuedGo = point; return }
-  pendingGo.to = point
+/**
+ * Click on a building (or BACK TO CAMP): the token sets off this frame from `from` (field %, where it is drawn) on a
+ * leg of `ms`; the server is told now, or as soon as the line is free. A new click simply replaces the leg.
+ */
+export function requestGo(to: PointId | 'camp', from: [number, number], ms: number) {
+  pendingGo.to = to
   pendingGo.from = from
   pendingGo.at = serverNow()
-  send('go', { point }, undefined, clearPendingGo)
+  pendingGo.ms = ms
+  applyPendingGo(raid.view)
+  if (raid.busy) { queuedGo = to; return }
+  sendGo(to)
 }
-export function requestHome(from: [number, number] | null = null) {
-  if (raid.busy) { queuedGo = 'camp'; return }
-  pendingGo.to = 'camp'
-  pendingGo.from = from
-  pendingGo.at = serverNow()
-  send('home', {}, undefined, clearPendingGo)
+function sendGo(to: PointId | 'camp') {
+  // Refused (not live, knocked out, ...): drop the leg and let the next view put the token back where it really is.
+  const onFail = () => { if (pendingGo.to === to) clearPendingGo() }
+  if (to === 'camp') send('home', {}, undefined, onFail)
+  else send('go', { point: to }, undefined, onFail)
 }
 export function clearPendingGo() {
   pendingGo.to = null
-  pendingGo.from = null
   pendingGo.at = 0
+  pendingGo.ms = 0
 }
 /** Tester only, test raids only: pull the clocks forward to the next event or the end. */
 export function requestSkip(to: 'next' | 'end') {
