@@ -783,34 +783,68 @@ export function craftTick(dt: number) {
 }
 
 // --- Tool bench (mirrors the server) ----------------------------------------------------------------
-// Axe / Pickaxe / Cleaver / Dagger, tiers 1-5, each +10% yield in that profession's zone. Permanent, stacks with suits.
-export const TOOL_MAX = 5
+// Axe / Pickaxe / Cleaver / Dagger, 20 tiers in five bands of four. Each band is paid in one rung of the ladder,
+// own profession only: band 1 (tiers 1-4) base refined (the original table), band 2 (5-8) the tier-1 raw + refined
+// + coins, band 3 (9-12) tier 2, band 4 (13-16) tier 3, band 5 (17-20) tier 4. Yield +10% per tier for the first
+// five, +5% after; tiers 5+ also speed rare drops in that zone by 5% each. Permanent, stacks with suits.
+export const TOOL_MAX = 20
+export const TOOL_BAND = 4
 export const TOOL_PCT_PER_TIER = 0.1
+export const TOOL_PCT_AFTER_FIVE = 0.05
+export const TOOL_RARE_PCT_PER_TIER = 0.05
 export const TOOL_NAME: Record<Skill, string> = { lumberjack: 'Axe', miner: 'Pickaxe', butcher: 'Cleaver', assassin: 'Dagger' }
 export const TOOL_TIERS = [
   { level: 1, own: 20, others: 0 },
   { level: 10, own: 60, others: 10 },
   { level: 20, own: 150, others: 30 },
-  { level: 30, own: 350, others: 80 },
-  { level: 40, own: 800, others: 200 }
+  { level: 30, own: 350, others: 80 }
 ]
-export interface ToolCost { level: number; materials: Record<Material, number> }
+/** Bands 2-5 by ladder tier (index 1-4): four sub-tiers of { level, raw, refined, coins }. */
+export const TOOL_BANDS: Array<Array<{ level: number; raw: number; refined: number; coins: number }> | null> = [
+  null,
+  [{ level: 40, raw: 40, refined: 8, coins: 20_000 }, { level: 44, raw: 80, refined: 16, coins: 40_000 }, { level: 48, raw: 160, refined: 32, coins: 80_000 }, { level: 52, raw: 320, refined: 64, coins: 160_000 }],
+  [{ level: 56, raw: 20, refined: 4, coins: 100_000 }, { level: 60, raw: 40, refined: 8, coins: 150_000 }, { level: 64, raw: 80, refined: 16, coins: 200_000 }, { level: 68, raw: 160, refined: 32, coins: 300_000 }],
+  [{ level: 72, raw: 10, refined: 2, coins: 250_000 }, { level: 76, raw: 20, refined: 4, coins: 350_000 }, { level: 80, raw: 40, refined: 8, coins: 500_000 }, { level: 84, raw: 80, refined: 16, coins: 750_000 }],
+  [{ level: 86, raw: 6, refined: 1, coins: 600_000 }, { level: 89, raw: 12, refined: 2, coins: 900_000 }, { level: 92, raw: 24, refined: 4, coins: 1_200_000 }, { level: 95, raw: 48, refined: 8, coins: 1_800_000 }]
+]
+export type ToolCostKey = ItemId | 'coins'
+export interface ToolCost { level: number; cost: Partial<Record<ToolCostKey, number>> }
+/** Which ladder tier (0 = base … 4) a tool tier is paid in. */
+export const toolLadderTier = (tier: number) => Math.ceil(tier / TOOL_BAND) - 1
+/** Cost of a given tool tier for a profession, or null past the max. */
+export function toolTierCost(skill: Skill, tier: number): ToolCost | null {
+  if (tier < 1 || tier > TOOL_MAX) return null
+  if (tier <= TOOL_BAND) {
+    const spec = TOOL_TIERS[tier - 1]
+    const cost: Partial<Record<ToolCostKey, number>> = {}
+    for (const m of MATERIALS) if (spec.others > 0) cost[m] = spec.others
+    cost[SKILL_INFO[skill].material] = spec.own
+    return { level: spec.level, cost }
+  }
+  const ladderTier = toolLadderTier(tier)
+  const spec = TOOL_BANDS[ladderTier]![(tier - 1) % TOOL_BAND]
+  const [rawId, , refinedId] = LADDER[skill][ladderTier]
+  return { level: spec.level, cost: { [rawId]: spec.raw, [refinedId]: spec.refined, coins: spec.coins } }
+}
 /** Cost of the next tool tier for a profession, or null when maxed. */
-export function toolCost(skill: Skill): ToolCost | null {
-  const next = player.tools[skill] + 1
-  const spec = TOOL_TIERS[next - 1]
-  if (!spec) return null
-  const materials: Record<Material, number> = { plank: spec.others, brick: spec.others, jerky: spec.others, bonedust: spec.others }
-  materials[SKILL_INFO[skill].material] = spec.own
-  return { level: spec.level, materials }
+export const toolCost = (skill: Skill): ToolCost | null => toolTierCost(skill, player.tools[skill] + 1)
+/** What the player holds of a cost key: coins, a refined material or a Bank raw. */
+export function haveOf(key: ToolCostKey): number {
+  if (key === 'coins') return player.coins
+  if (key in player.materials) return player.materials[key as MaterialKey]
+  return player.storage[key as StorageKey] ?? 0
 }
 export function canUpgradeTool(skill: Skill): boolean {
   const c = toolCost(skill)
   if (!c || player.skills[skill].level < c.level) return false
-  return MATERIALS.every((m) => player.materials[m] >= c.materials[m])
+  return (Object.keys(c.cost) as ToolCostKey[]).every((k) => haveOf(k) >= (c.cost[k] ?? 0))
 }
+/** Zone yield bonus for a tool tier: +10% each for tiers 1-5, +5% for every tier after (tier 20 = +125%). */
+export const toolYieldPct = (tier: number) => Math.min(tier, 5) * TOOL_PCT_PER_TIER + Math.max(0, tier - 5) * TOOL_PCT_AFTER_FIVE
+/** Rare-drop speed in that zone: +5% per tier from tier 5 (tier 20 = +80%). */
+export const toolRarePct = (tier: number) => Math.max(0, tier - 4) * TOOL_RARE_PCT_PER_TIER
 export function toolPct(skill: Skill): number {
-  return player.tools[skill] * TOOL_PCT_PER_TIER
+  return toolYieldPct(player.tools[skill])
 }
 
 // --- Unlock ladder (mirrors the server) ----------------------------------------------------------------
@@ -824,7 +858,7 @@ export interface LadderRung { level: number; label: string; kind: 'tool' | 'yiel
 /** Every unlock a profession earns by level, sorted: tool tiers (needs materials) and +5% yield steps. */
 export function skillLadder(skill: Skill): LadderRung[] {
   const rungs: LadderRung[] = []
-  TOOL_TIERS.forEach((t, i) => rungs.push({ level: t.level, label: `${TOOL_NAME[skill]} T${i + 1}`, kind: 'tool' }))
+  for (let tier = 1; tier <= TOOL_MAX; tier++) rungs.push({ level: toolTierCost(skill, tier)!.level, label: `${TOOL_NAME[skill]} T${tier}`, kind: 'tool' })
   LEVEL_YIELD_STEPS.forEach((lv) => rungs.push({ level: lv, label: '+5% yield', kind: 'yield' }))
   return rungs.sort((a, b) => a.level - b.level)
 }

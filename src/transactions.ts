@@ -4,7 +4,7 @@ import { campHint, ringStationsEnabled } from './remoteConfig'
 import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
 import { HEROES, HERO_STAT_LABEL, heroLevel, sanitizeHeroes, sanitizeHeroId, type HeroId, type HeroStat } from './hero'
-import { settings } from './settings'
+import { clampVolume, settings } from './settings'
 import { social, seedSocial, NICK_MAX } from './social'
 import { setLanguage, t, type Language } from './i18n'
 import type { UiLayout } from './ui/drag'
@@ -30,6 +30,7 @@ import {
   Skill,
   StorageKey,
   TOOL_NAME,
+  toolRarePct,
   toolPct,
   setSkills,
   MASTERY_ENABLED
@@ -576,7 +577,7 @@ export function requestBoost(boost: Boost, pay: 'berries' | 'materials' = 'berri
   })
 }
 
-/** Tool Bench: buy the next tool tier for a profession with crafted materials (server validates level gate + cost). */
+/** Tool Bench: buy the next tool tier for a profession (band 1 crafted materials; bands 2-5 that ladder tier's raw + refined + coins; server validates). */
 export function requestTool(skill: Skill) {
   if (profileState.status !== 'ready' || !profileState.walletAddress || upgradeRequestInFlight) return
   upgradeRequestInFlight = true
@@ -606,14 +607,22 @@ export function requestTool(skill: Skill) {
       const result = JSON.parse(response.body) as {
         updatedAt: number
         materials: typeof player.materials
+        storage?: typeof player.storage
+        currency?: { coins: number; berries: number }
         tools: typeof player.tools
       }
       if (result.updatedAt >= lastServerUpdateAt) {
         lastServerUpdateAt = result.updatedAt
         player.materials = result.materials
+        if (result.storage) player.storage = result.storage
+        if (result.currency) {
+          player.coins = result.currency.coins
+          player.berries = result.currency.berries
+        }
         player.tools = result.tools
       }
-      flash(`${TOOL_NAME[skill].toUpperCase()} TIER ${player.tools[skill]}  +${Math.round(toolPct(skill) * 100)}% ${RESOURCE_INFO[SKILL_INFO[skill].resource].name.toUpperCase()}`)
+      const rare = toolRarePct(player.tools[skill])
+      flash(`${TOOL_NAME[skill].toUpperCase()} TIER ${player.tools[skill]}  +${Math.round(toolPct(skill) * 100)}% ${RESOURCE_INFO[SKILL_INFO[skill].resource].name.toUpperCase()}${rare > 0 ? `  •  RARES +${Math.round(rare * 100)}%` : ''}`)
       playSuccessSound()
     } catch (error) {
       console.error('[transaction] Tool upgrade failed:', error instanceof Error ? error.message : String(error))
@@ -1035,6 +1044,29 @@ export function setAlerts(on: boolean) {
       console.error('[transaction] Settings failed:', error instanceof Error ? error.message : String(error))
     }
   })
+}
+
+/**
+ * Master sound volume from the dock's - / + control (settings.volume, tenths 0..1). Applies this frame so the next
+ * clip plays at the new level; saved on the profile like ALERTS. Returns false when the value did not change.
+ */
+export function setVolumePref(value: number): boolean {
+  const volume = clampVolume(value)
+  if (volume === settings.volume) return false
+  settings.volume = volume
+  if (profileState.status !== 'ready' || !profileState.walletAddress || !settings.seeded) return true
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/settings`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volume }) }
+      })
+      if (!response.ok) throw new Error(`Settings save failed (${response.status})`)
+    } catch (error) {
+      console.error('[transaction] Volume failed:', error instanceof Error ? error.message : String(error))
+    }
+  })
+  return true
 }
 
 /**

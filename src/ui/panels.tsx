@@ -28,8 +28,14 @@ import {
   toolCost,
   canUpgradeTool,
   toolPct,
+  toolYieldPct,
+  toolRarePct,
+  toolLadderTier,
+  haveOf,
+  ToolCostKey,
   TOOL_NAME,
-  TOOL_PCT_PER_TIER,
+  TOOL_MAX,
+  TOOL_BAND,
   MATERIALS,
   LadderRung,
   skillLadder,
@@ -598,7 +604,7 @@ function RareDropColumn(props: { key?: string; skill: Skill }) {
   const next = LADDER[props.skill][player.skills[props.skill].suit + 1]
   return (
     <UiEntity uiTransform={{ flexDirection: 'column', width: S(340), margin: { left: S(26) } }}>
-      <Text value={active.length > 0 ? `RARE FINDS  •  ${Math.round(rareDoublePct() * 100)}% double` : 'RARE FINDS'} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30) }} />
+      <Text value={active.length > 0 ? `RARE FINDS  •  ${Math.round(rareDoublePct() * 100)}% double${toolRarePct(player.tools[props.skill]) > 0 ? `  •  ${TOOL_NAME[props.skill]} +${Math.round(toolRarePct(player.tools[props.skill]) * 100)}% faster` : ''}` : 'RARE FINDS'} size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30) }} />
       {active.length === 0 ? (
         <Text value={next ? `Wear the L1 suit to find ${next[1]}` : 'Everything unlocked'} size={S(22)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(64) }} />
       ) : (
@@ -989,7 +995,7 @@ export function WorkshopPanel() {
 }
 
 // ---------------------------------------------------------------- FORGE
-export function Need(props: { key?: string; item: ItemId; have: number; need: number }) {
+export function Need(props: { key?: string; item: ItemId | 'coins'; have: number; need: number }) {
   const ok = props.have >= props.need
   return (
     <UiEntity
@@ -997,7 +1003,7 @@ export function Need(props: { key?: string; item: ItemId; have: number; need: nu
       onMouseEnter={() => { costHint = itemSource(props.item) }}
       onMouseLeave={() => { if (costHint === itemSource(props.item)) costHint = null }}
     >
-      <Icon src={RESOURCE_INFO[props.item].icon} size={S(44)} />
+      <Icon src={RESOURCE_INFO[props.item === 'coins' ? 'coin' : props.item].icon} size={S(44)} />
       <Text value={`${props.have}/${props.need}`} size={S(26)} color={ok ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(50), margin: { left: S(8) } }} />
     </UiEntity>
   )
@@ -1009,7 +1015,7 @@ export function ForgePanel() {
   return (
     <Modal title="TOOL BENCH" color={C.blue} {...bigFrame(fit, 'TOOL BENCH', 'forge')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
-        <Text value={costHint ?? 'Craft better tools from your materials. Each tier is permanent and adds +10% yield in that zone, on top of suits and guild bonuses.'} size={S(26)} color={costHint ? C.gold : C.textMuted} nowrap />
+        <Text value={costHint ?? '20 tiers per tool, in five bands: each band is paid in one rung of the ladder (base, then Tier 1 … Tier 4) plus coins. +10% yield a tier for the first five, +5% after; from tier 5 rare drops in that zone also come 5% faster per tier.'} size={S(26)} color={costHint ? C.gold : C.textMuted} nowrap />
         <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(20) } }}>
           {SKILLS.map((s) => {
             const st = player.skills[s]
@@ -1026,17 +1032,26 @@ export function ForgePanel() {
                 </UiEntity>
                 <OutlinedText value={TOOL_NAME[s].toUpperCase()} size={S(32)} uiTransform={{ margin: { top: S(12) } }} />
                 <OutlinedText value={cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(36)} color={C.gold} />
-                <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(8) } }}>
-                  {[1, 2, 3, 4, 5].map((lv) => (
-                    <UiEntity
-                      key={lv}
-                      uiTransform={{ width: S(34), height: S(34), margin: { left: S(4), right: S(4) } }}
-                      uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: tier >= lv ? skillColor(s) : C.gray }}
-                    />
+                <Text value={cost ? `Band ${toolLadderTier(tier + 1) + 1} of 5  •  paid in ${toolLadderTier(tier + 1) === 0 ? 'base materials' : `${LADDER[s][toolLadderTier(tier + 1)][1]} (Tier ${toolLadderTier(tier + 1)})`}` : 'Every band complete'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(26) }} />
+                {/* 20 pips in five bands of four; the band being worked on is brighter */}
+                <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6) } }}>
+                  {[0, 1, 2, 3, 4].map((band) => (
+                    <UiEntity key={`band-${band}`} uiTransform={{ flexDirection: 'row', margin: { left: S(5), right: S(5) } }}>
+                      {[1, 2, 3, 4].map((i) => {
+                        const lv = band * TOOL_BAND + i
+                        return (
+                          <UiEntity
+                            key={lv}
+                            uiTransform={{ width: S(14), height: S(14), margin: { left: S(1), right: S(1) } }}
+                            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: tier >= lv ? skillColor(s) : C.gray }}
+                          />
+                        )
+                      })}
+                    </UiEntity>
                   ))}
                 </UiEntity>
                 <Text
-                  value={cost ? `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}% -> +${Math.round((tier + 1) * TOOL_PCT_PER_TIER * 100)}%` : `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}%`}
+                  value={cost ? `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}% -> +${Math.round(toolYieldPct(tier + 1) * 100)}%${toolRarePct(tier + 1) > 0 ? `  •  rares +${Math.round(toolRarePct(tier) * 100)}% -> +${Math.round(toolRarePct(tier + 1) * 100)}%` : ''}` : `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}%  •  rares +${Math.round(toolRarePct(tier) * 100)}%`}
                   size={S(24)}
                   color={C.textMuted}
                   nowrap
@@ -1049,8 +1064,8 @@ export function ForgePanel() {
                       <Icon src={SKILL_ICON[s]} size={S(44)} />
                       <Text value={`Lv ${st.level}/${cost.level}`} size={S(26)} color={st.level >= cost.level ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(50), margin: { left: S(8) } }} />
                     </UiEntity>
-                    {MATERIALS.filter((m) => cost.materials[m] > 0).map((m) => (
-                      <Need key={m} item={m} have={player.materials[m]} need={cost.materials[m]} />
+                    {(Object.keys(cost.cost) as ToolCostKey[]).map((k) => (
+                      <Need key={k} item={k} have={haveOf(k)} need={cost.cost[k] ?? 0} />
                     ))}
                   </UiEntity>
                 ) : (

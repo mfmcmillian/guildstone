@@ -60,7 +60,7 @@ export function nextStep(): NextStep | null {
     return { text: `Open the ${at('WORKSHOP')}: 10 ${RESOURCE_INFO[info.resource].name} -> 1 ${RESOURCE_INFO[info.material].name}`, color: C.yellow, target: 'workshop' }
   }
   const upgrade = upgradeReady()
-  if (upgrade) return { text: `You can craft your ${TOOL_NAME[upgrade]} at the ${at('TOOL BENCH')}: +10% yield`, color: C.green, target: 'forge' }
+  if (upgrade) return { text: `You can craft your ${TOOL_NAME[upgrade]} at the ${at('TOOL BENCH')}: more yield in that zone`, color: C.green, target: 'forge' }
   if (topLevel() >= 10 && !anySuit()) return { text: 'Suits unlock rare drops: PROFESSIONS -> SUITS', color: C.yellow, target: 'professions' }
   // A finished road (L4 suit + Lv 50) with its Relic open to craft: the one endgame nudge. Nothing fires until the collection is minted.
   const relicReady = SKILLS.find((s) => player.skills[s].suit >= 4 && player.skills[s].level >= 50 && relicCraftable(s) && !ownsRelic(s))
