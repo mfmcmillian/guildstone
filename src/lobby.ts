@@ -88,8 +88,8 @@ export interface OnlinePlayer {
 export interface GuildInvite { guildId: string; tag: string; name: string; byName: string; at: number }
 
 export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number; relics?: string[]; vip?: number; hero?: string; heroLevel?: number; raid?: RaidTally }
-/** Lifetime raid tally kept on the profile by the server (see docs/SHADOW_RAID.md). */
-export interface RaidTally { valor: number; raids: number; wins: number; kos: number }
+/** Lifetime Storm record kept on the profile by the server: wins, losses, draws, KOs (valor is internal). */
+export interface RaidTally { valor: number; raids: number; wins: number; losses: number; draws: number; kos: number }
 /** Who forged the Guildstone Crown (one ever). */
 export interface CrownHolder { address: string; name: string; at: number }
 export interface BoardGuild { id: string; tag: string; name: string; hqLevel: number; points: number; weeklyPoints: number; memberCount: number; maxMembers: number }
@@ -572,7 +572,7 @@ export const BOARD_TITLE: Record<BoardId, string> = {
   butcher: 'BUTCHER  •  by XP',
   assassin: 'ASSASSIN  •  by XP',
   suits: 'SUITS CRAFTED',
-  raid: 'STORM VALOR  •  ticks fought, wins and knockouts',
+  raid: 'STORM RECORD  •  wins, then fewest losses, then knockouts',
   hq: 'GUILD HQ LEVEL',
   points: 'GUILD POINTS  •  all time',
   weekly: 'GUILD POINTS  •  this week (resets Monday 00:00 UTC)'
@@ -582,7 +582,7 @@ export interface BoardRow { key: string; name: string; tag: string; value: strin
 
 /** What an empty board says. Player boards hide zero rows, so STORM is empty until the first ranked Storm ends. */
 export function boardEmptyText(id: BoardId): string {
-  if (id === 'raid') return 'No Storms fought yet. Enter the Storm in WAR to start one.'
+  if (id === 'raid') return 'No Storms won yet. Enter the Storm in WAR and take the field.'
   if (id === 'hq' || id === 'points' || id === 'weekly') return 'No guilds founded yet.'
   return 'Nothing here yet.'
 }
@@ -602,22 +602,23 @@ export function boardRows(id: BoardId, limit = 15): BoardRow[] {
   }
   const skillIndex = SKILLS.indexOf(id as Skill)
   const value = (p: BoardPlayer) =>
-    id === 'levels' ? p.level.reduce((a, b) => a + b, 0) : id === 'suits' ? p.crafted : id === 'raid' ? raidValor(p) : p.xp[skillIndex] ?? 0
+    id === 'levels' ? p.level.reduce((a, b) => a + b, 0) : id === 'suits' ? p.crafted : id === 'raid' ? n0(p.raid?.wins) : p.xp[skillIndex] ?? 0
+  // STORM ties: fewer losses first, then more knockouts.
+  const tie = (a: BoardPlayer, b: BoardPlayer) => (id === 'raid' ? n0(a.raid?.losses) - n0(b.raid?.losses) || n0(b.raid?.kos) - n0(a.raid?.kos) : 0)
   const show = (p: BoardPlayer) =>
     id === 'levels' ? `Lv ${value(p)}` : id === 'suits' ? `${value(p)} suit${value(p) === 1 ? '' : 's'}` : id === 'raid' ? raidLine(p) : `Lv ${p.level[skillIndex] ?? 0}  •  ${value(p).toLocaleString()} XP`
   return [...lobby.board.players]
     .filter((p) => value(p) > 0)
-    .sort((a, b) => value(b) - value(a))
+    .sort((a, b) => value(b) - value(a) || tie(a, b))
     .slice(0, limit)
     .map((p) => ({ key: p.address, name: withVip(labelFor(p.address, p.name), p.vip), tag: tagOf[p.guild] ?? '', value: show(p), mine: p.address === me }))
 }
 
-const raidValor = (p: BoardPlayer) => Math.max(0, Math.floor(Number(p.raid?.valor) || 0))
 const n0 = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0))
-/** `Knight 12  •  8W 11R 40KO  •  1,240 valor` — the hero rides along so the board doubles as a hero ranking. */
+/** `Knight 12  •  12 W – 4 L  •  40 KO` — the hero rides along so the board doubles as a hero ranking. */
 function raidLine(p: BoardPlayer): string {
   const r = p.raid
-  return `${t(HEROES[sanitizeHeroId(p.hero)].name)} ${Math.max(1, n0(p.heroLevel))}  •  ${n0(r?.wins)}W ${n0(r?.raids)}R ${n0(r?.kos)}KO  •  ${raidValor(p).toLocaleString()} valor`
+  return `${t(HEROES[sanitizeHeroId(p.hero)].name)} ${Math.max(1, n0(p.heroLevel))}  •  ${n0(r?.wins)} W – ${n0(r?.losses)} L  •  ${n0(r?.kos)} KO`
 }
 
 /** Where I sit on a player board, 1-based (0 when unranked). */

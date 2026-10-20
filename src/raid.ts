@@ -107,7 +107,7 @@ export interface GuildRaidSummary {
   count: number
   history: { id: string; vsTag: string; vsName: string; wraith: boolean; battle?: boolean; mine: number; theirs: number; outcome: 'win' | 'loss' | 'draw'; at: number }[]
 }
-export interface MyRaid { valor: number; raids: number; wins: number; kos: number; day?: string; count?: number; stats: { hp: number; atk: number; level: number; dagger: number; set: number; vip: number } | null }
+export interface MyRaid { valor: number; raids: number; wins: number; losses: number; draws: number; kos: number; day?: string; count?: number; stats: { hp: number; atk: number; level: number; dagger: number; set: number; vip: number } | null }
 /** The pickup queue as seen from the idle screen. */
 export interface PickupInfo { status: 'idle' | 'gathering' | 'live'; activeId: string | null; nextAt: number; minHumans: number; maxHumans: number; perDay: number; leftToday: number }
 export interface BattleMatch { id: string; a: { tag: string; name: string }; b: { tag: string; name: string }; mine?: SideId; raidId: string; status: string; winner: string; score: { a: number; b: number } }
@@ -395,8 +395,8 @@ export function myFighter(): Fighter | null {
   return v.sides[v.mine]?.fighters.find((f) => f.id === v.you) ?? null
 }
 
-/** Side label as shown on screen: [TAG], TEAM DUSK / TEAM DAWN on a pickup raid, or WRAITHS. */
-export const sideTag = (s: Side | null, mode: RaidMode = 'guild') => (s ? (s.wraith ? 'WRAITHS' : mode === 'pickup' ? s.name.toUpperCase() : `[${s.tag}]`) : '?')
+/** Side label as shown on screen: [TAG], TEAM DUSK / TEAM DAWN on a pickup raid, or SHADES. */
+export const sideTag = (s: Side | null, mode: RaidMode = 'guild') => (s ? (s.wraith ? 'SHADES' : mode === 'pickup' ? s.name.toUpperCase() : `[${s.tag}]`) : '?')
 /** A fighter's name with the guild tag where teams are mixed. */
 export const fighterName = (v: RaidView, f: Fighter) => (v.mode === 'pickup' && f.tag && f.id.startsWith('0x') ? `${f.name} [${f.tag}]` : f.name)
 

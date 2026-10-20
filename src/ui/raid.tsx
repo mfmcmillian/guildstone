@@ -74,7 +74,7 @@ const SPRAY: [number, number] = [64.2, 33.6]
 const DUST_MS = 560
 const FLOURISH_MS = 900
 // Side a (the caller) wears the player palette, side b the enemy palette. Sheets per hero live in sprite.tsx.
-/** Sprite sheet for a fighter: its hero's art, own palette on our side and the Wraith palette on the other. */
+/** Sprite sheet for a fighter: its hero's art, own palette on our side and the enemy palette on the other. */
 const sheetFor = (side: SideId, f: Fighter) => HERO_SHEET[sanitizeHeroId(f.kind)][side === 'a' ? 'own' : 'enemy']
 const HIT_FLASH_MS = 320
 const FLOAT_MS = 1300
@@ -820,7 +820,7 @@ function LobbyColumn(props: { key?: string; v: RaidView; side: SideId }) {
     <UiEntity uiTransform={{ width: S(RES_COL_W), minHeight: S(230), flexDirection: 'column', alignItems: 'center', margin: { left: S(10), right: S(10) }, padding: { top: S(16), bottom: S(16), left: S(16), right: S(16) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: RES_BG }}>
       {s ? (
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
-          <Text value={s.wraith ? 'THE WRAITHS' : `[${s.tag}]  ${s.name}`} size={S(24)} color={tagColor} nowrap uiTransform={{ height: S(30) }} />
+          <Text value={s.wraith ? 'THE SHADES' : `[${s.tag}]  ${s.name}`} size={S(24)} color={tagColor} nowrap uiTransform={{ height: S(30) }} />
           <OutlinedText value={`${s.fighters.length} / ${v.rules.sideMax}`} size={S(60)} color={s.fighters.length >= v.rules.sideMin ? C.white : MUTED} />
           {s.fighters.map((f) => (
             <Text key={`lobby-${side}-${f.id}`} value={withVip(v.you === f.id ? `${f.name} (you)` : f.name, f.vip)} size={S(22)} color={v.you === f.id ? C.white : MUTED} nowrap uiTransform={{ height: S(30) }} />
@@ -830,8 +830,8 @@ function LobbyColumn(props: { key?: string; v: RaidView; side: SideId }) {
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
           <Text value="NO ANSWER YET" size={S(24)} color={C.gold} nowrap uiTransform={{ height: S(30) }} />
           <OutlinedText value="?" size={S(60)} color={MUTED} />
-          <Text value="If no guild answers, the Wraiths" size={S(22)} color={MUTED} nowrap uiTransform={{ height: S(30) }} />
-          <Text value="(a mirror of your side) take the field" size={S(22)} color={MUTED} nowrap uiTransform={{ height: S(30) }} />
+          <Text value="If no guild answers, Shades" size={S(22)} color={MUTED} nowrap uiTransform={{ height: S(30) }} />
+          <Text value="(other players' fighters, same strength) take the field" size={S(22)} color={MUTED} nowrap uiTransform={{ height: S(30) }} />
         </UiEntity>
       )}
     </UiEntity>
@@ -878,7 +878,7 @@ function LobbyCard(props: { v: RaidView }) {
   const bothReady = battle && SIDES_IDS.every((k) => (v.sides[k]?.fighters.length ?? 0) >= v.rules.sideMin)
   const rules = ['Click a building to take it; it pays your team every tick.', 'A building stays yours, even empty, until the enemy takes it.', 'Team with the most points at the end of the timer wins.']
   const notes: string[] = pickup
-    ? short ? [`Need ${v.rules.pickupMin} fighters or it is called off`, 'Teams are drawn at the bell.'] : v.you ? ['Teams are drawn at the bell  •  alone you fight the comp  •  odd counts get a Wraith', ...rules, `Swap heroes in HERO until ${HERO_LOCK_MS / 1000} s before the bell.`] : ['Teams are drawn at the bell  •  alone you fight the comp  •  odd counts get a Wraith']
+    ? short ? [`Need ${v.rules.pickupMin} fighters or it is called off`, 'Teams are drawn at the bell.'] : v.you ? ['Teams are drawn at the bell  •  alone you fight the shade of another player  •  odd counts get one too', ...rules, `Swap heroes in HERO until ${HERO_LOCK_MS / 1000} s before the bell.`] : ['Teams are drawn at the bell  •  alone you fight the shade of another player  •  odd counts get one too']
     : battle
       ? bothReady ? (v.you ? rules : ['Both guilds are ready.']) : [`Begins when both guilds have ${v.rules.sideMin} fighters`, `The window closes at ${raid.battle?.endWhen ?? ''}; a short side forfeits the night`]
       : short ? [`Need ${v.rules.sideMin} on your side or it is called off`] : v.you ? rules : !v.mine ? [v.sides.b ? 'Both sides set. Watch it from here.' : 'Waiting for an answer.'] : []
@@ -904,9 +904,9 @@ function LobbyCard(props: { v: RaidView }) {
 const SIDES_IDS: SideId[] = ['a', 'b']
 
 // Result screen: dimmed field, big verdict, one scoreboard column per side (score, then a row per fighter with
-// dealt / taken / KO / Valor), your own line picked out, RAID AGAIN / DONE.
-const RES_COL_W = 560
-const RES_COLS = { name: 190, dealt: 100, taken: 100, kos: 60, valor: 90 }
+// dealt / taken / KO), your own line picked out, RAID AGAIN / DONE.
+const RES_COL_W = 520
+const RES_COLS = { name: 220, dealt: 100, taken: 100, kos: 70 }
 const RES_BG = Color4.create(0.06, 0.05, 0.12, 0.82)
 /** '300 Wood, 300 Rock, 150 Meat, 150 Bone'. */
 const rewardText = (r: Reward) => (['wood', 'rock', 'meat', 'bone'] as const).filter((k) => r[k] > 0).map((k) => `${r[k]} ${k[0].toUpperCase()}${k.slice(1)}`).join(', ')
@@ -920,14 +920,13 @@ function ResultColumn(props: { key?: string; v: RaidView; side: SideId }) {
   const cell = (value: string, width: number, color: Color4, size = 22) => <Text value={value} size={S(size)} color={color} nowrap align="middle-center" uiTransform={{ width: S(width), height: S(32) }} />
   return (
     <UiEntity uiTransform={{ width: S(RES_COL_W), flexDirection: 'column', alignItems: 'center', margin: { left: S(10), right: S(10) }, padding: { top: S(16), bottom: S(14), left: S(16), right: S(16) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: RES_BG }}>
-      <Text value={s.wraith ? 'THE WRAITHS' : `[${s.tag}]  ${s.name}`} size={S(24)} color={tagColor} nowrap uiTransform={{ height: S(30) }} />
+      <Text value={s.wraith ? 'THE SHADES' : `[${s.tag}]  ${s.name}`} size={S(24)} color={tagColor} nowrap uiTransform={{ height: S(30) }} />
       <OutlinedText value={String(v.score[side])} size={S(72)} color={winner ? C.yellow : C.white} />
       <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', margin: { top: S(6) } }}>
         {cell('', RES_COLS.name, C.textMuted, 20)}
         {cell('DEALT', RES_COLS.dealt, C.textMuted, 20)}
         {cell('TAKEN', RES_COLS.taken, C.textMuted, 20)}
         {cell('KO', RES_COLS.kos, C.textMuted, 20)}
-        {cell(s.wraith ? '' : 'VALOR', RES_COLS.valor, C.textMuted, 20)}
       </UiEntity>
       {s.fighters.map((f) => {
         const you = v.you === f.id
@@ -938,7 +937,6 @@ function ResultColumn(props: { key?: string; v: RaidView; side: SideId }) {
             {cell(String(f.dealt), RES_COLS.dealt, c)}
             {cell(String(f.taken), RES_COLS.taken, c)}
             {cell(String(f.kos), RES_COLS.kos, c)}
-            {cell(r && !s.wraith ? (f.ranked === false ? 'none' : `+${r.valor[f.id] ?? 0}`) : '', RES_COLS.valor, f.ranked === false ? C.textMuted : C.green)}
           </UiEntity>
         )
       })}
@@ -970,7 +968,7 @@ function ResultCard(props: { v: RaidView }) {
   const color = cancelled ? C.textMuted : won ? C.green : lost ? C.red : C.blue
   const sub = cancelled
     ? (v.feed.length > 0 ? v.feed[v.feed.length - 1].text : '')
-    : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${rewardText(won ? v.battle.reward.win : v.battle.reward.lose)} banked for every fighter${won ? '. Bragging rights are yours until next Wednesday.' : '.'}` : won ? 'Valor banked. Hold the Citadel longer next time for more.' : lost ? 'The buildings pay every clash you hold them. Spread out and strike back.' : 'Even on points.'
+    : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${rewardText(won ? v.battle.reward.win : v.battle.reward.lose)} banked for every fighter${won ? '. Bragging rights are yours until next Wednesday.' : '.'}` : won ? 'One for the record. Hold the Citadel longer next time for a bigger margin.' : lost ? 'One on the other side of the record. The buildings pay every clash you hold them: spread out and strike back.' : 'Even on points. A draw on the record.'
   // The verdict lands with a beat: the title grows in over the first half second, then the MVP line and the final
   // building tally fade up under it.
   if (resultShownFor !== v.id) { resultShownFor = v.id; resultShownAt = Date.now() }
@@ -1020,7 +1018,7 @@ function ResultCard(props: { v: RaidView }) {
 
 function BoardRow(props: { key?: string; e: BoardEntry }) {
   const e = props.e
-  const who = (x: BoardEntry['a']) => (x ? (x.wraith ? 'WRAITHS' : `[${x.tag}]`) : '?')
+  const who = (x: BoardEntry['a']) => (x ? (x.wraith ? 'SHADES' : `[${x.tag}]`) : '?')
   const label = e.mode === 'battle' ? 'GUILD WAR' : e.mode === 'pickup' ? (e.test ? 'Test Storm' : 'Antrom Storm') : `${who(e.a)} raid`
   const text = e.status === 'gathering'
     ? e.mode === 'battle' ? `${label}  •  ${who(e.a)} ${e.a?.count ?? 0}/${raid.rules.sideMax}  vs  ${who(e.b)} ${e.b?.count ?? 0}/${raid.rules.sideMax}  •  gathering`
@@ -1056,31 +1054,24 @@ function IdleCard(props: { title: string; sub: string; color: Color4; children?:
 }
 const line = (text: string, color: Color4, size = 22, key?: string) => <Text key={key} value={text} size={S(size)} color={color} nowrap uiTransform={{ height: S(size + 10), margin: { top: S(4) } }} />
 
-/** Everyday Storm: the button, what it is, and the day's Valor Storms as pips. */
+/** Everyday Storm: the button, what it is, and your record at the foot. */
 function StormCard() {
   const pk = raid.pickup
   const error = raid.error && Date.now() - raid.errorAt < 6000 ? raid.error : ''
   const liveNow = pk?.status === 'live'
   const canJoin = !raid.busy && !liveNow
-  const perDay = pk?.perDay ?? raid.rules.raidsPerDay
-  const leftToday = pk?.leftToday ?? perDay
+  const me = raid.me
   return (
     <IdleCard title="ANTROM STORM" sub="Every day  •  any headcount" color={PURPLE_LIGHT}>
       <Button label={pk?.status === 'gathering' ? 'JOIN THE STORM' : 'ENTER THE STORM'} color={canJoin ? C.purple : C.gray} textColor={canJoin ? C.white : C.textMuted} disabled={!canJoin} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => requestJoinRaid()} />
       {error
         ? line(error, C.red, 22, 'st-err')
         : liveNow ? line(`A Storm is on  •  next one opens in ${leftLong(pk!.nextAt)}`, PALE, 22, 'st-live')
-        : line(`Alone, 1v1 or random teams  •  ${Math.round(raid.rules.gatherMs / 60000)} min to gather`, PALE, 22, 'st-how')}
+        : line(`Alone you fight a shade of another player  •  ${Math.round(raid.rules.gatherMs / 60000)} min to gather`, PALE, 22, 'st-how')}
       <Spacer />
-      {raid.tester ? line('Tester: your Storms are not recorded', MUTED, 20, 'st-test') : (
-        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(30) }}>
-          <Text value={`VALOR STORMS TODAY  ${leftToday} / ${perDay}`} size={S(20)} color={MUTED} nowrap align="middle-left" uiTransform={{ width: S(300), height: S(30), margin: { right: S(12) } }} />
-          {Array.from({ length: Math.min(perDay, 10) }, (_, i) => (
-            <UiEntity key={`pip-${i}`} uiTransform={{ width: S(18), height: S(18), margin: { left: S(4) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_128, color: i < leftToday ? C.green : Color4.create(1, 1, 1, 0.15) }} />
-          ))}
-        </UiEntity>
-      )}
-      {!raid.tester && leftToday <= 0 ? line('Valor used up for today  •  wins and KOs still count', MUTED, 20, 'st-cap') : null}
+      {raid.tester ? line('Tester: your Storms are not recorded', MUTED, 20, 'st-test')
+        : me && me.raids > 0 ? line(`YOUR RECORD  ${me.wins} W · ${me.losses} L${me.draws > 0 ? ` · ${me.draws} D` : ''}  •  ${me.kos} KO`, MUTED, 20, 'st-rec')
+        : line('Every Storm counts  •  win, lose, KO', MUTED, 20, 'st-rec')}
     </IdleCard>
   )
 }
