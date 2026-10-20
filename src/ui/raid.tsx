@@ -61,12 +61,9 @@ function Fx(props: { key?: string; cell: number; x: number; y: number; w: number
     />
   )
 }
-// Weather. Two cloud shadows drift across the field; now and then (on the clock, so everyone sees the same storm)
-// lightning flickers over the whole field and thunder rolls in a second and a half later.
+// Weather: two soft cloud shadows drift across the field on the shared clock (a passing cloud, not a storm).
 const CLOUDS = [{ w: 760, h: 400, speed: 1.1, y: 28, start: 0 }, { w: 560, h: 300, speed: 0.8, y: 66, start: 61 }]
-const CLOUD_ALPHA = 0.17
-const BOLT_MS = 53000
-const THUNDER_DELAY_MS = 1400
+const CLOUD_ALPHA = 0.12
 // Birds: a flock crosses the sky every few minutes, alternating direction.
 const FLOCK_MS = 150000
 const FLOCK_CROSS_S = 15
@@ -389,20 +386,6 @@ function noteBeats(v: RaidView) {
       warSfx('tick')
     }
   }
-}
-// Lightning: on the shared clock, a double flicker over the whole field; thunder follows a beat later.
-function boltStrength(now: number): number {
-  const t = now % BOLT_MS
-  if (t < 90) return 0.28 * Math.sin((t / 90) * Math.PI)
-  if (t >= 160 && t < 320) return 0.2 * Math.sin(((t - 160) / 160) * Math.PI)
-  return 0
-}
-let lastBolt = -1
-function noteThunder(now: number) {
-  const bolt = Math.floor(now / BOLT_MS)
-  if (bolt === lastBolt) return
-  if (lastBolt >= 0) warSfx('thunder', bolt * BOLT_MS + THUNDER_DELAY_MS)
-  lastBolt = bolt
 }
 /** 0..1 strength of the hit reaction right now (1 at the blow, gone after HIT_FLASH_MS), 0 if none is due. */
 function hitStrength(key: string, now: number): number {
@@ -769,10 +752,9 @@ function FieldAnim() {
   )
 }
 
-/** Weather over the field: drifting cloud shadows, the odd flock of birds, and lightning that whitens the whole scene. */
+/** Weather over the field: drifting cloud shadows and the odd flock of birds. */
 function Weather(props: { sky: boolean }) {
   const now = Date.now()
-  noteThunder(now)
   const t = now / 1000
   const clouds = CLOUDS.map((c, i) => {
     const span = 100 + c.w / 18.5 + 20
@@ -800,13 +782,6 @@ function Weather(props: { sky: boolean }) {
     </UiEntity>
   )
 }
-/** Lightning flash over everything on the field (but under the lobby and result cards). */
-function Lightning() {
-  const bolt = boltStrength(Date.now())
-  if (bolt <= 0) return null
-  return <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }} uiBackground={{ color: Color4.create(1, 1, 1, bolt) }} />
-}
-
 function Field(props: { v: RaidView }) {
   const v = props.v
   noteScores(v)
@@ -1184,7 +1159,6 @@ export function WarTab(props: { height: number }) {
         <FieldAnim />
         <Weather sky={idle || (v !== null && v.status === 'live')} />
         {!idle && v ? <Field v={v} /> : null}
-        <Lightning />
         {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
         {!idle && v && showResult ? <ResultCard v={v} /> : null}
         {idle ? <IdleScreen /> : null}
