@@ -136,8 +136,8 @@ const STANDINGS_TOP = 46
 // Cell size on screen. The character stands about 74% of its 144 px cell, so this matches the old 80 px tokens.
 const TOKEN = 108
 const TOKEN_GAP = 72
-/** War spawn strip: design px between tokens (a name pill is ~140 wide) and the half-gap between the two guilds' fans. */
-const STRIP_GAP = 150
+/** War spawn strip: design px between tokens (a knocked-out pill "KOA NEEDAD · 49s" is ~165 wide) and the half-gap between the two guilds' fans. */
+const STRIP_GAP = 176
 const STRIP_SPLIT = 40
 
 const PURPLE_LIGHT = Color4.fromHexString('#c9a3ffff')
@@ -559,6 +559,8 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
   const tint = ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : hit > 0 ? Color4.create(1, 0.45, 0.45, 1) : C.white
   const you = v.you === f.id
   const buff = myBuff(v, side, f)
+  // The name pill: YOU, or TAG NAME for the other guilds in a war. A knocked-out fighter keeps the name beside the countdown.
+  const label = you ? 'YOU' : isWar(v) && side === 'b' && f.tag ? `${f.tag} ${f.name.toUpperCase().slice(0, 6)}` : f.name.toUpperCase().slice(0, 8)
   const healing = v.status === 'live' && !isWar(v) && f.state === 'camp' && f.hp < f.hpMax
   const size = S(TOKEN)
   const scale = hitPose ? 1 + hit * 0.05 : p.scale
@@ -586,7 +588,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           uiTransform={{ height: S(26), padding: { left: S(8), right: S(8) }, alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: you ? Color4.create(0.62 + 0.12 * youPulse, 0.4 + 0.14 * youPulse, 1, 1) : DARK }}
         >
-          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : `${you ? 'YOU' : isWar(v) && side === 'b' && f.tag ? `${f.tag} ${f.name.toUpperCase().slice(0, 6)}` : f.name.toUpperCase().slice(0, 8)}${buff ? `  ${buff.tag}` : healing ? '  ✚' : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
+          <Text value={f.state === 'ko' ? `${label}  ·  ${backIn(f)}s` : `${label}${buff ? `  ${buff.tag}` : healing ? '  ✚' : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
       <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} scale={scale} color={tint} />
