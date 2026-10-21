@@ -80,7 +80,7 @@ import {
   guildRole,
   guildSellMult,
   craftSecs,
-  boostMinutes, MAX_LEVEL
+  boostMinutes, boostBaseMinutes, fmtMinutes, MAX_LEVEL
 } from '../state'
 import { closePanel, openPanel, ui } from './uiState'
 import { campHint, remoteConfig, ringStationsEnabled } from '../remoteConfig'
@@ -305,7 +305,7 @@ function SuitsTab() {
   const cap = backpackCap()
   const suitParts = SKILLS.filter((s) => player.skills[s].suit > 0).map((s) => `${SKILL_INFO[s].name} L${player.skills[s].suit} +${suitBag(player.skills[s].suit)}`)
   const extras: string[] = []
-  if (player.bigBagUntil > Date.now()) extras.push('Big Backpack +100')
+  if (player.bigBagUntil > Date.now()) extras.push('Big Backpack +1000')
   if ((player.guild?.bonuses.bagBonus ?? 0) > 0) extras.push(`Loot Luck +${player.guild?.bonuses.bagBonus}`)
   const vipPct = vipBagPct(player.vip)
   const capText = [`${SUIT_CAP[0]} base`, ...suitParts, ...extras].join('  •  ') + (vipPct > 0 ? `   x${(1 + vipPct).toFixed(2)} from VIP ${player.vip}` : '')
@@ -1101,7 +1101,7 @@ export function ForgePanel() {
 const SHOP_ITEMS = [
   { name: 'RATION', desc: '+50% gather', icon: 'images/icons/meat.png', price: 5, coins: 250, craft: { jerky: 20 } as Partial<Record<Material, number>>, boost: 'ration' as const },
   { name: 'LUCKY TOOLS', desc: '2x click drops', icon: 'images/icons/lumberjack.png', price: 8, coins: 400, craft: { bonedust: 20 } as Partial<Record<Material, number>>, boost: 'lucky' as const },
-  { name: 'BIG BACKPACK', desc: '+100 capacity', icon: 'images/icons/backpack.png', price: 20, coins: 750, craft: { plank: 15, brick: 15 } as Partial<Record<Material, number>>, boost: 'bigBag' as const }
+  { name: 'BIG BACKPACK', desc: '+1000 capacity', icon: 'images/icons/backpack.png', price: 20, coins: 750, craft: { plank: 15, brick: 15 } as Partial<Record<Material, number>>, boost: 'bigBag' as const }
 ]
 
 /** The boost currently running, if any (only one can be active at a time). */
@@ -1694,8 +1694,8 @@ function BerryShop() {
               <Panel key={it.name} flat color={isActive ? C.yellow : C.paper} uiTransform={{ width: S(540), height: S(820), alignItems: 'center', padding: S(26), margin: { left: S(15), right: S(15) } }}>
                 <Icon src={it.icon} size={S(170)} />
                 <OutlinedText value={it.name} size={S(38)} uiTransform={{ margin: { top: S(10) } }} />
-                <Text value={isActive ? `ACTIVE  •  ${timeLeft} left` : `${it.desc} for ${boostMinutes()} min`} size={S(28)} color={isActive ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(38), margin: { top: S(4) } }} />
-                <Text value={!isActive && boostMinutes() > 10 ? 'Extended by guild Quartermaster' : ' '} size={S(22)} color={C.greenDark} nowrap uiTransform={{ height: S(30) }} />
+                <Text value={isActive ? `ACTIVE  •  ${timeLeft} left` : `${it.desc} for ${fmtMinutes(boostMinutes(it.boost))}`} size={S(28)} color={isActive ? C.greenDark : C.textMuted} nowrap uiTransform={{ height: S(38), margin: { top: S(4) } }} />
+                <Text value={!isActive && boostMinutes(it.boost) > boostBaseMinutes(it.boost) ? 'Extended by guild Quartermaster' : ' '} size={S(22)} color={C.greenDark} nowrap uiTransform={{ height: S(30) }} />
                 <Spacer />
                 <Text value="BUY WITH BERRIES + COINS" size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30), margin: { bottom: S(6) } }} />
                 <Button

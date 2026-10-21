@@ -490,10 +490,12 @@ export function suitBag(level: number): number {
   return level > 0 ? SUIT_CAP[level] : 0
 }
 
-/** Flat backpack: base 500 + every equipped suit's bag + Big Backpack boost + guild Loot Luck. */
+/** Big Backpack boost: +1000 for two hours (server AFK_BIG_BAG_CAP / AFK_BOOSTS.bigBag). */
+export const BIG_BAG_CAP = 1000
+/** Flat backpack: base 1500 + every equipped suit's bag + Big Backpack boost + guild Loot Luck. */
 export function backpackFlatCap(): number {
   const suits = SKILLS.reduce((total, s) => total + suitBag(player.skills[s].suit), 0)
-  return SUIT_CAP[0] + suits + (player.bigBagUntil > Date.now() ? 100 : 0) + (player.guild?.bonuses.bagBonus ?? 0)
+  return SUIT_CAP[0] + suits + (player.bigBagUntil > Date.now() ? BIG_BAG_CAP : 0) + (player.guild?.bonuses.bagBonus ?? 0)
 }
 
 /** One shared backpack: the flat cap plus the VIP bag perk. Tools only affect yield (mirrors the server's afkBackpackCapacity). */
@@ -537,9 +539,17 @@ export function craftSecs(): number {
   return Math.max(CRAFT_SECS * 0.1, CRAFT_SECS * (1 - craftPct))
 }
 
-/** Boost duration in minutes after the guild Quartermaster bonus (base 10 minutes). */
-export function boostMinutes(): number {
-  return Math.round(10 * (1 + (player.guild?.bonuses.boostDurationPct ?? 0)))
+/** Base boost duration in minutes (server AFK_BOOSTS durationMs): 10, the Big Backpack 120. */
+export const boostBaseMinutes = (boost: Boost): number => (boost === 'bigBag' ? 120 : 10)
+/** Boost duration in minutes after the guild Quartermaster bonus. */
+export function boostMinutes(boost: Boost = 'ration'): number {
+  return Math.round(boostBaseMinutes(boost) * (1 + (player.guild?.bonuses.boostDurationPct ?? 0)))
+}
+/** "45 min" / "2 h" / "2 h 24 min". */
+export function fmtMinutes(min: number): string {
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60), m = min % 60
+  return m > 0 ? `${h} h ${m} min` : `${h} h`
 }
 
 export function activeClickAmount(base: number): number {

@@ -136,7 +136,7 @@ export function Hud() {
           {/* Berries live in the Berry Shop; the one active boost takes their old slot so it is never hidden */}
           {player.rationUntil > Date.now() ? <BoostPill icon="images/icons/jerky.png" label="+50% GATHER" until={player.rationUntil} color={C.orange} /> : null}
           {player.luckyUntil > Date.now() ? <BoostPill icon="images/icons/lumberjack.png" label="2x CLICKS" until={player.luckyUntil} color={C.green} /> : null}
-          {player.bigBagUntil > Date.now() ? <BoostPill icon="images/icons/backpack.png" label="+100 CAPACITY" until={player.bigBagUntil} color={C.blue} /> : null}
+          {player.bigBagUntil > Date.now() ? <BoostPill icon="images/icons/backpack.png" label="+1000 CAPACITY" until={player.bigBagUntil} color={C.blue} /> : null}
         </UiEntity>
       )}
 
