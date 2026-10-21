@@ -88,7 +88,7 @@ Players move by clicking a building (the building is the button; a gold ring and
 - Walk time scales with distance (2026-10-17). `walkMs` (7.5 s) is the time for your camp → Citadel; the near corner on your side is ~3 s (floor 3 s), the far corners ~12–14.5 s. `homeMs` (5 s) is the same reference for walking home. Each side's reference is its own camp → Citadel distance, so both sides reach the Citadel in `walkMs`. Server geometry: `STAND` / `CAMP` in `afkRaid.js` mirror the client's `FIELD[*].stand` / `CAMP`.
 - Walking fighters cannot be hit and cannot score. Re-clicking retargets from wherever you are on the path (the server stores `fromX/fromY/departAt` per leg; the client interpolates from them).
 - Arrive → you are **in** the building until you click elsewhere or your HP hits 0.
-- HP 0 → **knocked out**: carried from where you fell back to camp over **20 s** (÷ Recovery), revive at full HP on arrival and **walk straight back to the building you last picked** (a click meanwhile overrides it; going HOME by choice clears it). The body shows `BACK IN n s` and the header says `YOU'RE DOWN • BACK IN n s`. Retreating to heal is a legitimate play and cheaper than dying.
+- HP 0 → **knocked out**: carried from where you fell back to camp over **10 s** (÷ Recovery; was 20 s until 2026-10-20), revive at full HP on arrival and **walk straight back to the building you last picked** (a click meanwhile overrides it; going HOME by choice clears it). The body shows `BACK IN n s` and the header says `YOU'RE DOWN • BACK IN n s`. Retreating to heal is a legitimate play and cheaper than dying.
 - No HP regen anywhere except camp.
 
 Every 3 s (`tickMs`) the server runs a tick, in this order:
