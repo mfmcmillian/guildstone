@@ -103,9 +103,11 @@ const CAMP: Record<SideId, [number, number]> = { a: [19, 52], b: [80, 52] }
 // Guild War day (mirrors the server): both guilds spawn and respawn at a neutral mid-field spot, and the two camps
 // are shared hospitals you can walk to (full heal on arrival). West camp open from the start, east camp at hour one.
 const SPAWN: [number, number] = [49.5, 54]
-const CAMP_FIELD: Record<CampId, { label: [number, number]; stand: [number, number]; hit: [number, number, number, number] }> = {
-  camp1: { label: [19, 38], stand: CAMP.a, hit: [19, 48, 260, 240] },
-  camp2: { label: [80, 38], stand: CAMP.b, hit: [80, 48, 260, 240] }
+// `hit` is the Storm's own-camp tap box (in front of the tent, where the fighters stand); `glow` is the war's: the
+// tent and palisade themselves, outlined like the buildings (guildstone.dev img/raid/glow_camp*_v1.png is cut to it).
+const CAMP_FIELD: Record<CampId, { label: [number, number]; stand: [number, number]; hit: [number, number, number, number]; glow: [number, number, number, number] }> = {
+  camp1: { label: [19, 38], stand: CAMP.a, hit: [19, 48, 260, 240], glow: [10.8, 47, 300, 320] },
+  camp2: { label: [80, 38], stand: CAMP.b, hit: [80, 48, 260, 240], glow: [89.4, 47, 300, 320] }
 }
 const isWar = (v: RaidView) => !!v.battle?.war
 const spotField = (where: Spot) => (where === 'camp1' || where === 'camp2' ? CAMP_FIELD[where] : FIELD[where])
@@ -731,8 +733,8 @@ function HomeHit(props: { v: RaidView; side: SideId; me: Fighter }) {
 /** The building is the button: hover lights it, click walks there. Only rendered for a fighter who can move. */
 function HitArea(props: { key?: string; v: RaidView; point: Spot; me: Fighter }) {
   const { v, point, me } = props
-  const [cx, cy, w, h] = spotField(point).hit
   const camp = point === 'camp1' || point === 'camp2'
+  const [cx, cy, w, h] = camp ? CAMP_FIELD[point].glow : FIELD[point].hit
   const here = me.state === 'in' && me.at === point
   const heading = me.state === 'walk' && me.target === point
   const hovered = hoverPoint === point && !here
@@ -755,10 +757,8 @@ function HitArea(props: { key?: string; v: RaidView; point: Spot; me: Fighter })
         requestGo(point, from, walkMs(v, v.mine, from, point, me.speed))
       }}
     >
-      {color && camp ? (
-        <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: S(w), height: S(h), pointerFilter: 'none' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(color.r, color.g, color.b, color.a * 0.35) }} />
-      ) : color ? (
-        // Building-shaped halo: a white mask cut from the battlefield art, tinted. Does not take the pointer, so the hit box above stays the target.
+      {color ? (
+        // Building-shaped halo (the war's camps too): a white mask cut from the battlefield art, tinted. Does not take the pointer, so the hit box above stays the target.
         <UiEntity
           uiTransform={{ positionType: 'absolute', position: { left: -S(GLOW_PAD), top: -S(GLOW_PAD) }, width: S(w + GLOW_PAD * 2), height: S(h + GLOW_PAD * 2), pointerFilter: 'none' }}
           uiBackground={{ textureMode: 'stretch', texture: { src: `${ART}/glow_${point}_v1.png` }, color }}
