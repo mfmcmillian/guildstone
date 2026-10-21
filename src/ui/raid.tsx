@@ -848,7 +848,7 @@ function Header(props: { v: RaidView }) {
   const down = v.status === 'live' && me !== null && me.state === 'ko'
   // While gathering the LobbyCard over the field already carries the title and the big countdown, so the centre stays empty.
   const big = v.status === 'gathering' ? ''
-    : v.status === 'live' ? `${left(v.endAt)} LEFT`
+    : v.status === 'live' ? `${isWar(v) ? leftLong(v.endAt) : left(v.endAt)} LEFT`
     : v.status === 'done' ? 'FINAL' : 'CALLED OFF'
   // Urgency: the countdown turns red and pulses through the last minute, faster in the last ten seconds.
   const secs = v.status === 'live' ? (v.endAt - serverNow()) / 1000 : Infinity
