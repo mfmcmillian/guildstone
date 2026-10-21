@@ -517,6 +517,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
   const tint = ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : hit > 0 ? Color4.create(1, 0.45, 0.45, 1) : C.white
   const you = v.you === f.id
   const armour = armourPct(v, side, f)
+  const healing = v.status === 'live' && !isWar(v) && f.state === 'camp' && f.hp < f.hpMax
   const size = S(TOKEN)
   const scale = hitPose ? 1 + hit * 0.05 : p.scale
   const youPulse = you ? pulse(1400) : 0
@@ -543,7 +544,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           uiTransform={{ height: S(26), padding: { left: S(8), right: S(8) }, alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: you ? Color4.create(0.62 + 0.12 * youPulse, 0.4 + 0.14 * youPulse, 1, 1) : DARK }}
         >
-          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : `${you ? 'YOU' : f.name.toUpperCase().slice(0, 8)}${armour > 0 ? `  ${shield(armour)}` : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
+          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : `${you ? 'YOU' : f.name.toUpperCase().slice(0, 8)}${armour > 0 ? `  ${shield(armour)}` : healing ? '  ✚' : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
       <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} scale={scale} color={tint} />
@@ -679,6 +680,39 @@ function CampMarker(props: { key?: string; v: RaidView; camp: CampId }) {
   )
 }
 
+/**
+ * Regular Storm: your own camp is tappable too (the hospital). Same destination as BACK TO CAMP; hover reads HEAL
+ * while you are hurt, HOME otherwise. The enemy camp has no hit box. (The war's shared camps go through HitArea.)
+ */
+function HomeHit(props: { v: RaidView; side: SideId; me: Fighter }) {
+  const { v, side, me } = props
+  const key: CampId = side === 'a' ? 'camp1' : 'camp2'
+  const [cx, cy, w, h] = CAMP_FIELD[key].hit
+  const here = me.state === 'camp'
+  const heading = me.state === 'walk' && (me.target === 'camp' || me.target === null)
+  const hovered = hoverPoint === key && !here
+  const color = hovered ? GLOW_GOLD : heading ? GLOW_HEADING : null
+  return (
+    <UiEntity
+      uiTransform={{ positionType: 'absolute', position: { left: px(cx) - S(w) / 2, top: py(cy) - S(h) / 2 }, width: S(w), height: S(h), alignItems: 'center', justifyContent: 'flex-end' }}
+      onMouseEnter={() => { hoverPoint = key }}
+      onMouseLeave={() => { if (hoverPoint === key) hoverPoint = null }}
+      onMouseDown={() => {
+        if (here || heading) return
+        const from = myDrawnSpot(v, me)
+        requestGo('camp', from, walkMs(v, side, from, 'camp', me.speed))
+      }}
+    >
+      {color ? <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: S(w), height: S(h), pointerFilter: 'none' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(color.r, color.g, color.b, color.a * 0.35) }} /> : null}
+      {hovered ? (
+        <UiEntity uiTransform={{ height: S(40), padding: { left: S(20), right: S(20) }, margin: { bottom: -S(20) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: C.yellow }}>
+          <OutlinedText value={heading ? 'ON YOUR WAY' : me.hp < me.hpMax ? 'HEAL' : 'HOME'} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
+        </UiEntity>
+      ) : null}
+    </UiEntity>
+  )
+}
+
 /** The building is the button: hover lights it, click walks there. Only rendered for a fighter who can move. */
 function HitArea(props: { key?: string; v: RaidView; point: Spot; me: Fighter }) {
   const { v, point, me } = props
@@ -731,6 +765,8 @@ function whereText(v: RaidView, side: SideId, f: Fighter): string {
     const armour = armourPct(v, side, f)
     return `at ${spotName(v, f.at)}${armour > 0 ? `  ·  ${shield(armour)} armour` : ''}`
   }
+  // Storm camps are hospitals: a wounded fighter waiting there mends a little every tick (server CAMP_REGEN_PCT).
+  if (v.status === 'live' && !isWar(v) && f.state === 'camp' && f.hp < f.hpMax) return 'at camp  ·  ✚ healing'
   return v.status === 'live' ? (isWar(v) ? 'at spawn' : 'at camp') : 'ready'
 }
 
@@ -951,6 +987,7 @@ function Field(props: { v: RaidView }) {
         <Floats />
       </UiEntity>
       {canMove ? [...POINT_IDS, ...(isWar(v) ? CAMP_IDS : [])].map((p) => <HitArea key={`hit-${p}`} v={v} point={p} me={me!} />) : null}
+      {canMove && !isWar(v) && v.mine ? <HomeHit v={v} side={v.mine} me={me!} /> : null}
       <Roster v={v} side="a" />
       <Roster v={v} side="b" />
       <Header v={v} />
