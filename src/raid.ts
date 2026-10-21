@@ -137,7 +137,7 @@ export interface BattleInfo {
 
 /** Balance numbers from the server. A raid view carries the snapshot it was called with; `raid.rules` is the current set. */
 export interface RaidRules { tickMs: number; ticks: number; walkMs: number; homeMs: number; koWalkMs: number; sideMax: number; sideMin: number; pickupMin: number; gatherMs: number; raidsPerDay: number; captureTicks: number; test?: boolean }
-const DEFAULT_RULES: RaidRules = { tickMs: 3000, ticks: 80, walkMs: 7500, homeMs: 5000, koWalkMs: 20000, sideMax: 4, sideMin: 2, pickupMin: 4, gatherMs: 120000, raidsPerDay: 5, captureTicks: 2 }
+const DEFAULT_RULES: RaidRules = { tickMs: 3000, ticks: 80, walkMs: 7500, homeMs: 5000, koWalkMs: 10000, sideMax: 4, sideMin: 2, pickupMin: 4, gatherMs: 120000, raidsPerDay: 5, captureTicks: 2 }
 
 export const raid = {
   view: null as RaidView | null,
