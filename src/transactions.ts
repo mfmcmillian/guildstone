@@ -5,6 +5,7 @@ import { profileState } from './playerProfile'
 import { sanitizeAssassinPieces } from './suits'
 import { HEROES, HERO_STAT_LABEL, heroLevel, sanitizeHeroes, sanitizeHeroId, type HeroId, type HeroStat } from './hero'
 import { clampVolume, settings } from './settings'
+import { cleanNameColor, nameColorUnlock, NAME_COLOR_NAMES } from './vip'
 import { social, seedSocial, NICK_MAX } from './social'
 import { setLanguage, t, type Language } from './i18n'
 import type { UiLayout } from './ui/drag'
@@ -1108,6 +1109,42 @@ export function setVolumePref(value: number): boolean {
     }
   })
   return true
+}
+
+/**
+ * VIP name colour picked in the VIP tab (vip.ts NAME_COLORS). Applies this frame; the server checks the colour's
+ * VIP level and the pick reverts with its message if it is still locked. Other players see it on the next board poll.
+ */
+export function setNameColorPref(index: number) {
+  const next = cleanNameColor(index)
+  if (next === settings.nameColor) return
+  if (nameColorUnlock(next) > player.vip) {
+    playErrorSound()
+    flash(`UNLOCKS AT VIP ${nameColorUnlock(next)}`)
+    return
+  }
+  const before = settings.nameColor
+  settings.nameColor = next
+  if (profileState.status !== 'ready' || !profileState.walletAddress || !settings.seeded) return
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/settings`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nameColor: next }) }
+      })
+      if (!response.ok) {
+        let message = `Name colour failed (${response.status})`
+        try { message = (JSON.parse(response.body) as { error?: string }).error ?? message } catch { /* keep default */ }
+        throw new Error(message)
+      }
+      playSuccessSound()
+      flash(next > 0 ? `NAME COLOUR  •  ${NAME_COLOR_NAMES[next].toUpperCase()}` : 'NAME COLOUR  •  DEFAULT')
+    } catch (error) {
+      settings.nameColor = before
+      playErrorSound()
+      flash((error instanceof Error ? error.message : 'Name colour failed').toUpperCase())
+    }
+  })
 }
 
 /**

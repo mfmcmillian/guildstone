@@ -8,7 +8,7 @@ import { playErrorSound, playRareFindSound, playSuccessSound } from './uiSounds'
 import { engine, RealmInfo, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { ui } from './ui/uiState'
 import { activeSkill } from './work'
-import { withVip } from './vip'
+import { cleanNameColor } from './vip'
 import { HEROES, sanitizeHeroId } from './hero'
 import { noteMailSummary } from './mail'
 import { t } from './i18n'
@@ -30,6 +30,7 @@ export interface ChatMessage {
   /** Poster's VIP tier 0..10 (src/vip.ts); on a system line with kind 'vip', the tier the line celebrates. */ vip?: number
   /** Server-written line flavour: 'vip' = a VIP 3+ entrance line (coloured in the tier's colour); 'tool' = a tool rank-up (coloured by `tier`). */ kind?: string
   /** On a 'tool' line, the tool tier reached (its band picks the colour). */ tier?: number
+  /** Poster's VIP name colour 0..10 (vip.ts NAME_COLORS). */ color?: number
   /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean
   /** Wallets named with @Name in the text (server-resolved). */ mentions?: string[]
   /** A private line (`/w`). Received: `from` is the sender, `text` the words. Sent: the server's echo carries `to` / `toName` and the bare words in `body`. */
@@ -78,8 +79,10 @@ export interface OnlinePlayer {
   crafted: number
   /** Relics this wallet forged (profession ids). */
   relics?: string[]
-  /** KoA VIP tier 0..5. */
+  /** VIP tier 0..10. */
   vip?: number
+  /** VIP name colour 0..10 (vip.ts NAME_COLORS). */
+  color?: number
   /** Skill being worked right now ('' when idle). */
   working: string
   active: number
@@ -88,7 +91,7 @@ export interface OnlinePlayer {
 }
 export interface GuildInvite { guildId: string; tag: string; name: string; byName: string; at: number }
 
-export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number; relics?: string[]; vip?: number; hero?: string; heroLevel?: number; raid?: RaidTally }
+export interface BoardPlayer { address: string; name: string; guild: string; level: number[]; xp: number[]; suit: number[]; crafted: number; coins: number; relics?: string[]; vip?: number; color?: number; hero?: string; heroLevel?: number; raid?: RaidTally }
 /** Lifetime Storm record kept on the profile by the server: wins, losses, draws, KOs (valor is internal). */
 export interface RaidTally { valor: number; raids: number; wins: number; losses: number; draws: number; kos: number }
 /** Who forged the Guildstone Crown (one ever). */
@@ -579,7 +582,8 @@ export const BOARD_TITLE: Record<BoardId, string> = {
   weekly: 'GUILD POINTS  •  this week (resets Monday 00:00 UTC)'
 }
 
-export interface BoardRow { key: string; name: string; tag: string; value: string; mine: boolean }
+/** `vip` / `color` only on player boards: the row draws the `[VIP n]` tag in its tier colour and the name in its picked colour. */
+export interface BoardRow { key: string; name: string; tag: string; value: string; mine: boolean; vip?: number; color?: number }
 
 /** What an empty board says. Player boards hide zero rows, so STORM is empty until the first ranked Storm ends. */
 export function boardEmptyText(id: BoardId): string {
@@ -612,7 +616,19 @@ export function boardRows(id: BoardId, limit = 15): BoardRow[] {
     .filter((p) => value(p) > 0)
     .sort((a, b) => value(b) - value(a) || tie(a, b))
     .slice(0, limit)
-    .map((p) => ({ key: p.address, name: withVip(labelFor(p.address, p.name), p.vip), tag: tagOf[p.guild] ?? '', value: show(p), mine: p.address === me }))
+    .map((p) => ({ key: p.address, name: labelFor(p.address, p.name), tag: tagOf[p.guild] ?? '', value: show(p), mine: p.address === me, vip: p.vip, color: nameColorIndexOf(p.address, p.color) }))
+}
+
+/**
+ * A player's picked VIP name colour (0 = none): my own comes from settings so a pick shows at once; others from
+ * the board, or the online list when the board has not loaded yet.
+ */
+export function nameColorIndexOf(address: string, known?: number): number {
+  const a = address.toLowerCase()
+  if (a === profileState.walletAddress) return settings.nameColor
+  if (known !== undefined) return cleanNameColor(known)
+  const p = lobby.board.players.find((x) => x.address === a) ?? lobby.online.find((x) => x.address === a)
+  return cleanNameColor(p?.color)
 }
 
 const n0 = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0))

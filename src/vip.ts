@@ -38,6 +38,27 @@ export const vipName = (level: number | undefined): string => VIP_NAMES[cleanVip
 export const vipColor = (level: number | undefined, onLight = false): Color4 => (onLight ? VIP_COLORS_DARK : VIP_COLORS)[cleanVip(level)]
 export const vipGatherPct = (level: number | undefined): number => VIP_GATHER_PCT[cleanVip(level)]
 export const vipBagPct = (level: number | undefined): number => VIP_BAG_PCT[cleanVip(level)]
+// --- Name colours -------------------------------------------------------------------------------------------------
+// A VIP perk: colour n unlocks at VIP n and paints the player's name (and their chat lines) everywhere names show.
+// Index 0 is the default (no colour). Picked in the VIP tab, saved as settings.nameColor; the server rejects a locked
+// colour and reports a lapsed one as 0, so the ring never has to clean up after a tier drop.
+export const NAME_COLOR_MAX = 10
+export const NAME_COLOR_NAMES = ['Default', 'Sky', 'Mint', 'Rose', 'Amber', 'Lilac', 'Coral', 'Teal', 'Crimson', 'Ice', 'Radiant']
+const NAME_HEX = ['#ffffff', '#7ec8ff', '#7ef0b0', '#ff8fb3', '#ffc46b', '#c9a0ff', '#ff8a65', '#5fe3d3', '#ff5c5c', '#dff6ff', '#fff3a0']
+const NAME_HEX_DARK = ['#1b2436', '#1f6fd0', '#1fa35c', '#c2278f', '#b87a00', '#8a3ff2', '#d9480f', '#0f9e8e', '#d62828', '#4a7fa8', '#9a7a00']
+export const NAME_COLORS = NAME_HEX.map((h) => Color4.fromHexString(`${h}ff`))
+export const NAME_COLORS_DARK = NAME_HEX_DARK.map((h) => Color4.fromHexString(`${h}ff`))
+export const cleanNameColor = (v: unknown): number => {
+  const n = Math.floor(Number(v))
+  return Number.isFinite(n) ? Math.max(0, Math.min(NAME_COLOR_MAX, n)) : 0
+}
+/** The VIP level a colour needs (colour n = VIP n). */
+export const nameColorUnlock = (index: number): number => cleanNameColor(index)
+/** Colour for a picked index, or null for the default so callers keep their own fallback. */
+export const nameColorOf = (index: number | undefined, onLight = false): Color4 | null => {
+  const i = cleanNameColor(index)
+  return i > 0 ? (onLight ? NAME_COLORS_DARK : NAME_COLORS)[i] : null
+}
 /** `[VIP 3]` for VIP 3, '' for Bronze (level 0) so most names stay clean. */
 export const vipTag = (level: number | undefined): string => (cleanVip(level) > 0 ? `[VIP ${cleanVip(level)}]` : '')
 /** Name with its VIP tag in front: `[VIP 3] Fable`. For single-string places (chat lines, leaderboard rows). */

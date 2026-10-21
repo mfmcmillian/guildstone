@@ -5,6 +5,7 @@
  */
 import { isLanguage, setLanguage, type Language } from './i18n'
 import { seedSocial, type SocialSettings } from './social'
+import { cleanNameColor } from './vip'
 
 export const settings = {
   /**
@@ -18,6 +19,8 @@ export const settings = {
    * is multiplied by it, so the mix between clips stays as authored. Default half: the clips were too loud at 1.
    */
   volume: 0.5,
+  /** VIP name colour 0..10 (vip.ts NAME_COLORS; 0 = default). Colour n unlocks at VIP n. */
+  nameColor: 0,
   /** True once the profile's settings have been read, so a save never races the load. */
   seeded: false,
   /** False until the profile said which UI language to use (or confirmed it never chose one). */
@@ -37,6 +40,8 @@ export interface ProfileSettings extends SocialSettings {
   alerts?: boolean
   /** Master sound volume 0..1 (see `settings.volume`). Unset = default. */
   volume?: number
+  /** VIP name colour 0..10. */
+  nameColor?: number
   /** UI language (i18n.ts). Unset = never chose one: the ring then adopts the KoA choice if there is one. */
   language?: string
   chatLanguage?: string
@@ -47,6 +52,7 @@ export interface ProfileSettings extends SocialSettings {
 export function seedSettings(raw: ProfileSettings | undefined): boolean {
   settings.alerts = raw?.alerts !== false
   settings.volume = clampVolume(raw?.volume)
+  settings.nameColor = cleanNameColor(raw?.nameColor)
   settings.seeded = true
   seedSocial(raw)
   const chosen = isLanguage(raw?.language)
