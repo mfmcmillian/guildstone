@@ -514,6 +514,16 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
   const holder = v.held[point]
   const width = S(480)
   let line2: ReactEcs.JSX.Element
+  // Capture under way: one side stands alone at a building it does not hold. The server counts whole ticks
+  // (cap.n of rules.captureTicks); the bar fills through the current tick too so it moves instead of stepping.
+  let capture = 0
+  if ((a.length > 0) !== (b.length > 0) && holder !== (a.length > 0 ? 'a' : 'b')) {
+    const side: SideId = a.length > 0 ? 'a' : 'b'
+    const done = v.cap[point]?.side === side ? v.cap[point]!.n : 0
+    const tickMs = Math.max(1, v.rules.tickMs)
+    const frac = v.status === 'live' && v.nextTickAt > 0 ? Math.max(0, Math.min(1, 1 - (v.nextTickAt - serverNow()) / tickMs)) : 0
+    capture = Math.max(0.04, Math.min(1, (done + frac) / Math.max(1, v.rules.captureTicks)))
+  }
   if (a.length > 0 && b.length > 0) {
     line2 = (
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -526,7 +536,7 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
     const side: SideId = a.length > 0 ? 'a' : 'b'
     const list = side === 'a' ? a : b
     const names = list.slice(0, 2).map((f) => f.name.split(' ')[0]).join(', ') + (list.length > 2 ? ` +${list.length - 2}` : '')
-    const taking = holder !== side ? `  ·  taking ${v.cap[point]?.side === side ? v.cap[point]!.n : 0}/${v.rules.captureTicks}` : ''
+    const taking = holder !== side ? '  ·  taking' : ''
     line2 = <Text value={`${sideTag(v.sides[side], v.mode)} · ${names}${taking}`} size={S(22)} color={sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   } else if (holder) {
     line2 = <Text value={`${sideTag(v.sides[holder], v.mode)} · held`} size={S(22)} color={sideColor(holder)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
@@ -548,6 +558,18 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
       >
         {line2}
       </UiEntity>
+      {capture > 0 ? (
+        // Capture bar: fills green while the attackers stand alone; the flag flips when it completes.
+        <UiEntity
+          uiTransform={{ width: S(220), height: S(14), margin: { top: S(4) }, flexDirection: 'row' }}
+          uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}
+        >
+          <UiEntity
+            uiTransform={{ width: `${Math.round(capture * 100)}%`, height: '100%' }}
+            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: C.green }}
+          />
+        </UiEntity>
+      ) : null}
     </UiEntity>
   )
 }
