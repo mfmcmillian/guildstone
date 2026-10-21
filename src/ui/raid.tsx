@@ -1338,7 +1338,8 @@ function WarCard() {
     rows.push(line(b.allDay ? `Fight any time ${b.when}` : `Be on WAR at ${b.when}`, MUTED, 20, 'wr-4'))
     rows.push(line(`Open from the first minute  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
   } else {
-    rows.push(line(`${b.allDay ? 'WAR DAY' : 'WAR NIGHT'}  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
+    rows.push(line(b.mini ? `MINI WAR  •  until ${b.endWhen}` : `${b.allDay ? 'WAR DAY' : 'WAR NIGHT'}  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
+    if (b.mini && b.mainWhen) rows.push(line(`The full war follows ${b.mainWhen}`, MUTED, 20, 'wr-main'))
     if (b.signedUp && b.raidId) {
       // Same style as ENTER THE STORM: one tap puts you on the shared field with every other signed-up guild.
       rows.push(<Button key="wr-enter" label="ENTER THE GUILD WAR" color={raid.busy ? C.gray : C.gold} textColor={raid.busy ? C.textMuted : C.white} disabled={raid.busy} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => { arenaOpen = true; requestJoinRaid('battle') }} />)
@@ -1348,7 +1349,7 @@ function WarCard() {
     else rows.push(line('No guild signed up this week.', PALE, 22, 'wr-2'))
   }
   return (
-    <IdleCard title="GUILD WAR" sub={b.when ?? ''} color={C.gold}>
+    <IdleCard title="GUILD WAR" sub={b.mini ? 'Mini war' : b.when ?? ''} color={C.gold}>
       {rows}
       <Spacer />
       {line(`Top guild banks ${rewardText(b.reward!.win)} each  •  every signed-up guild, one field`, MUTED, 20, 'wr-prize')}

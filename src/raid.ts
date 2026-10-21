@@ -166,6 +166,9 @@ export interface BattleInfo {
   signedUp?: boolean
   signups?: { tag: string; name: string }[]
   /** Set once the window opens: the week's raid, its status, the winner and every guild's score when it is over. */
+  /** A one-off extra window is running: the card shows it, with the weekly war's date as `mainWhen`. */
+  mini?: boolean
+  mainWhen?: string
   raidId?: string
   status?: 'scheduled' | 'live' | 'done' | 'cancelled'
   winnerTag?: string
