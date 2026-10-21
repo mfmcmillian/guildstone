@@ -943,6 +943,8 @@ function ActionRow(props: { v: RaidView }) {
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}
       {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(250), ...btn }} onClick={() => stopSpectating()} /> : null}
+      {/* Guild War: back to the WAR menu without leaving the war (your fighter stays on the field) - the Storm is on that menu too. */}
+      {me && isWar(v) && v.status === 'live' && !raid.spectating ? <Button label="◀  WAR MENU" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => { menuWanted = true }} /> : null}
     </UiEntity>
   )
 }
@@ -1431,6 +1433,10 @@ const LOGO_H = Math.round(LOGO_W * (538 / 867))
  * ENTER THE WAR (auto-joins) or WATCH; LEAVE brings the menu back. Spectating always shows the field.
  */
 let arenaOpen = false
+/** A war fighter asked for the WAR menu (to enter a Storm instead, or just to read it); BACK TO THE FIELD clears it. */
+let menuWanted = false
+/** The WAR menu covers a live war when: not yet entered (arenaOpen) or, once in it, asked for (menuWanted). Spectating always shows the field. */
+const menuOverLiveWar = (v: RaidView): boolean => isWar(v) && v.status === 'live' && !raid.spectating && (v.you ? menuWanted : !arenaOpen)
 const IDLE_W = 780
 const IDLE_H = 420
 const IDLE_GAP = 30
@@ -1519,7 +1525,12 @@ function WarCard() {
   } else {
     rows.push(line(b.mini ? `MINI WAR  •  until ${b.endWhen}` : `${b.allDay ? 'WAR DAY' : 'WAR NIGHT'}  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
     if (b.mini && b.mainWhen) rows.push(line(`The full war follows ${b.mainWhen}`, MUTED, 20, 'wr-main'))
-    if (b.signedUp && b.raidId) {
+    const inWar = raid.view !== null && isWar(raid.view) && raid.view.status === 'live' && !!raid.view.you
+    if (inWar) {
+      // Already on the field (WAR MENU brought the menu up): straight back, no request.
+      rows.push(<Button key="wr-back" label="BACK TO THE FIELD" color={C.gold} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => { menuWanted = false; arenaOpen = true }} />)
+      rows.push(line('Your fighter stays on the field, fighting where you left them', PALE, 20, 'wr-2'))
+    } else if (b.signedUp && b.raidId) {
       // Same style as ENTER THE STORM: one tap puts you on the shared field with every other signed-up guild.
       rows.push(<Button key="wr-enter" label="ENTER THE GUILD WAR" color={raid.busy ? C.gray : C.gold} textColor={raid.busy ? C.textMuted : C.white} disabled={raid.busy} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => { arenaOpen = true; requestJoinRaid('battle') }} />)
       rows.push(line(`${n} guild${n === 1 ? '' : 's'} on one field:   ${tags}`, PALE, 22, 'wr-2'))
@@ -1569,7 +1580,7 @@ export function WarTab(props: { height: number }) {
   const showResult = v !== null && (v.status === 'done' || v.status === 'cancelled') && dismissedResult !== v.id
   // Day-long war: the guild's raid is the view all day, but the menu stays up until ENTER THE GUILD WAR (or WATCH).
   if (v === null) arenaOpen = false
-  const menuOverWar = v !== null && !!v.battle?.war && v.status === 'live' && !v.you && !arenaOpen && !raid.spectating
+  const menuOverWar = v !== null && menuOverLiveWar(v)
   // LEAVE mid-Storm: the DEFEAT screen over my last view of it, whatever the server now shows, until BACK TO LOBBY.
   const conceded = raid.conceded
   if (conceded) {
@@ -1620,7 +1631,7 @@ export function WarTab(props: { height: number }) {
 function warStripOn(): boolean {
   const v = raid.view
   if (v === null || raid.conceded || !isWar(v) || v.status !== 'live') return false
-  return !!v.you || !!raid.spectating || arenaOpen
+  return !menuOverLiveWar(v)
 }
 export function WarScreen(props: { title: string; onBack: () => void; onClose: () => void }) {
   // Guild War field: the window grows by the spawn strip under the map.
