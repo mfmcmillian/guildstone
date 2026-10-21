@@ -674,20 +674,21 @@ function Marker(props: { key?: string; v: RaidView; point: Spot }) {
 }
 
 /**
- * Regular Storm: your own camp is tappable too (the hospital). Same destination as BACK TO CAMP; hover reads HEAL
- * while you are hurt, HOME otherwise. The enemy camp has no hit box. (The war's shared camps go through HitArea.)
+ * Regular Storm: your own camp is tappable too (the hospital). Same destination as BACK TO CAMP. Lights up with the
+ * same building-shaped halo as the war camps (hover gold, heading blue); no label pill, the halo is the whole hint.
+ * The enemy camp has no hit box. (The war's shared camps go through HitArea.)
  */
 function HomeHit(props: { v: RaidView; side: SideId; me: Fighter }) {
   const { v, side, me } = props
   const key: CampId = side === 'a' ? 'camp1' : 'camp2'
-  const [cx, cy, w, h] = CAMP_FIELD[key].hit
+  const [cx, cy, w, h] = CAMP_FIELD[key].glow
   const here = me.state === 'camp'
   const heading = me.state === 'walk' && (me.target === 'camp' || me.target === null)
   const hovered = hoverPoint === key && !here
   const color = hovered ? GLOW_GOLD : heading ? GLOW_HEADING : null
   return (
     <UiEntity
-      uiTransform={{ positionType: 'absolute', position: { left: px(cx) - S(w) / 2, top: py(cy) - S(h) / 2 }, width: S(w), height: S(h), alignItems: 'center', justifyContent: 'flex-end' }}
+      uiTransform={{ positionType: 'absolute', position: { left: px(cx) - S(w) / 2, top: py(cy) - S(h) / 2 }, width: S(w), height: S(h) }}
       onMouseEnter={() => { hoverPoint = key }}
       onMouseLeave={() => { if (hoverPoint === key) hoverPoint = null }}
       onMouseDown={() => {
@@ -696,11 +697,11 @@ function HomeHit(props: { v: RaidView; side: SideId; me: Fighter }) {
         requestGo('camp', from, walkMs(v, side, from, 'camp', me.speed))
       }}
     >
-      {color ? <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: S(w), height: S(h), pointerFilter: 'none' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(color.r, color.g, color.b, color.a * 0.35) }} /> : null}
-      {hovered ? (
-        <UiEntity uiTransform={{ height: S(40), padding: { left: S(20), right: S(20) }, margin: { bottom: -S(20) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: C.yellow }}>
-          <OutlinedText value={heading ? 'ON YOUR WAY' : me.hp < me.hpMax ? 'HEAL' : 'HOME'} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
-        </UiEntity>
+      {color ? (
+        <UiEntity
+          uiTransform={{ positionType: 'absolute', position: { left: -S(GLOW_PAD), top: -S(GLOW_PAD) }, width: S(w + GLOW_PAD * 2), height: S(h + GLOW_PAD * 2), pointerFilter: 'none' }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: `${ART}/glow_${key}_v1.png` }, color }}
+        />
       ) : null}
     </UiEntity>
   )
@@ -740,7 +741,8 @@ function HitArea(props: { key?: string; v: RaidView; point: Spot; me: Fighter })
           uiBackground={{ textureMode: 'stretch', texture: { src: `${ART}/glow_${point}_v1.png` }, color }}
         />
       ) : null}
-      {hovered ? (
+      {hovered && isWar(v) ? (
+        // War only: the pill says LOCKED on a flag that has not opened yet. The regular Storm has nothing to say, the halo is the hint.
         <UiEntity uiTransform={{ height: S(40), padding: { left: S(20), right: S(20) }, margin: { bottom: -S(20) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: C.yellow }}>
           <OutlinedText value={heading ? 'ON YOUR WAY' : locked ? 'LOCKED' : 'GO'} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
         </UiEntity>
