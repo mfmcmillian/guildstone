@@ -30,14 +30,11 @@ import {
   toolPct,
   toolYieldPct,
   toolRarePct,
-  toolLadderTier,
   toolForgeMs,
   toolForging,
   haveOf,
   ToolCostKey,
   TOOL_NAME,
-  TOOL_RANKS,
-  toolBand,
   toolTitle,
   TOOL_MAX,
   TOOL_BAND,
@@ -1001,16 +998,17 @@ export function WorkshopPanel() {
 }
 
 // ---------------------------------------------------------------- FORGE
-export function Need(props: { key?: string; item: ItemId | 'coins'; have: number; need: number }) {
+export function Need(props: { key?: string; item: ItemId | 'coins'; have: number; need: number; big?: boolean }) {
   const ok = props.have >= props.need
+  const row = props.big ? 58 : 50
   return (
     <UiEntity
-      uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(50), margin: { bottom: S(4) } }}
+      uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(row), margin: { bottom: S(4) } }}
       onMouseEnter={() => { costHint = itemSource(props.item) }}
       onMouseLeave={() => { if (costHint === itemSource(props.item)) costHint = null }}
     >
-      <Icon src={RESOURCE_INFO[props.item === 'coins' ? 'coin' : props.item].icon} size={S(44)} />
-      <Text value={`${props.have}/${props.need}`} size={S(26)} color={ok ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(50), margin: { left: S(8) } }} />
+      <Icon src={RESOURCE_INFO[props.item === 'coins' ? 'coin' : props.item].icon} size={S(props.big ? 52 : 44)} />
+      <Text value={`${props.have}/${props.need}`} size={S(props.big ? 32 : 26)} color={ok ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(row), margin: { left: S(10) } }} />
     </UiEntity>
   )
 }
@@ -1021,8 +1019,9 @@ export function ForgePanel() {
   return (
     <Modal title="TOOL BENCH" color={C.blue} {...bigFrame(fit, 'TOOL BENCH', 'forge')} onClose={closePanel}>
       <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center' }}>
-        <Text value={costHint ?? '20 tiers per tool, in five bands: each band is paid in one rung of the ladder (base, then Tier 1 … Tier 4) plus coins. +10% yield a tier for the first five, +5% after; from tier 5 rare drops in that zone also come 5% faster per tier.'} size={S(26)} color={costHint ? C.gold : C.textMuted} nowrap />
-        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(20) } }}>
+        {/* One line up top: the hovered material's source, else a short pointer. The long rules text lives in the guide. */}
+        <Text value={costHint ?? 'Better tools gather more. Hover a material to see where it comes from.'} size={S(28)} color={costHint ? C.gold : C.textMuted} nowrap uiTransform={{ height: S(36) }} />
+        <UiEntity uiTransform={{ flexDirection: 'row', justifyContent: 'center', margin: { top: S(16) } }}>
           {SKILLS.map((s) => {
             const st = player.skills[s]
             const tier = player.tools[s]
@@ -1032,9 +1031,13 @@ export function ForgePanel() {
             const forgeMs = cost ? toolForgeMs(tier + 1) : 0
             // Cosmetic rank: the frame, title and pips take the band's colour (Iron grey … Eldritch green). Tier 20 gets a star.
             const rankColor = tier > 0 ? toolRankColor(tier, true) : skillColor(s)
-            const nextRank = cost && toolBand(tier + 1) !== toolBand(tier) ? TOOL_RANKS[toolBand(tier + 1)] : null
+            // Card is 410 wide (366 inside): every line below is short enough for that at its size, so nothing wraps or spills.
+            const yieldNow = Math.round(toolPct(s) * 100)
+            const yieldNext = Math.round(toolYieldPct(tier + 1) * 100)
+            const rareNow = Math.round(toolRarePct(tier) * 100)
+            const rareNext = Math.round(toolRarePct(tier + 1) * 100)
             return (
-              <Panel key={s} flat color={C.paper2} uiTransform={{ width: S(410), height: S(900), alignItems: 'center', padding: S(22), margin: { left: S(10), right: S(10) } }}>
+              <Panel key={s} flat color={C.paper2} uiTransform={{ width: S(410), height: S(960), alignItems: 'center', padding: S(22), margin: { left: S(10), right: S(10) } }}>
                 <UiEntity
                   uiTransform={{ width: S(150), height: S(150), alignItems: 'center', justifyContent: 'center' }}
                   uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: rankColor }}
@@ -1042,12 +1045,11 @@ export function ForgePanel() {
                   <Icon src={SKILL_ICON[s]} size={S(120)} />
                 </UiEntity>
                 <OutlinedText value={`${tier >= TOOL_MAX ? '★ ' : ''}${toolTitle(s, tier).toUpperCase()}`} size={S(32)} color={tier > 0 ? rankColor : C.white} uiTransform={{ margin: { top: S(12) } }} />
-                <OutlinedText value={forge ? `MASTERWORKING  T${forge.tier}` : cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(36)} color={C.gold} />
-                <Text value={cost ? `Band ${toolLadderTier(tier + 1) + 1} of 5  •  paid in ${toolLadderTier(tier + 1) === 0 ? 'base materials' : `${LADDER[s][toolLadderTier(tier + 1)][1]} (Tier ${toolLadderTier(tier + 1)})`}` : 'Every band complete'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(26) }} />
+                <OutlinedText value={forge ? `FORGING  T${forge.tier}` : cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(44)} color={C.gold} />
                 {/* 20 pips in five bands of four, each band lit in its rank colour */}
                 <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6) } }}>
                   {[0, 1, 2, 3, 4].map((band) => (
-                    <UiEntity key={`band-${band}`} uiTransform={{ flexDirection: 'row', margin: { left: S(5), right: S(5) } }}>
+                    <UiEntity key={`band-${band}`} uiTransform={{ flexDirection: 'row', margin: { left: S(4), right: S(4) } }}>
                       {[1, 2, 3, 4].map((i) => {
                         const lv = band * TOOL_BAND + i
                         return (
@@ -1061,38 +1063,30 @@ export function ForgePanel() {
                     </UiEntity>
                   ))}
                 </UiEntity>
-                {nextRank ? <Text value={`Next tier makes it ${nextRank}`} size={S(20)} color={toolRankColor(tier + 1, true)} nowrap uiTransform={{ height: S(26), margin: { top: S(4) } }} /> : null}
-                <Text
-                  value={cost ? `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}% -> +${Math.round(toolYieldPct(tier + 1) * 100)}%${toolRarePct(tier + 1) > 0 ? `  •  rares +${Math.round(toolRarePct(tier) * 100)}% -> +${Math.round(toolRarePct(tier + 1) * 100)}%` : ''}` : `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}%  •  rares +${Math.round(toolRarePct(tier) * 100)}%`}
-                  size={S(24)}
-                  color={C.textMuted}
-                  nowrap
-                  uiTransform={{ height: S(34), margin: { top: S(10) } }}
-                />
+                {/* What the tier buys: yield now -> next, and from tier 5 the rare-drop speed too. */}
+                <Text value={cost ? `YIELD +${yieldNow}% -> +${yieldNext}%` : `YIELD +${yieldNow}%`} size={S(30)} color={C.text} nowrap uiTransform={{ height: S(40), margin: { top: S(12) } }} />
+                {(cost ? rareNext : rareNow) > 0 ? <Text value={cost ? `RARES +${rareNow}% -> +${rareNext}%` : `RARES +${rareNow}%`} size={S(30)} color={C.text} nowrap uiTransform={{ height: S(40) }} /> : null}
                 {forge ? (
-                  <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', margin: { top: S(18) } }}>
-                    <Text value={`${TOOL_NAME[s]} is at the forge. Tier ${forge.tier} lands in`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
-                    <UiEntity uiTransform={{ width: '100%', margin: { top: S(6) } }}>
-                      <Bar value={Math.min(1, Math.max(0, (Date.now() - forge.startedAt) / Math.max(1, forge.endsAt - forge.startedAt)))} color={C.purple} height={S(34)} label={durationText((forge.endsAt - Date.now()) / 1000)} labelSize={S(22)} />
-                    </UiEntity>
+                  <UiEntity uiTransform={{ width: '100%', margin: { top: S(18) } }}>
+                    <Bar value={Math.min(1, Math.max(0, (Date.now() - forge.startedAt) / Math.max(1, forge.endsAt - forge.startedAt)))} color={C.purple} height={S(44)} label={durationText((forge.endsAt - Date.now()) / 1000)} labelSize={S(28)} />
                   </UiEntity>
                 ) : cost ? (
-                  <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-start', margin: { top: S(18) } }}>
-                    {forgeMs > 0 ? <Text value={`Takes ${durationText(forgeMs / 1000)} at the forge`} size={S(22)} color={C.gold} align="middle-left" nowrap uiTransform={{ height: S(30), margin: { bottom: S(4) } }} /> : null}
-                    <Text value="NEEDS" size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30), margin: { bottom: S(4) } }} />
-                    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(50), margin: { bottom: S(4) } }}>
-                      <Icon src={SKILL_ICON[s]} size={S(44)} />
-                      <Text value={`Lv ${st.level}/${cost.level}`} size={S(26)} color={st.level >= cost.level ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(50), margin: { left: S(8) } }} />
+                  <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-start', margin: { top: S(14) } }}>
+                    {forgeMs > 0 ? <Text value={`TAKES  ${durationText(forgeMs / 1000)}`} size={S(28)} color={C.gold} align="middle-left" nowrap uiTransform={{ height: S(36), margin: { bottom: S(2) } }} /> : null}
+                    <Text value="NEEDS" size={S(26)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(34), margin: { bottom: S(2) } }} />
+                    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(58), margin: { bottom: S(4) } }}>
+                      <Icon src={SKILL_ICON[s]} size={S(52)} />
+                      <Text value={`Lv ${st.level}/${cost.level}`} size={S(32)} color={st.level >= cost.level ? C.greenDark : C.red} align="middle-left" nowrap uiTransform={{ width: 'auto', minWidth: S(120), height: S(58), margin: { left: S(10) } }} />
                     </UiEntity>
                     {(Object.keys(cost.cost) as ToolCostKey[]).map((k) => (
-                      <Need key={k} item={k} have={haveOf(k)} need={cost.cost[k] ?? 0} />
+                      <Need key={k} item={k} have={haveOf(k)} need={cost.cost[k] ?? 0} big />
                     ))}
                   </UiEntity>
                 ) : (
-                  <Text value="Fully upgraded" size={S(24)} color={C.greenDark} uiTransform={{ margin: { top: S(18) } }} />
+                  <Text value="FULLY UPGRADED" size={S(30)} color={C.greenDark} nowrap uiTransform={{ height: S(40), margin: { top: S(18) } }} />
                 )}
                 <Spacer />
-                <Button label={forge ? 'AT THE FORGE' : cost ? (forgeMs > 0 ? 'MASTERWORK' : 'CRAFT') : 'MAXED'} color={forgeMs > 0 || forge ? C.purple : C.blue} disabled={!ok} size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => requestTool(s)} />
+                <Button label={forge ? 'AT THE FORGE' : cost ? (forgeMs > 0 ? 'MASTERWORK' : 'CRAFT') : 'MAXED'} color={forgeMs > 0 || forge ? C.purple : C.blue} disabled={!ok} size={S(32)} uiTransform={{ width: S(320), height: S(90) }} onClick={() => requestTool(s)} />
               </Panel>
             )
           })}
