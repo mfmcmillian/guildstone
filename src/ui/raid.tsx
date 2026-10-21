@@ -139,6 +139,7 @@ const backIn = (f: Fighter) => Math.max(0, Math.ceil((f.arriveAt - serverNow()) 
 const hpColor = (f: Fighter) => (f.hp <= 0 ? C.red : f.hp / f.hpMax < 0.3 ? C.red : f.hp / f.hpMax < 0.6 ? C.orange : C.green)
 const left = (until: number) => timerText(until - raid.clockOffset)
 // Long waits (battle window, next queue) read 1:59:30 instead of 119:30.
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th'}`
 const leftLong = (until: number) => { const sec = Math.max(0, Math.ceil((until - raid.clockOffset - Date.now()) / 1000)); return sec < 3600 ? timerText(until - raid.clockOffset) : `${Math.floor(sec / 3600)}:${timerText(Date.now() + (sec % 3600) * 1000).padStart(5, '0')}` }
 
 /**
@@ -153,7 +154,8 @@ function buffOf(def: { armour?: number; attack?: number }): Buff | null {
 }
 /** The bonus a fighter is under right now: standing in a building their side holds. Null anywhere else. */
 function myBuff(v: RaidView, side: SideId, f: Fighter): Buff | null {
-  if (f.state !== 'in' || !f.at || f.at === 'camp1' || f.at === 'camp2' || v.held[f.at] !== side) return null
+  if (f.state !== 'in' || !f.at || f.at === 'camp1' || f.at === 'camp2') return null
+  if (v.heldBy ? v.heldBy[f.at] !== f.tag : v.held[f.at] !== side) return null
   return buffOf(v.points[f.at])
 }
 const ARMOUR_BLUE = Color4.create(0.55, 0.85, 1, 1)
@@ -205,6 +207,7 @@ let dismissedResult = ''
 /** Both sides standing with HP in the same building: the fight is on there. */
 function contested(v: RaidView, point: Spot): boolean {
   if (point === 'camp1' || point === 'camp2') return false
+  if (v.clash) return v.clash[point] === true
   return standingAt(v.sides.a, point).length > 0 && standingAt(v.sides.b, point).length > 0
 }
 
@@ -552,7 +555,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           uiTransform={{ height: S(26), padding: { left: S(8), right: S(8) }, alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: you ? Color4.create(0.62 + 0.12 * youPulse, 0.4 + 0.14 * youPulse, 1, 1) : DARK }}
         >
-          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : `${you ? 'YOU' : f.name.toUpperCase().slice(0, 8)}${buff ? `  ${buff.tag}` : healing ? '  ✚' : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
+          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : `${you ? 'YOU' : isWar(v) && side === 'b' && f.tag ? `${f.tag} ${f.name.toUpperCase().slice(0, 6)}` : f.name.toUpperCase().slice(0, 8)}${buff ? `  ${buff.tag}` : healing ? '  ✚' : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
       <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} scale={scale} color={tint} />
@@ -595,12 +598,16 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
   const b = standingAt(v.sides.b, point)
   const holder = v.held[point]
   const width = S(480)
+  const clash = contested(v, point)
+  // Guild War: name the guild(s), not the merged side. Tags of whoever stands there; the flag's own tag when held.
+  const tagsOf = (list: Fighter[], fallback: SideId) => (isWar(v) ? [...new Set(list.map((f) => f.tag).filter(Boolean))].map((t) => `[${t}]`).join(' ') || sideTag(v.sides[fallback], v.mode) : sideTag(v.sides[fallback], v.mode))
+  const holderTag = holder ? (isWar(v) && v.heldBy?.[point] ? `[${v.heldBy[point]}]` : sideTag(v.sides[holder], v.mode)) : ''
   let line2: ReactEcs.JSX.Element
   // Capture under way: one side stands alone at a building it does not hold. The server counts whole ticks
   // (cap.n of rules.captureTicks); the bar fills through the current tick too so it moves instead of stepping.
   let capture = 0
   let captureLeft = 0
-  if ((a.length > 0) !== (b.length > 0) && holder !== (a.length > 0 ? 'a' : 'b')) {
+  if (!clash && (a.length > 0) !== (b.length > 0) && holder !== (a.length > 0 ? 'a' : 'b')) {
     const side: SideId = a.length > 0 ? 'a' : 'b'
     const r = captureProgress(v, point, side, side === 'a' ? a.length : b.length)
     capture = Math.max(0.04, r.progress)
@@ -610,12 +617,12 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
   const opensAt = unlockAt(v, point)
   if (opensAt > 0) {
     line2 = <Text value={`🔒 opens in ${leftLong(opensAt)}`} size={S(22)} color={C.orange} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
-  } else if (a.length > 0 && b.length > 0) {
+  } else if (clash) {
     line2 = (
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text value={`⚔ ${sideTag(v.sides.a, v.mode)}`} size={S(22)} color={PURPLE_LIGHT} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
-        <Text value="  vs  " size={S(22)} color={C.gray} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
-        <Text value={sideTag(v.sides.b, v.mode)} size={S(22)} color={C.yellow} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+        <Text value={`⚔ ${a.length > 0 ? tagsOf(a, 'a') : tagsOf(b, 'b')}`} size={S(22)} color={a.length > 0 ? PURPLE_LIGHT : C.yellow} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+        {a.length > 0 || !isWar(v) ? <Text value="  vs  " size={S(22)} color={C.gray} nowrap uiTransform={{ width: 'auto', height: S(28) }} /> : null}
+        {a.length > 0 || !isWar(v) ? <Text value={tagsOf(b, 'b')} size={S(22)} color={C.yellow} nowrap uiTransform={{ width: 'auto', height: S(28) }} /> : null}
       </UiEntity>
     )
   } else if (a.length > 0 || b.length > 0) {
@@ -624,9 +631,9 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
     const names = list.slice(0, 2).map((f) => f.name.split(' ')[0]).join(', ') + (list.length > 2 ? ` +${list.length - 2}` : '')
     // War captures run for an hour or more, so say when; the Storm's two ticks speak for themselves.
     const taking = holder !== side ? (v.battle?.war && captureLeft > 0 ? `  ·  taking  ${leftLong(captureLeft)}` : '  ·  taking') : ''
-    line2 = <Text value={`${sideTag(v.sides[side], v.mode)} · ${names}${taking}`} size={S(22)} color={sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+    line2 = <Text value={`${tagsOf(list, side)} · ${names}${taking}`} size={S(22)} color={sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   } else if (holder) {
-    line2 = <Text value={`${sideTag(v.sides[holder], v.mode)} · held`} size={S(22)} color={sideColor(holder)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+    line2 = <Text value={`${holderTag} · held`} size={S(22)} color={sideColor(holder)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   } else {
     line2 = <Text value="empty" size={S(22)} color={C.gray} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   }
@@ -820,7 +827,8 @@ function Roster(props: { v: RaidView; side: SideId }) {
   const slots: ReactEcs.JSX.Element[] = []
   const fighters = s ? s.fighters : []
   const joinable = v.mine === side && !v.you && (v.status === 'gathering' || v.status === 'live') && !raid.spectating
-  for (let i = 0; s && i < v.rules.sideMax; i++) {
+  const slotsMax = isWar(v) ? fighters.length + (joinable ? 1 : 0) : v.rules.sideMax
+  for (let i = 0; s && i < slotsMax; i++) {
     const f = fighters[i]
     if (f) slots.push(<FighterCard key={`${side}-${f.id}`} v={v} side={side} f={f} />)
     else if (v.status === 'gathering' || joinable) slots.push(<OpenSlot key={`${side}-slot-${i}`} v={v} side={side} />)
@@ -852,10 +860,16 @@ function Header(props: { v: RaidView }) {
   const nextOpen = v.status === 'live' && v.battle?.war ? [...CAMP_IDS, ...POINT_IDS].map((p) => [p, unlockAt(v, p)] as const).filter(([, at]) => at > 0).sort((p, q) => p[1] - q[1])[0] : undefined
   // Standing in a building your side holds: say how much less you are taking (the buff was invisible before).
   const buff = v.status === 'live' && me && v.mine ? myBuff(v, v.mine, me) : null
+  // Guild War (free-for-all): left is your guild with its place among all the guilds, right the best of the others.
+  const st = isWar(v) ? v.standings ?? [] : null
+  const rank = st ? st.findIndex((g) => g.tag === a.tag) + 1 : 0
+  const rival = st ? st.find((g) => g.tag !== a.tag) ?? null : null
+  const leftText = st ? `${sideTag(a, v.mode)}  ${v.score.a}${rank > 0 && st.length > 1 ? `  ·  ${ordinal(rank)} of ${st.length}` : ''}` : `${sideTag(a, v.mode)}  ${v.score.a}`
+  const rightText = st ? (rival ? `${rival.score}  [${rival.tag}]` : '') : `${v.score.b}  ${sideTag(b, v.mode)}`
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(46), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
-        <OutlinedText value={`${sideTag(a, v.mode)}  ${v.score.a}`} size={S(44)} color={PURPLE_LIGHT} align="middle-left" uiTransform={{ height: S(60) }} />
+        <OutlinedText value={leftText} size={S(st ? 34 : 44)} color={PURPLE_LIGHT} align="middle-left" uiTransform={{ height: S(60) }} />
       </UiEntity>
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
         {big ? <OutlinedText value={big} size={bigSize} color={bigColor} uiTransform={{ height: S(50) }} /> : null}
@@ -868,7 +882,7 @@ function Header(props: { v: RaidView }) {
         ) : null}
       </UiEntity>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { right: S(24) } }}>
-        <OutlinedText value={`${v.score.b}  ${sideTag(b, v.mode)}`} size={S(44)} color={C.yellow} align="middle-right" uiTransform={{ height: S(60) }} />
+        {rightText ? <OutlinedText value={rightText} size={S(st ? 34 : 44)} color={C.yellow} align="middle-right" uiTransform={{ height: S(60) }} /> : null}
       </UiEntity>
     </UiEntity>
   )
@@ -1016,7 +1030,7 @@ function LobbyColumn(props: { key?: string; v: RaidView; side: SideId }) {
     <UiEntity uiTransform={{ width: S(RES_COL_W), minHeight: S(230), flexDirection: 'column', alignItems: 'center', margin: { left: S(10), right: S(10) }, padding: { top: S(16), bottom: S(16), left: S(16), right: S(16) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: RES_BG }}>
       {s ? (
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', alignItems: 'center' }}>
-          <Text value={s.wraith ? 'THE SHADES' : `[${s.tag}]  ${s.name}`} size={S(24)} color={tagColor} nowrap uiTransform={{ height: S(30) }} />
+          <Text value={s.wraith ? 'THE SHADES' : !s.guildId && v.mode === 'battle' ? `EVERYONE ELSE  ·  ${s.name.toUpperCase()}` : `[${s.tag}]  ${s.name}`} size={S(24)} color={tagColor} nowrap uiTransform={{ height: S(30) }} />
           <OutlinedText value={`${s.fighters.length} / ${v.rules.sideMax}`} size={S(60)} color={s.fighters.length >= v.rules.sideMin ? C.white : MUTED} />
           {s.fighters.map((f) => (
             <Text key={`lobby-${side}-${f.id}`} value={withVip(v.you === f.id ? `${f.name} (you)` : f.name, f.vip)} size={S(22)} color={v.you === f.id ? C.white : MUTED} nowrap uiTransform={{ height: S(30) }} />
@@ -1160,11 +1174,13 @@ function ResultCard(props: { v: RaidView }) {
   const won = r && mine && r.winner === mine
   const lost = r && mine && r.winner !== 'draw' && r.winner !== mine
   const cancelled = v.status === 'cancelled'
-  const title = cancelled ? 'CALLED OFF' : !mine ? (r && r.winner !== 'draw' ? `${sideTag(v.sides[r.winner], v.mode)} WIN` : 'DRAW') : won ? 'VICTORY' : lost ? 'DEFEAT' : 'DRAW'
+  const st = isWar(v) ? v.standings ?? [] : null
+  const place = st ? st.findIndex((g) => g.tag === v.sides.a.tag) + 1 : 0
+  const title = cancelled ? 'CALLED OFF' : !mine ? (r && r.winner !== 'draw' ? `${sideTag(v.sides[r.winner], v.mode)} WIN` : 'DRAW') : won ? 'VICTORY' : lost ? (st && place > 0 ? `${ordinal(place)} OF ${st.length}` : 'DEFEAT') : 'DRAW'
   const color = cancelled ? C.textMuted : won ? C.green : lost ? C.red : C.blue
   const sub = cancelled
     ? (v.feed.length > 0 ? v.feed[v.feed.length - 1].text : '')
-    : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${rewardText(won ? v.battle.reward.win : v.battle.reward.lose)} banked for every fighter${won ? '. Bragging rights are yours until next Thursday.' : '.'}` : won ? 'One for the record. Hold the Citadel longer next time for a bigger margin.' : lost ? 'One on the other side of the record. The buildings pay every clash you hold them: spread out and strike back.' : 'Even on points. A draw on the record.'
+    : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${st && st.length > 1 ? `${st.length} guilds fought  •  ` : ''}${rewardText(won ? v.battle.reward.win : v.battle.reward.lose)} banked for every fighter${won ? '. Bragging rights are yours until next Thursday.' : '.'}` : won ? 'One for the record. Hold the Citadel longer next time for a bigger margin.' : lost ? 'One on the other side of the record. The buildings pay every clash you hold them: spread out and strike back.' : 'Even on points. A draw on the record.'
   // The verdict lands with a beat: the title grows in over the first half second, then the MVP line and the final
   // building tally fade up under it.
   if (resultShownFor !== v.id) { resultShownFor = v.id; resultShownAt = Date.now() }
@@ -1192,7 +1208,21 @@ function ResultCard(props: { v: RaidView }) {
             const col = holder ? sideColor(holder) : C.gray
             return (
               <UiEntity key={`tally-${p}`} uiTransform={{ height: S(30), padding: { left: S(12), right: S(12) }, margin: { left: S(4), right: S(4) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(col.r * 0.55, col.g * 0.55, col.b * 0.55, 0.9 * fade) }}>
-                <Text value={`${POINT_LABEL[p]}  ${holder ? sideTag(v.sides[holder], v.mode) : '—'}`} size={S(19)} color={Color4.create(1, 1, 1, fade)} nowrap uiTransform={{ width: 'auto', height: S(30) }} />
+                <Text value={`${POINT_LABEL[p]}  ${holder ? (v.heldBy?.[p] ? `[${v.heldBy[p]}]` : sideTag(v.sides[holder], v.mode)) : '—'}`} size={S(19)} color={Color4.create(1, 1, 1, fade)} nowrap uiTransform={{ width: 'auto', height: S(30) }} />
+              </UiEntity>
+            )
+          })}
+        </UiEntity>
+      ) : null}
+      {!cancelled && st && st.length > 1 ? (
+        // Guild War: every guild in order, the winner in gold, yours lit.
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(8) } }}>
+          {st.slice(0, 8).map((g, i) => {
+            const you = g.tag === v.sides.a.tag && !!mine
+            const col = i === 0 ? C.yellow : you ? PURPLE_LIGHT : C.gray
+            return (
+              <UiEntity key={`st-${g.tag}`} uiTransform={{ height: S(32), padding: { left: S(12), right: S(12) }, margin: { left: S(4), right: S(4) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(col.r * 0.5, col.g * 0.5, col.b * 0.5, 0.9 * fade) }}>
+                <Text value={`${i + 1}. [${g.tag}]  ${g.score}`} size={S(20)} color={Color4.create(1, 1, 1, fade)} nowrap uiTransform={{ width: 'auto', height: S(32) }} />
               </UiEntity>
             )
           })}
@@ -1216,7 +1246,9 @@ function BoardRow(props: { key?: string; e: BoardEntry }) {
   const e = props.e
   const who = (x: BoardEntry['a']) => (x ? (x.wraith ? 'SHADES' : `[${x.tag}]`) : '?')
   const label = e.mode === 'battle' ? 'GUILD WAR' : e.mode === 'pickup' ? (e.test ? 'Test Storm' : 'Antrom Storm') : `${who(e.a)} raid`
-  const text = e.status === 'gathering'
+  const text = e.war
+    ? `GUILD WAR  •  ${e.a ? `${who(e.a)} ${e.score.a} leads` : 'no guild yet'}  •  ${e.b?.name ?? ''}, ${e.b?.count ?? 0} on the field  •  ${leftLong(e.endAt)} left`
+    : e.status === 'gathering'
     ? e.mode === 'battle' ? `${label}  •  ${who(e.a)} ${e.a?.count ?? 0}/${raid.rules.sideMax}  vs  ${who(e.b)} ${e.b?.count ?? 0}/${raid.rules.sideMax}  •  gathering`
       : `${label} gathering  •  ${e.a?.count ?? 0}/${e.mode === 'pickup' ? raid.rules.sideMax * 2 : raid.rules.sideMax}  •  starts in ${left(e.gatherUntil)}`
     : `${label}  •  ${e.mode === 'pickup' ? 'DUSK' : who(e.a)} ${e.score.a}  vs  ${e.score.b} ${e.mode === 'pickup' ? 'DAWN' : who(e.b)}  •  ${leftLong(e.endAt)} left`
@@ -1290,36 +1322,36 @@ function WarCard() {
   const now = serverNow()
   const signupOpen = now < (b.signupCloseAt ?? 0)
   const live = now >= b.startAt && now < (b.endAt ?? 0)
+  const n = b.signups?.length ?? 0
   const tags = (b.signups ?? []).map((x) => `[${x.tag}]`).join('   ')
-  const vs = (m: NonNullable<typeof b.match>) => `[${m.a.tag}] ${m.a.name}  vs  [${m.b.tag}] ${m.b.name}`
   const rows: ReactEcs.JSX.Element[] = []
   if (signupOpen) {
     rows.push(line(`Sign-ups close ${b.closeWhen}`, PALE, 22, 'wr-1'))
-    rows.push(line((b.signups?.length ?? 0) > 0 ? `Signed up:   ${tags}` : 'No guild signed up yet. Be the first.', (b.signups?.length ?? 0) > 0 ? C.white : MUTED, 22, 'wr-2'))
+    rows.push(line(n > 0 ? `Signed up:   ${tags}` : 'No guild signed up yet. Be the first.', n > 0 ? C.white : MUTED, 22, 'wr-2'))
     if (b.leader) rows.push(<Button key="wr-btn" label={b.signedUp ? 'WITHDRAW' : 'SIGN UP'} color={b.signedUp ? C.red : C.gold} sound={b.signedUp ? 'cancel' : undefined} disabled={raid.busy} size={S(26)} uiTransform={{ width: S(300), height: S(70), margin: { top: S(10) } }} onClick={() => requestBattleSignup(!b.signedUp)} />)
     else rows.push(line(b.signedUp ? `✓  [${g?.tag ?? ''}] is signed up` : 'Ask your leader to sign the guild up', b.signedUp ? C.green : PALE, 24, 'wr-3'))
   } else if (!live) {
-    if (b.match) rows.push(line(`${b.allDay ? 'THIS WEEK' : 'TONIGHT'}  •  ${vs(b.match)}`, C.gold, 26, 'wr-1'))
-    else if (b.bye) rows.push(line('An odd number of guilds signed up; yours drew the bye this week.', PALE, 22, 'wr-1'))
+    // Free-for-all: every signed-up guild takes the same field when the window opens; nothing to pair.
+    if (b.signedUp) rows.push(line(`${b.allDay ? 'THIS WEEK' : 'TONIGHT'}  •  [${g?.tag ?? ''}] is in  •  ${n} guild${n === 1 ? '' : 's'}, every one for itself`, C.gold, 26, 'wr-1'))
     else { rows.push(line(`[${g?.tag ?? ''}] is not in this week's war.`, PALE, 22, 'wr-1')); rows.push(line('Sign-ups for next week open after the event.', MUTED, 20, 'wr-1b')) }
-    if (!b.match) (b.matches ?? []).slice(0, 3).forEach((m, i) => rows.push(line(vs(m), MUTED, 20, `wr-m${i}`)))
+    if (n > 0) rows.push(line(`On the field:   ${tags}`, MUTED, 20, 'wr-2'))
     rows.push(line(b.allDay ? `Fight any time ${b.when}` : `Be on WAR at ${b.when}`, MUTED, 20, 'wr-4'))
-    rows.push(line(`Starts when both guilds have ${b.teamSize}  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
+    rows.push(line(`Open from the first minute  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
   } else {
     rows.push(line(`${b.allDay ? 'WAR DAY' : 'WAR NIGHT'}  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
-    if (b.match) {
-      // Same style as ENTER THE STORM: one tap puts you on your guild's field.
+    if (b.signedUp && b.raidId) {
+      // Same style as ENTER THE STORM: one tap puts you on the shared field with every other signed-up guild.
       rows.push(<Button key="wr-enter" label="ENTER THE GUILD WAR" color={raid.busy ? C.gray : C.gold} textColor={raid.busy ? C.textMuted : C.white} disabled={raid.busy} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => { arenaOpen = true; requestJoinRaid('battle') }} />)
-      rows.push(line(vs(b.match), PALE, 22, 'wr-2'))
-    }
-    else if ((b.matches?.length ?? 0) > 0) rows.push(line(b.allDay ? 'Your guild is not matched this week. Watch the matches below.' : 'Your guild is not matched tonight. Watch the matches below.', PALE, 22, 'wr-2'))
-    else rows.push(line('No matches this week.', PALE, 22, 'wr-2'))
+      rows.push(line(`${n} guild${n === 1 ? '' : 's'} on one field:   ${tags}`, PALE, 22, 'wr-2'))
+    } else if (b.signedUp) rows.push(line('Opening the field…', PALE, 22, 'wr-2'))
+    else if (n > 0) rows.push(line(`[${g?.tag ?? ''}] did not sign up this week. Watch the war below.`, PALE, 22, 'wr-2'))
+    else rows.push(line('No guild signed up this week.', PALE, 22, 'wr-2'))
   }
   return (
     <IdleCard title="GUILD WAR" sub={b.when ?? ''} color={C.gold}>
       {rows}
       <Spacer />
-      {line(`Winners bank ${rewardText(b.reward!.win)} each  •  ${b.teamSize} a side`, MUTED, 20, 'wr-prize')}
+      {line(`Top guild banks ${rewardText(b.reward!.win)} each  •  every signed-up guild, one field`, MUTED, 20, 'wr-prize')}
       {record}
     </IdleCard>
   )

@@ -77,6 +77,7 @@ export interface WarRules {
   taperFloor: number
   pointsPerPip: number
 }
+export interface WarStanding { guildId: string; tag: string; name: string; score: number; count: number; flags: number }
 export interface RaidView {
   id: string
   mode: RaidMode
@@ -98,6 +99,7 @@ export interface RaidView {
   tick: number
   ticks: number
   nextTickAt: number
+  /** Two sides. Guild War (free-for-all): `a` is your guild (or the leader, for a viewer with no guild in it), `b` every other guild together. */
   sides: { a: Side; b: Side | null }
   /** Flag per building: stays with its holder, empty or not, until the enemy takes it. */
   held: Record<PointId, SideId | null>
@@ -108,6 +110,11 @@ export interface RaidView {
   result: { winner: SideId | 'draw'; valor: Record<string, number> } | null
   mine: SideId | null
   you: string | null
+  /** Guild War only: the tag holding each flag, which flags two or more guilds are fighting over, every guild ranked, and how many there are. */
+  heldBy?: Record<PointId, string | null>
+  clash?: Record<PointId, boolean>
+  standings?: WarStanding[]
+  guilds?: number
   points: Record<PointId, PointDef>
   rules: RaidRules
   serverNow: number
@@ -117,6 +124,8 @@ export interface BoardEntry {
   mode?: RaidMode
   status: 'gathering' | 'live'
   test?: boolean
+  /** The week's Guild War: `a` is the leading guild, `b` the whole field, score.b the runner-up. */
+  war?: boolean
   a: { tag: string; name: string; count: number; wraith: boolean } | null
   b: { tag: string; name: string; count: number; wraith: boolean } | null
   gatherUntil: number
@@ -138,8 +147,7 @@ export interface GuildRaidSummary {
 export interface MyRaid { valor: number; raids: number; wins: number; losses: number; draws: number; kos: number; day?: string; count?: number; stats: { hp: number; atk: number; level: number; dagger: number; set: number; vip: number } | null }
 /** The pickup queue as seen from the idle screen. */
 export interface PickupInfo { status: 'idle' | 'gathering' | 'live'; activeId: string | null; nextAt: number; minHumans: number; maxHumans: number; perDay: number; leftToday: number }
-export interface BattleMatch { id: string; a: { tag: string; name: string }; b: { tag: string; name: string }; mine?: SideId; raidId: string; status: string; winner: string; score: { a: number; b: number } }
-/** The Guild Battle card: this week's times (server zone, preformatted), sign-ups, my matchup. */
+/** The Guild War card: this week's times (server zone, preformatted), sign-ups, the one free-for-all raid. */
 export interface BattleInfo {
   enabled: boolean
   week?: string
@@ -157,10 +165,11 @@ export interface BattleInfo {
   leader?: boolean
   signedUp?: boolean
   signups?: { tag: string; name: string }[]
-  paired?: boolean
-  bye?: boolean
-  match?: BattleMatch | null
-  matches?: BattleMatch[]
+  /** Set once the window opens: the week's raid, its status, the winner and every guild's score when it is over. */
+  raidId?: string
+  status?: 'scheduled' | 'live' | 'done' | 'cancelled'
+  winnerTag?: string
+  scores?: { tag: string; score: number }[]
 }
 
 /** Balance numbers from the server. A raid view carries the snapshot it was called with; `raid.rules` is the current set. */
@@ -433,9 +442,9 @@ export function myFighter(): Fighter | null {
 }
 
 /** Side label as shown on screen: [TAG], TEAM DUSK / TEAM DAWN on a pickup raid, or SHADES. */
-export const sideTag = (s: Side | null, mode: RaidMode = 'guild') => (s ? (s.wraith ? 'SHADES' : mode === 'pickup' ? s.name.toUpperCase() : `[${s.tag}]`) : '?')
+export const sideTag = (s: Side | null, mode: RaidMode = 'guild') => (s ? (s.wraith ? 'SHADES' : mode === 'pickup' || (mode === 'battle' && !s.guildId) ? s.name.toUpperCase() : `[${s.tag}]`) : '?')
 /** A fighter's name with the guild tag where teams are mixed. */
-export const fighterName = (v: RaidView, f: Fighter) => (v.mode === 'pickup' && f.tag && f.id.startsWith('0x') ? `${f.name} [${f.tag}]` : f.name)
+export const fighterName = (v: RaidView, f: Fighter) => ((v.mode === 'pickup' || v.battle?.war) && f.tag && f.id.startsWith('0x') ? `${f.name} [${f.tag}]` : f.name)
 
 /** Fighters standing in a building (hp > 0). */
 export const standingAt = (s: Side | null, point: Spot) => (s ? s.fighters.filter((f) => f.state === 'in' && f.at === point && f.hp > 0) : [])
