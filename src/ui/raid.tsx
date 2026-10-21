@@ -1373,7 +1373,7 @@ function BoardRow(props: { key?: string; e: BoardEntry }) {
     : `${label}  •  ${e.mode === 'pickup' ? 'DUSK' : who(e.a)} ${e.score.a}  vs  ${e.score.b} ${e.mode === 'pickup' ? 'DAWN' : who(e.b)}  •  ${leftLong(e.endAt)} left`
   return (
     <UiEntity uiTransform={{ width: '100%', height: S(60), flexDirection: 'row', alignItems: 'center', margin: { top: S(6) } }}>
-      <Text value={text} size={S(20)} color={C.text} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(30) }} />
+      <Text value={text} size={S(20)} color={PALE} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(30) }} />
       <Button label="WATCH" color={C.blue} size={S(22)} uiTransform={{ width: S(160), height: S(54) }} onClick={() => spectateRaid(e.id)} />
     </UiEntity>
   )
@@ -1513,7 +1513,7 @@ function IdleScreen() {
       </UiEntity>
       {raid.board.length > 0 ? (
         <UiEntity uiTransform={{ width: S(IDLE_W * 2 + IDLE_GAP), flexDirection: 'column', margin: { top: S(IDLE_GAP / 2) }, padding: { left: S(24), right: S(24), top: S(10), bottom: S(14) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: IDLE_BG }}>
-          <Text value="GOING ON RIGHT NOW" size={S(20)} color={C.textMuted} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
+          <Text value="GOING ON RIGHT NOW" size={S(20)} color={MUTED} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
           {raid.board.slice(0, 3).map((e) => <BoardRow key={`board-${e.id}`} e={e} />)}
         </UiEntity>
       ) : null}
