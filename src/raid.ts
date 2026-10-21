@@ -13,12 +13,16 @@ import { playErrorSound, playSuccessSound } from './uiSounds'
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 
 export type PointId = 'watchtower' | 'sawmill' | 'citadel' | 'quarry' | 'shrine'
-/** Guild War day: the two camps are shared field hospitals you can walk to; 'camp' (home) is then the mid-field spawn. */
+/** Guild War day: the two camps are flags like the buildings (no bonus, no healing); 'camp' (home) is then the mid-field spawn. */
 export type CampId = 'camp1' | 'camp2'
 export const CAMP_IDS: CampId[] = ['camp1', 'camp2']
 /** Anywhere a fighter can stand. */
 export type Spot = PointId | CampId
 export const POINT_IDS: PointId[] = ['watchtower', 'sawmill', 'citadel', 'quarry', 'shrine']
+/** Per-flag maps: the five buildings always, the two camps on the war day only. */
+export type FlagMap<T> = Record<PointId, T> & Partial<Record<CampId, T>>
+/** The flags a raid is fought over. */
+export const flagsOf = (v: { battle: { war?: unknown } | null }): Spot[] => (v.battle?.war ? [...POINT_IDS, ...CAMP_IDS] : POINT_IDS)
 export type SideId = 'a' | 'b'
 export type RaidStatus = 'gathering' | 'live' | 'done' | 'cancelled'
 /** 'pickup': whoever joins is dealt into Team Dusk / Team Dawn at the bell. 'battle': guild vs guild on battle night. 'guild': the old call-and-answer raids. */
@@ -67,7 +71,7 @@ export interface WarRules {
   koWalkMs: number
   sideMax: number
   maxCapturers: number
-  captureMin: Record<PointId, number>
+  captureMin: FlagMap<number>
   /** Minutes after the start each flag opens; locked flags cannot be walked to. */
   unlockMin: Record<Spot, number>
   decayMin: number
@@ -89,8 +93,8 @@ export interface RaidView {
   /** `war` is set on the day-long Guild War (one tick a minute, hour-scale captures); absent on a Storm. */
   battle: { week: string; pointsMult: number; reward: { win: Reward; lose: Reward }; war?: WarRules } | null
   /** Guild War only: when each flag was last taken (0 = never) and minutes it has stood unguarded. */
-  took?: Record<PointId, number>
-  decay?: Record<PointId, number>
+  took?: FlagMap<number>
+  decay?: FlagMap<number>
   /** Guild War only: camp names and the shared spawn (field %). */
   camps?: Record<CampId, { name: string }>
   spawn?: [number, number]
@@ -102,20 +106,20 @@ export interface RaidView {
   /** Two sides. Guild War (free-for-all): `a` is your guild (or the leader, for a viewer with no guild in it), `b` every other guild together. */
   sides: { a: Side; b: Side | null }
   /** Flag per building: stays with its holder, empty or not, until the enemy takes it. */
-  held: Record<PointId, SideId | null>
+  held: FlagMap<SideId | null>
   /** Capture under way: the side that does not hold the point has stood there alone for n ticks. */
-  cap: Record<PointId, { side: SideId; n: number } | null>
+  cap: FlagMap<{ side: SideId; n: number } | null>
   score: { a: number; b: number }
   feed: { at: number; text: string }[]
   result: { winner: SideId | 'draw'; valor: Record<string, number> } | null
   mine: SideId | null
   you: string | null
   /** Guild War only: the tag holding each flag, which flags two or more guilds are fighting over, every guild ranked, and how many there are. */
-  heldBy?: Record<PointId, string | null>
-  clash?: Record<PointId, boolean>
+  heldBy?: FlagMap<string | null>
+  clash?: FlagMap<boolean>
   standings?: WarStanding[]
   guilds?: number
-  points: Record<PointId, PointDef>
+  points: FlagMap<PointDef>
   rules: RaidRules
   serverNow: number
 }
