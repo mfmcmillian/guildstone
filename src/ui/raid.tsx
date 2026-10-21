@@ -136,6 +136,9 @@ const STANDINGS_TOP = 46
 // Cell size on screen. The character stands about 74% of its 144 px cell, so this matches the old 80 px tokens.
 const TOKEN = 108
 const TOKEN_GAP = 72
+/** War spawn strip: design px between tokens (a name pill is ~140 wide) and the half-gap between the two guilds' fans. */
+const STRIP_GAP = 150
+const STRIP_SPLIT = 40
 
 const PURPLE_LIGHT = Color4.fromHexString('#c9a3ffff')
 const DARK = Color4.create(0.106, 0.141, 0.212, 0.88)
@@ -306,6 +309,9 @@ function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose
     const base = spotBase(v, side, where)
     // Fan out away from your own edge; at the shared spawn the two guilds fan to their own sides.
     const dir = where === 'camp' && !isWar(v) ? (side === 'a' ? 1 : -1) : side === 'a' ? -1 : 1
+    // The war's spawn strip has room: a wide fan so the name pills clear each other, and a gap in the middle between
+    // the two guilds.
+    if (where === 'camp' && isWar(v)) return [base[0] + ((dir * ((i + 0.5) * STRIP_GAP + STRIP_SPLIT)) / W) * 100, base[1]]
     return [base[0] + ((dir * (i + 0.5) * TOKEN_GAP) / W) * 100, base[1]]
   }
   const now = Date.now()
