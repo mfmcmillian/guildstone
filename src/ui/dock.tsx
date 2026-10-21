@@ -12,7 +12,7 @@ import { activeSkill, toggleProfession } from '../work'
 import { settings, VOLUME_STEP } from '../settings'
 import { setAlerts, setLanguagePref, setVolumePref } from '../transactions'
 import { LANGUAGES, getLanguage, languageInfo } from '../i18n'
-import { showShop, showToolBench, showWorkshop, stepTarget } from './guide'
+import { showShop, showToolBench, showWorkshop, stepTarget, suggestedSkill } from './guide'
 import { dragOffsetPx, startDrag } from './drag'
 
 const skillColor = (s: (typeof SKILLS)[number]) => Color4.create(SKILL_INFO[s].color[0], SKILL_INFO[s].color[1], SKILL_INFO[s].color[2], 1)
@@ -166,13 +166,15 @@ export function Dock() {
         />
         {SKILLS.map((skill) => {
           const active = working === skill
+          // Idle (nothing picked yet): one profession breathes in its own colour so the eye lands somewhere.
+          const nudge = !connecting && target === 'pick' && skill === suggestedSkill()
           return (
             <Button
               key={skill}
               label={active ? `${SKILL_INFO[skill].name.toUpperCase()}  (STOP)` : SKILL_INFO[skill].name.toUpperCase()}
               icon={SKILL_ICON[skill]}
-              color={active ? skillColor(skill) : C.paper}
-              textColor={active ? C.white : C.text}
+              color={active ? skillColor(skill) : nudge ? glow(skillColor(skill)) : C.paper}
+              textColor={active || nudge ? C.white : C.text}
               disabled={connecting}
               size={S(22)}
               uiTransform={{ width: '100%', height: S(78), margin: { bottom: S(10) } }}

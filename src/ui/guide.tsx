@@ -35,7 +35,9 @@ export const showShop = () => player.berries > 0 || anyBoostActive()
 export const showGuild = () => !!player.guild || topLevel() >= 5
 
 // --- What next -------------------------------------------------------------------------------------
-export type StepTarget = 'bag' | 'workshop' | 'forge' | 'shop' | 'professions' | 'relics'
+export type StepTarget = 'bag' | 'workshop' | 'forge' | 'shop' | 'professions' | 'relics' | 'pick'
+/** The profession the idle dock pulses (2026-10-21): the highest-levelled one, Lumberjack on a fresh profile. */
+export const suggestedSkill = (): Skill => SKILLS.reduce((best, s) => (player.skills[s].level > player.skills[best].level ? s : best), SKILLS[0])
 export interface NextStep {
   text: string
   color: Color4
@@ -51,7 +53,7 @@ export function nextStep(): NextStep | null {
   const bag = backpackCount()
   const cap = backpackCap()
 
-  if (!working) return { text: 'Pick a profession on the right to start gathering', color: C.yellow }
+  if (!working) return { text: 'Pick a profession on the right to start gathering', color: C.yellow, target: 'pick' }
   if (bag >= cap) return { text: `Backpack full: tap the bag to bank it${stations ? '' : ` at ${campHint()}`}`, color: C.red, target: 'bag' }
   if (bag >= cap * 0.8) return { text: `Backpack almost full: tap the bag to bank it soon`, color: C.yellow, target: 'bag' }
   const refine = refineReady()
