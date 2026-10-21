@@ -190,6 +190,8 @@ const DEFAULT_RULES: RaidRules = { tickMs: 3000, ticks: 80, walkMs: 7500, homeMs
 
 export const raid = {
   view: null as RaidView | null,
+  /** The Storm I just walked out of (my last view of it): the DEFEAT screen shows it until dismissed. */
+  conceded: null as RaidView | null,
   board: [] as BoardEntry[],
   summary: null as GuildRaidSummary | null,
   me: null as MyRaid | null,
@@ -393,8 +395,13 @@ export function requestStartRaid() {
   })
 }
 export function requestLeaveRaid() {
+  // Leaving a live Storm is conceding (the server records the loss, no payout). Keep this last view so the DEFEAT
+  // screen can show the match and my numbers after the server has dropped me from the field.
+  const v = raid.view
+  const concession = v && v.mode === 'pickup' && v.status === 'live' && v.you && v.mine && !raid.spectating ? JSON.parse(JSON.stringify(v)) as RaidView : null
   send('leave', {}, () => {
-    flash(raid.view?.mode === 'battle' ? 'YOU LEFT THE GUILD WAR' : 'YOU LEFT THE STORM')
+    if (concession) raid.conceded = concession
+    else flash(raid.view?.mode === 'battle' ? 'YOU LEFT THE GUILD WAR' : 'YOU LEFT THE STORM')
   })
 }
 /**

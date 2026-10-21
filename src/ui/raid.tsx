@@ -1273,14 +1273,16 @@ function StatTile(props: { key?: string; label: string; value: string; color: Co
     </UiEntity>
   )
 }
-function StormResultScreen(props: { v: RaidView }) {
+/** `conceded`: I pressed LEAVE mid-match; `v` is my last view of the Storm (server has dropped me; loss recorded, nothing banked). */
+function StormResultScreen(props: { v: RaidView; conceded?: boolean }) {
   const v = props.v
+  const conceded = props.conceded === true
   const r = v.result
   const mine = v.mine
-  const me = myFighter()
-  const won = !!r && !!mine && r.winner === mine
-  const lost = !!r && !!mine && r.winner !== 'draw' && r.winner !== mine
-  const draw = !r || r.winner === 'draw'
+  const me = mine && v.you ? v.sides[mine]?.fighters.find((f) => f.id === v.you) ?? null : null
+  const won = !conceded && !!r && !!mine && r.winner === mine
+  const lost = conceded || (!!r && !!mine && r.winner !== 'draw' && r.winner !== mine)
+  const draw = !conceded && (!r || r.winner === 'draw')
   const winnerSide = r && r.winner !== 'draw' ? v.sides[r.winner] : null
   const winnerName = winnerSide ? sideTag(winnerSide, v.mode) : ''
   const title = !mine ? (winnerSide ? `${winnerName} WIN` : 'DRAW') : won ? 'VICTORY' : lost ? 'DEFEAT' : 'DRAW'
@@ -1288,14 +1290,17 @@ function StormResultScreen(props: { v: RaidView }) {
   const bg = won ? WIN_BG : lost ? LOSE_BG : DRAW_BG
   // A steady pick per raid so the line does not flicker between frames.
   const pick = v.id.split('').reduce((n, ch) => n + ch.charCodeAt(0), 0)
-  const sub = v.rules.test ? 'Test Storm  •  nothing recorded' : won ? WIN_LINES[pick % WIN_LINES.length] : lost ? LOSE_LINES[pick % LOSE_LINES.length] : draw ? 'Even on points. A draw on the record.' : `${winnerName} held the field.`
-  if (resultShownFor !== v.id) { resultShownFor = v.id; resultShownAt = Date.now() }
+  const sub = conceded ? 'You left the field. A concession on the record  •  nothing banked.' : v.rules.test ? 'Test Storm  •  nothing recorded' : won ? WIN_LINES[pick % WIN_LINES.length] : lost ? LOSE_LINES[pick % LOSE_LINES.length] : draw ? 'Even on points. A draw on the record.' : `${winnerName} held the field.`
+  const shownKey = conceded ? `conceded:${v.id}` : v.id
+  if (resultShownFor !== shownKey) { resultShownFor = shownKey; resultShownAt = Date.now() }
   const age = Date.now() - resultShownAt
   const grow = ease(age / 600)
   const fade = ease((age - 400) / 500)
   const fade2 = ease((age - 700) / 500)
   const shimmer = won ? 0.85 + 0.15 * pulse(1600) : 1
-  const banked = me && me.ranked !== false && v.rules.reward && !v.rules.test ? (won ? v.rules.reward.win : v.rules.reward.lose) : null
+  // Match time: the whole Storm, or how long I lasted when I conceded (frozen at the moment the screen came up).
+  const playedUntil = conceded ? Math.min(v.endAt, resultShownAt + (serverNow() - Date.now())) : v.endAt
+  const banked = !conceded && me && me.ranked !== false && v.rules.reward && !v.rules.test ? (won ? v.rules.reward.win : v.rules.reward.lose) : null
   const mvp = mvpOf(v)
   const a = v.sides.a
   const b = v.sides.b
@@ -1312,7 +1317,7 @@ function StormResultScreen(props: { v: RaidView }) {
           <StatTile key="st-ko" label="KNOCKOUTS" value={String(me.kos)} color={C.yellow} fade={fade2} />
           <StatTile key="st-dealt" label="DAMAGE DEALT" value={String(me.dealt)} color={PURPLE_LIGHT} fade={fade2} />
           <StatTile key="st-taken" label="DAMAGE TAKEN" value={String(me.taken)} color={PALE} fade={fade2} />
-          <StatTile key="st-time" label="MATCH TIME" value={dur(v.endAt - v.startAt)} color={C.white} fade={fade2} />
+          <StatTile key="st-time" label={conceded ? 'TIME ON THE FIELD' : 'MATCH TIME'} value={dur(playedUntil - v.startAt)} color={C.white} fade={fade2} />
         </UiEntity>
       ) : null}
       {banked ? (
@@ -1326,6 +1331,12 @@ function StormResultScreen(props: { v: RaidView }) {
           ))}
         </UiEntity>
       ) : null}
+      {conceded && me ? (
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(40), margin: { top: S(10) } }}>
+          <Text value="BANKED" size={S(20)} color={Color4.create(C.red.r, C.red.g, C.red.b, fade2)} nowrap uiTransform={{ width: 'auto', height: S(34), margin: { right: S(14) } }} />
+          <Text value="nothing  •  a Storm pays only those who stay to the end" size={S(22)} color={Color4.create(MUTED.r, MUTED.g, MUTED.b, fade2)} nowrap uiTransform={{ width: 'auto', height: S(34) }} />
+        </UiEntity>
+      ) : null}
       {mvp ? (
         <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { top: S(6) } }}>
           <Text value="MVP" size={S(22)} color={Color4.create(C.yellow.r, C.yellow.g, C.yellow.b, fade2)} nowrap uiTransform={{ width: 'auto', height: S(32), margin: { right: S(12) } }} />
@@ -1337,8 +1348,14 @@ function StormResultScreen(props: { v: RaidView }) {
         <ResultColumn v={v} side="b" />
       </UiEntity>
       <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(20) } }}>
-        {!raid.spectating ? <Button label="JOIN THE NEXT STORM" color={won ? C.green : C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(400), height: S(84), margin: { right: S(16) } }} onClick={() => { dismissedResult = v.id; requestJoinRaid() }} /> : null}
-        <Button label={raid.spectating ? 'STOP WATCHING' : 'BACK TO LOBBY'} color={C.navySoft} sound="cancel" size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => { if (raid.spectating) stopSpectating(); else dismissedResult = v.id }} />
+        {conceded ? (
+          <Button label="BACK TO LOBBY" color={C.navySoft} sound="cancel" size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => { raid.conceded = null }} />
+        ) : (
+          <UiEntity uiTransform={{ flexDirection: 'row' }}>
+            {!raid.spectating ? <Button label="JOIN THE NEXT STORM" color={won ? C.green : C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(400), height: S(84), margin: { right: S(16) } }} onClick={() => { dismissedResult = v.id; requestJoinRaid() }} /> : null}
+            <Button label={raid.spectating ? 'STOP WATCHING' : 'BACK TO LOBBY'} color={C.navySoft} sound="cancel" size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => { if (raid.spectating) stopSpectating(); else dismissedResult = v.id }} />
+          </UiEntity>
+        )}
       </UiEntity>
     </UiEntity>
   )
@@ -1512,6 +1529,19 @@ export function WarTab(props: { height: number }) {
   // Day-long war: the guild's raid is the view all day, but the menu stays up until ENTER THE GUILD WAR (or WATCH).
   if (v === null) arenaOpen = false
   const menuOverWar = v !== null && !!v.battle?.war && v.status === 'live' && !v.you && !arenaOpen && !raid.spectating
+  // LEAVE mid-Storm: the DEFEAT screen over my last view of it, whatever the server now shows, until BACK TO LOBBY.
+  const conceded = raid.conceded
+  if (conceded) {
+    return (
+      <UiEntity uiTransform={{ width: S(W), flexDirection: 'column' }}>
+        <UiEntity uiTransform={{ width: S(W), height: S(props.height), positionType: 'relative', overflow: 'hidden' }} uiBackground={{ textureMode: 'stretch', texture: { src: BG } }}>
+          <FieldAnim />
+          <Weather sky={true} />
+          <StormResultScreen v={conceded} conceded />
+        </UiEntity>
+      </UiEntity>
+    )
+  }
   const idle = v === null || menuOverWar || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
   return (
     <UiEntity uiTransform={{ width: S(W), flexDirection: 'column' }}>
