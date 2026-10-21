@@ -829,7 +829,9 @@ function Roster(props: { v: RaidView; side: SideId }) {
   const { v, side } = props
   const s = v.sides[side]
   const slots: ReactEcs.JSX.Element[] = []
-  const fighters = s ? s.fighters : []
+  // War (2026-10-21): the card column is yours alone (up to 50 a side would bury the field); spectators see no cards.
+  // The field tokens and the standings table still show everyone.
+  const fighters = s ? (isWar(v) ? s.fighters.filter((f) => f.id === v.you) : s.fighters) : []
   const joinable = v.mine === side && !v.you && (v.status === 'gathering' || v.status === 'live') && !raid.spectating
   const slotsMax = isWar(v) ? fighters.length + (joinable ? 1 : 0) : v.rules.sideMax
   for (let i = 0; s && i < slotsMax; i++) {
