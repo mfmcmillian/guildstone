@@ -5,10 +5,10 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, TEX, SLICE_128, SLICE_PILL, pulse } from './theme'
 import { warAudioTick, warSfx } from '../warSounds'
-import { OutlinedText, Text, Panel, Button, Bar, Modal, Spacer, timerText } from './components'
+import { OutlinedText, Text, Panel, Button, Bar, Modal, Spacer, Icon, timerText } from './components'
 import { S, fitModal } from './responsive'
 import { dragOffsetPx, startDrag } from './drag'
-import { flash, player } from '../state'
+import { flash, player, RESOURCE_INFO } from '../state'
 import { playErrorSound } from '../uiSounds'
 import { sanitizeHeroId } from '../hero'
 import { withVip } from '../vip'
@@ -865,12 +865,13 @@ function Header(props: { v: RaidView }) {
   // Guild War (free-for-all): left is your guild with its place among all the guilds; the right column is the Standings table.
   const st = isWar(v) ? v.standings ?? [] : null
   const rank = st ? st.findIndex((g) => g.tag === a.tag) + 1 : 0
-  const leftText = st ? `${sideTag(a, v.mode)}  ${v.score.a}${rank > 0 && st.length > 1 ? `  ·  ${ordinal(rank)} of ${st.length}` : ''}` : `${sideTag(a, v.mode)}  ${v.score.a}`
+  // Guild War: no score line at the top left either; the Standings table carries every guild's place and points.
+  const leftText = st ? '' : `${sideTag(a, v.mode)}  ${v.score.a}`
   const rightText = st ? '' : `${v.score.b}  ${sideTag(b, v.mode)}`
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(46), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
-        <OutlinedText value={leftText} size={S(st ? 34 : 44)} color={PURPLE_LIGHT} align="middle-left" uiTransform={{ height: S(60) }} />
+        {leftText ? <OutlinedText value={leftText} size={S(44)} color={PURPLE_LIGHT} align="middle-left" uiTransform={{ height: S(60) }} /> : null}
       </UiEntity>
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
         {big ? <OutlinedText value={big} size={bigSize} color={bigColor} uiTransform={{ height: S(50) }} /> : null}
@@ -883,7 +884,7 @@ function Header(props: { v: RaidView }) {
         ) : null}
       </UiEntity>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { right: S(24) } }}>
-        {rightText ? <OutlinedText value={rightText} size={S(st ? 34 : 44)} color={C.yellow} align="middle-right" uiTransform={{ height: S(60) }} /> : null}
+        {rightText ? <OutlinedText value={rightText} size={S(44)} color={C.yellow} align="middle-right" uiTransform={{ height: S(60) }} /> : null}
       </UiEntity>
     </UiEntity>
   )
@@ -1296,6 +1297,21 @@ function IdleCard(props: { title: string; sub: string; color: Color4; children?:
   )
 }
 const line = (text: string, color: Color4, size = 22, key?: string) => <Text key={key} value={text} size={S(size)} color={color} nowrap uiTransform={{ height: S(size + 10), margin: { top: S(4) } }} />
+/** A payout on a card: a short label, then each resource as its icon and amount (the bank's icons). */
+function RewardRow(props: { key?: string; label: string; reward: Reward; color: Color4 }) {
+  const keys = (['wood', 'rock', 'meat', 'bone'] as const).filter((k) => props.reward[k] > 0)
+  return (
+    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { top: S(4) } }}>
+      <Text value={props.label} size={S(20)} color={props.color} nowrap align="middle-left" uiTransform={{ width: S(74), height: S(34) }} />
+      {keys.map((k) => (
+        <UiEntity key={`rw-${props.label}-${k}`} uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { right: S(16) } }}>
+          <Icon src={RESOURCE_INFO[k].icon} size={S(28)} />
+          <Text value={`${props.reward[k]}`} size={S(22)} color={C.white} nowrap align="middle-left" uiTransform={{ width: 'auto', height: S(34), margin: { left: S(5) } }} />
+        </UiEntity>
+      ))}
+    </UiEntity>
+  )
+}
 
 /** Everyday Storm: the button, what it is, and your record at the foot. */
 function StormCard() {
@@ -1311,6 +1327,9 @@ function StormCard() {
         ? line(error, C.red, 22, 'st-err')
         : liveNow ? line(`A Storm is on  •  next one opens in ${leftLong(pk!.nextAt)}`, PALE, 22, 'st-live')
         : line(`Alone you fight a shade of another player  •  ${Math.round(raid.rules.gatherMs / 60000)} min to gather`, PALE, 22, 'st-how')}
+      {/* Ranked Storms pay into the bank: the winning side the win bundle, the other side the lose one. */}
+      {raid.rules.reward ? <RewardRow key="st-win" label="WIN" reward={raid.rules.reward.win} color={C.green} /> : null}
+      {raid.rules.reward ? <RewardRow key="st-lose" label="LOSS" reward={raid.rules.reward.lose} color={PALE} /> : null}
       <Spacer />
       {raid.tester ? line('Tester: your Storms are not recorded', MUTED, 20, 'st-test')
         : me && me.raids > 0 ? line(`YOUR RECORD  ${me.wins} W · ${me.losses} L${me.draws > 0 ? ` · ${me.draws} D` : ''}  •  ${me.kos} KO`, MUTED, 20, 'st-rec')
