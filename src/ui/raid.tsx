@@ -1582,12 +1582,9 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
       titleWidth={Math.max(420, props.title.length * 40)}
       onTitleDown={() => startDrag('war')}
       onClose={() => {
-        // Guild War: closing the window is leaving the war (your fighter is pulled off the field; any capture stops).
-        const v = raid.view
-        if (v && isWar(v) && v.you && !raid.spectating && (v.status === 'live' || v.status === 'gathering')) {
-          arenaOpen = false
-          requestLeaveRaid()
-        }
+        // Guild War (2026-10-21): closing the window only closes it. Your fighter stays on the field, holding, capturing
+        // and fighting where you left them, and you are back in the same spot when you open the WAR tab again.
+        // (It used to send `leave`, which dropped the fighter and let a rejoin reset HP and skip the knock-out walk.)
         props.onClose()
       }}
       edgeToEdge
