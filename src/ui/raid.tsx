@@ -8,12 +8,13 @@ import { warAudioTick, warSfx } from '../warSounds'
 import { OutlinedText, Text, Panel, Button, Bar, Modal, Spacer, timerText } from './components'
 import { S, fitModal } from './responsive'
 import { dragOffsetPx, startDrag } from './drag'
-import { player } from '../state'
+import { flash, player } from '../state'
+import { playErrorSound } from '../uiSounds'
 import { sanitizeHeroId } from '../hero'
 import { withVip } from '../vip'
 import { VipName } from './vipName'
 import {
-  BoardEntry, Fighter, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId,
+  BoardEntry, CampId, CAMP_IDS, Fighter, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId, Spot,
   fighterName, myFighter, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestJoinRaid, requestLeaveRaid, requestSkip,
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
@@ -99,6 +100,20 @@ const FIELD: Record<PointId, { label: [number, number]; stand: [number, number];
   shrine: { label: [71, 59], stand: [71, 88], hit: [71, 78, 310, 290] }
 }
 const CAMP: Record<SideId, [number, number]> = { a: [19, 52], b: [80, 52] }
+// Guild War day (mirrors the server): both guilds spawn and respawn at a neutral mid-field spot, and the two camps
+// are shared hospitals you can walk to (full heal on arrival). West camp open from the start, east camp at hour one.
+const SPAWN: [number, number] = [49.5, 54]
+const CAMP_FIELD: Record<CampId, { label: [number, number]; stand: [number, number]; hit: [number, number, number, number] }> = {
+  camp1: { label: [19, 38], stand: CAMP.a, hit: [19, 48, 260, 240] },
+  camp2: { label: [80, 38], stand: CAMP.b, hit: [80, 48, 260, 240] }
+}
+const isWar = (v: RaidView) => !!v.battle?.war
+const spotField = (where: Spot) => (where === 'camp1' || where === 'camp2' ? CAMP_FIELD[where] : FIELD[where])
+/** Name of anywhere a fighter can stand (camps only have one on the war day). */
+const spotName = (v: RaidView, where: Spot) => (where === 'camp1' || where === 'camp2' ? v.camps?.[where]?.name ?? 'Camp' : v.points[where].name)
+const spotLabel = (v: RaidView, where: Spot) => (where === 'camp1' || where === 'camp2' ? spotName(v, where).toUpperCase() : POINT_LABEL[where])
+/** Where 'home' is drawn: the side's camp, or the shared spawn on the war day. */
+const homeOf = (v: RaidView, side: SideId): [number, number] => (isWar(v) ? v.spawn ?? SPAWN : CAMP[side])
 const ROSTER_W = 270
 const CARD_H = 160
 const CARD_GAP = 10
@@ -112,6 +127,8 @@ const DARK = Color4.create(0.106, 0.141, 0.212, 0.88)
 const DARK_SOFT = Color4.create(0.165, 0.208, 0.314, 0.92)
 // Tints for the building-shaped glow masks (white silhouette halo + faint body fill, alpha baked into the PNG).
 const GLOW_GOLD = Color4.create(1, 0.82, 0.25, 1)
+/** Hover on a Guild War flag that has not opened yet. */
+const GLOW_LOCKED = Color4.create(0.55, 0.5, 0.5, 0.6)
 const GLOW_PURPLE = Color4.create(0.7, 0.4, 1, 0.9)
 const GLOW_HEADING = Color4.create(1, 0.82, 0.25, 0.45)
 // glow_<point>_v1.png covers the hit box plus this margin on every side (design px), see mock/opt/glows.js.
@@ -124,10 +141,62 @@ const left = (until: number) => timerText(until - raid.clockOffset)
 // Long waits (battle window, next queue) read 1:59:30 instead of 119:30.
 const leftLong = (until: number) => { const sec = Math.max(0, Math.ceil((until - raid.clockOffset - Date.now()) / 1000)); return sec < 3600 ? timerText(until - raid.clockOffset) : `${Math.floor(sec / 3600)}:${timerText(Date.now() + (sec % 3600) * 1000).padStart(5, '0')}` }
 
-let hoverPoint: PointId | null = null
+/**
+ * Armour a fighter is under right now, as a whole percent: standing in a building their side holds cuts the damage
+ * they take by the building's armour (Citadel 30%, corners 15%). 0 anywhere else.
+ */
+function armourPct(v: RaidView, side: SideId, f: Fighter): number {
+  if (f.state !== 'in' || !f.at || f.at === 'camp1' || f.at === 'camp2' || v.held[f.at] !== side) return 0
+  return Math.round((v.points[f.at].armour ?? 0) * 100)
+}
+const shield = (pct: number) => `🛡 ${pct}%`
+const ARMOUR_BLUE = Color4.create(0.55, 0.85, 1, 1)
+
+/**
+ * Capture bar. The server counts whole ticks (Storm: cap.n of captureTicks; war: fighter-minutes of captureMin), so a
+ * bar read straight off "ticks done + phase of the current tick" starts wherever the tick clock happens to be when
+ * the attackers arrive (a jump to ~40%), then snaps when the first count lands or restarts if the server saw the
+ * arrival a moment after its tick. Instead: anchor the bar locally the moment the attackers are first seen standing
+ * alone, take the finish from the server's own schedule (the tick on which the count will reach the need), and run
+ * a straight line between the two. The finish moves with every poll; the bar never runs backwards.
+ */
+const captureAnchor: Partial<Record<PointId, { side: SideId; at: number; shown: number }>> = {}
+function captureProgress(v: RaidView, point: PointId, side: SideId, count: number): { progress: number; endAt: number } {
+  const now = serverNow()
+  const tickMs = Math.max(1, v.rules.tickMs)
+  const war = v.battle?.war
+  const done = v.cap[point]?.side === side ? v.cap[point]!.n : 0
+  // War: every fighter standing adds a minute a tick (up to maxCapturers); a guild at the hold cap needs twice as many.
+  const rate = war ? Math.max(1, Math.min(count, war.maxCapturers)) : 1
+  const flags = POINT_IDS.filter((p) => v.held[p] === side).length
+  const need = war ? war.captureMin[point] * (flags >= war.holdCap ? 2 : 1) : Math.max(1, v.rules.captureTicks)
+  const ticksLeft = Math.max(1, Math.ceil((need - done) / rate))
+  const endAt = v.status === 'live' && v.nextTickAt > 0 ? v.nextTickAt + (ticksLeft - 1) * tickMs : now + ticksLeft * tickMs
+  let a = captureAnchor[point]
+  if (!a || a.side !== side) {
+    // First sight. If the server already has progress (tab opened mid-capture) start the line where it stands.
+    const totalMs = Math.ceil(need / rate) * tickMs
+    a = captureAnchor[point] = { side, at: now - (done / need) * totalMs, shown: 0 }
+  }
+  const span = Math.max(1, endAt - a.at)
+  const progress = Math.max(0, Math.min(1, (now - a.at) / span))
+  a.shown = Math.max(a.shown, progress)
+  return { progress: a.shown, endAt }
+}
+
+/** Guild War day: when a flag opens (server clock), 0 when it is open (always, on a Storm). Flags open one an hour. */
+function unlockAt(v: RaidView, point: Spot): number {
+  const war = v.battle?.war
+  if (!war || v.startAt <= 0) return 0
+  const at = v.startAt + (war.unlockMin?.[point] ?? 0) * 60_000
+  return at > serverNow() ? at : 0
+}
+
+let hoverPoint: Spot | null = null
 let dismissedResult = ''
 /** Both sides standing with HP in the same building: the fight is on there. */
-function contested(v: RaidView, point: PointId): boolean {
+function contested(v: RaidView, point: Spot): boolean {
+  if (point === 'camp1' || point === 'camp2') return false
   return standingAt(v.sides.a, point).length > 0 && standingAt(v.sides.b, point).length > 0
 }
 
@@ -144,10 +213,12 @@ const SERVER_FIELD_PX: [number, number] = [18.22, 9.75]
 const MIN_WALK_MS = 3000
 const fieldDist = (p: [number, number], q: [number, number]) => Math.hypot((p[0] - q[0]) * SERVER_FIELD_PX[0], (p[1] - q[1]) * SERVER_FIELD_PX[1])
 const REF_DIST: Record<SideId, number> = { a: fieldDist(CAMP.a, FIELD.citadel.stand), b: fieldDist(CAMP.b, FIELD.citadel.stand) }
-const spotBase = (side: SideId, where: PointId | 'camp'): [number, number] => (where === 'camp' ? CAMP[side] : FIELD[where].stand)
-function walkMs(v: RaidView, side: SideId, from: [number, number], to: PointId | 'camp', speed: number | undefined): number {
+const spotBase = (v: RaidView, side: SideId, where: Spot | 'camp'): [number, number] => (where === 'camp' ? homeOf(v, side) : spotField(where).stand)
+function walkMs(v: RaidView, side: SideId, from: [number, number], to: Spot | 'camp', speed: number | undefined): number {
   const base = to === 'camp' ? v.rules.homeMs : v.rules.walkMs
-  return Math.max(MIN_WALK_MS, Math.round((base * fieldDist(from, spotBase(side, to))) / REF_DIST[side] / (speed || 1)))
+  // The war shares one reference distance (side a's) so both guilds walk the same leg in the same time.
+  const ref = isWar(v) ? REF_DIST.a : REF_DIST[side]
+  return Math.max(MIN_WALK_MS, Math.round((base * fieldDist(from, spotBase(v, side, to))) / ref / (speed || 1)))
 }
 
 const CATCH_UP = 2
@@ -197,7 +268,7 @@ function legFrom(key: string, departAt: number, fx: number, fy: number, now: num
 function myDrawnSpot(v: RaidView, me: Fighter): [number, number] {
   const d = drawn[`${v.id}:${me.id}`]
   if (d) return [d.x, d.y]
-  return v.mine ? spotBase(v.mine, me.state === 'in' && me.at ? me.at : 'camp') : CAMP.a
+  return v.mine ? spotBase(v, v.mine, me.state === 'in' && me.at ? me.at : 'camp') : CAMP.a
 }
 
 interface Pose { x: number; y: number; anim: Anim; frame: number; flip: boolean; lift: number; scale: number; punch: number }
@@ -205,9 +276,10 @@ interface Pose { x: number; y: number; anim: Anim; frame: number; flip: boolean;
 /** Live pose of a fighter: drawn field % (feet), sheet row/column, facing, and whole-body accents (px lift, scale, punch). */
 function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose {
   const key = `${v.id}:${f.id}`
-  const spot = (where: PointId | 'camp', i: number): [number, number] => {
-    const base = spotBase(side, where)
-    const dir = where === 'camp' ? (side === 'a' ? 1 : -1) : side === 'a' ? -1 : 1
+  const spot = (where: Spot | 'camp', i: number): [number, number] => {
+    const base = spotBase(v, side, where)
+    // Fan out away from your own edge; at the shared spawn the two guilds fan to their own sides.
+    const dir = where === 'camp' && !isWar(v) ? (side === 'a' ? 1 : -1) : side === 'a' ? -1 : 1
     return [base[0] + ((dir * (i + 0.5) * TOKEN_GAP) / W) * 100, base[1]]
   }
   const now = Date.now()
@@ -223,9 +295,9 @@ function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose
   if (f.state === 'in' && f.at) [x, y] = spot(f.at, index)
   else if (f.state === 'camp') [x, y] = spot('camp', index)
   else {
-    const to: PointId | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
+    const to: Spot | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
     const [tx, ty] = spot(to, index)
-    const base = spotBase(side, to)
+    const base = spotBase(v, side, to)
     const sx = f.fromX !== null ? f.fromX + (tx - base[0]) : spot('camp', index)[0]
     const sy = f.fromY !== null ? f.fromY + (ty - base[1]) : spot('camp', index)[1]
     const [fx, fy] = legFrom(key, f.departAt, sx, sy, now)
@@ -444,6 +516,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
   const ko = f.state === 'ko' || f.hp <= 0
   const tint = ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : hit > 0 ? Color4.create(1, 0.45, 0.45, 1) : C.white
   const you = v.you === f.id
+  const armour = armourPct(v, side, f)
   const size = S(TOKEN)
   const scale = hitPose ? 1 + hit * 0.05 : p.scale
   const youPulse = you ? pulse(1400) : 0
@@ -470,7 +543,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           uiTransform={{ height: S(26), padding: { left: S(8), right: S(8) }, alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: you ? Color4.create(0.62 + 0.12 * youPulse, 0.4 + 0.14 * youPulse, 1, 1) : DARK }}
         >
-          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : you ? 'YOU' : f.name.toUpperCase().slice(0, 8)} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
+          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : `${you ? 'YOU' : f.name.toUpperCase().slice(0, 8)}${armour > 0 ? `  ${shield(armour)}` : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
       <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} scale={scale} color={tint} />
@@ -517,14 +590,18 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
   // Capture under way: one side stands alone at a building it does not hold. The server counts whole ticks
   // (cap.n of rules.captureTicks); the bar fills through the current tick too so it moves instead of stepping.
   let capture = 0
+  let captureLeft = 0
   if ((a.length > 0) !== (b.length > 0) && holder !== (a.length > 0 ? 'a' : 'b')) {
     const side: SideId = a.length > 0 ? 'a' : 'b'
-    const done = v.cap[point]?.side === side ? v.cap[point]!.n : 0
-    const tickMs = Math.max(1, v.rules.tickMs)
-    const frac = v.status === 'live' && v.nextTickAt > 0 ? Math.max(0, Math.min(1, 1 - (v.nextTickAt - serverNow()) / tickMs)) : 0
-    capture = Math.max(0.04, Math.min(1, (done + frac) / Math.max(1, v.rules.captureTicks)))
-  }
-  if (a.length > 0 && b.length > 0) {
+    const r = captureProgress(v, point, side, side === 'a' ? a.length : b.length)
+    capture = Math.max(0.04, r.progress)
+    captureLeft = r.endAt
+  } else delete captureAnchor[point]
+  // Guild War day: flags open one an hour; a locked one shows everyone the countdown instead of who stands there.
+  const opensAt = unlockAt(v, point)
+  if (opensAt > 0) {
+    line2 = <Text value={`🔒 opens in ${leftLong(opensAt)}`} size={S(22)} color={C.orange} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
+  } else if (a.length > 0 && b.length > 0) {
     line2 = (
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
         <Text value={`⚔ ${sideTag(v.sides.a, v.mode)}`} size={S(22)} color={PURPLE_LIGHT} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
@@ -536,21 +613,23 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
     const side: SideId = a.length > 0 ? 'a' : 'b'
     const list = side === 'a' ? a : b
     const names = list.slice(0, 2).map((f) => f.name.split(' ')[0]).join(', ') + (list.length > 2 ? ` +${list.length - 2}` : '')
-    const taking = holder !== side ? '  ·  taking' : ''
+    // War captures run for an hour or more, so say when; the Storm's two ticks speak for themselves.
+    const taking = holder !== side ? (v.battle?.war && captureLeft > 0 ? `  ·  taking  ${leftLong(captureLeft)}` : '  ·  taking') : ''
     line2 = <Text value={`${sideTag(v.sides[side], v.mode)} · ${names}${taking}`} size={S(22)} color={sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   } else if (holder) {
     line2 = <Text value={`${sideTag(v.sides[holder], v.mode)} · held`} size={S(22)} color={sideColor(holder)} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   } else {
     line2 = <Text value="empty" size={S(22)} color={C.gray} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   }
-  const pillColor = holder === 'a' ? Color4.create(0.5, 0.3, 0.85, 0.95) : holder === 'b' ? Color4.create(0.72, 0.5, 0.05, 0.95) : DARK_SOFT
+  const pillColor = opensAt > 0 ? Color4.create(0.2, 0.18, 0.22, 0.9) : holder === 'a' ? Color4.create(0.5, 0.3, 0.85, 0.95) : holder === 'b' ? Color4.create(0.72, 0.5, 0.05, 0.95) : DARK_SOFT
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(lx) - width / 2, top: py(ly) - S(22) }, width, flexDirection: 'column', alignItems: 'center' }}>
       <UiEntity
         uiTransform={{ height: S(44), padding: { left: S(18), right: S(18) }, alignItems: 'center', justifyContent: 'center' }}
         uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btnFlat }, textureSlices: SLICE_128, color: pillColor }}
       >
-        <OutlinedText value={`${POINT_LABEL[point]}  +${def.pips}`} size={S(24)} uiTransform={{ width: 'auto', height: S(44), margin: { bottom: S(2) } }} />
+        {/* Held: the holder's armour rides in the same label (one text; a second child stacked under it in the 44 px pill). */}
+        <OutlinedText value={holder && opensAt === 0 ? `${POINT_LABEL[point]}  +${def.pips}  ${shield(Math.round(def.armour * 100))}` : `${POINT_LABEL[point]}  +${def.pips}`} size={S(24)} uiTransform={{ width: 'auto', height: S(44), margin: { bottom: S(2) } }} />
       </UiEntity>
       <UiEntity
         uiTransform={{ height: S(32), padding: { left: S(12), right: S(12) }, margin: { top: S(4) }, alignItems: 'center', justifyContent: 'center' }}
@@ -574,14 +653,42 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
   )
 }
 
+/** Guild War day: a camp's pill. Shared hospital (anyone heals on arrival); the east one opens at hour one. */
+function CampMarker(props: { key?: string; v: RaidView; camp: CampId }) {
+  const { v, camp } = props
+  const [lx, ly] = CAMP_FIELD[camp].label
+  const opensAt = unlockAt(v, camp)
+  const here = standingAt(v.sides.a, camp).length + standingAt(v.sides.b, camp).length
+  const width = S(360)
+  const text = opensAt > 0 ? `🔒 opens in ${leftLong(opensAt)}` : here > 0 ? `✚ hospital  ·  ${here} resting` : '✚ hospital  ·  heal on arrival'
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(lx) - width / 2, top: py(ly) - S(22) }, width, flexDirection: 'column', alignItems: 'center' }}>
+      <UiEntity
+        uiTransform={{ height: S(40), padding: { left: S(16), right: S(16) }, alignItems: 'center', justifyContent: 'center' }}
+        uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btnFlat }, textureSlices: SLICE_128, color: opensAt > 0 ? Color4.create(0.2, 0.18, 0.22, 0.9) : DARK_SOFT }}
+      >
+        <OutlinedText value={spotLabel(v, camp)} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(2) } }} />
+      </UiEntity>
+      <UiEntity
+        uiTransform={{ height: S(30), padding: { left: S(12), right: S(12) }, margin: { top: S(4) }, alignItems: 'center', justifyContent: 'center' }}
+        uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}
+      >
+        <Text value={text} size={S(20)} color={opensAt > 0 ? C.orange : C.green} nowrap uiTransform={{ width: 'auto', height: S(30) }} />
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
 /** The building is the button: hover lights it, click walks there. Only rendered for a fighter who can move. */
-function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter }) {
+function HitArea(props: { key?: string; v: RaidView; point: Spot; me: Fighter }) {
   const { v, point, me } = props
-  const [cx, cy, w, h] = FIELD[point].hit
+  const [cx, cy, w, h] = spotField(point).hit
+  const camp = point === 'camp1' || point === 'camp2'
   const here = me.state === 'in' && me.at === point
   const heading = me.state === 'walk' && me.target === point
   const hovered = hoverPoint === point && !here
-  const color = hovered ? GLOW_GOLD : here ? GLOW_PURPLE : heading ? GLOW_HEADING : null
+  const locked = unlockAt(v, point) > 0
+  const color = hovered ? (locked ? GLOW_LOCKED : GLOW_GOLD) : here ? GLOW_PURPLE : heading ? GLOW_HEADING : null
   return (
     <UiEntity
       uiTransform={{ positionType: 'absolute', position: { left: px(cx) - S(w) / 2, top: py(cy) - S(h) / 2 }, width: S(w), height: S(h), alignItems: 'center', justifyContent: 'flex-end' }}
@@ -589,11 +696,19 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
       onMouseLeave={() => { if (hoverPoint === point) hoverPoint = null }}
       onMouseDown={() => {
         if (here || heading || !v.mine) return
+        if (locked) {
+          // The server would refuse it too; the marker above the building carries the countdown.
+          playErrorSound()
+          flash(`${spotLabel(v, point)} OPENS IN ${leftLong(unlockAt(v, point))}`)
+          return
+        }
         const from = myDrawnSpot(v, me)
         requestGo(point, from, walkMs(v, v.mine, from, point, me.speed))
       }}
     >
-      {color ? (
+      {color && camp ? (
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: S(w), height: S(h), pointerFilter: 'none' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(color.r, color.g, color.b, color.a * 0.35) }} />
+      ) : color ? (
         // Building-shaped halo: a white mask cut from the battlefield art, tinted. Does not take the pointer, so the hit box above stays the target.
         <UiEntity
           uiTransform={{ positionType: 'absolute', position: { left: -S(GLOW_PAD), top: -S(GLOW_PAD) }, width: S(w + GLOW_PAD * 2), height: S(h + GLOW_PAD * 2), pointerFilter: 'none' }}
@@ -602,18 +717,21 @@ function HitArea(props: { key?: string; v: RaidView; point: PointId; me: Fighter
       ) : null}
       {hovered ? (
         <UiEntity uiTransform={{ height: S(40), padding: { left: S(20), right: S(20) }, margin: { bottom: -S(20) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: C.yellow }}>
-          <OutlinedText value={heading ? 'ON YOUR WAY' : 'GO'} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
+          <OutlinedText value={heading ? 'ON YOUR WAY' : locked ? 'LOCKED' : camp ? 'HEAL' : 'GO'} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
         </UiEntity>
       ) : null}
     </UiEntity>
   )
 }
 
-function whereText(v: RaidView, f: Fighter): string {
-  if (f.state === 'ko') return `KO · back at camp ${left(f.arriveAt)}`
-  if (f.state === 'walk') return f.target === 'camp' || !f.target ? `→ camp ${left(f.arriveAt)}` : `→ ${v.points[f.target].name} ${left(f.arriveAt)}`
-  if (f.state === 'in' && f.at) return `at ${v.points[f.at].name}`
-  return v.status === 'live' ? 'at camp' : 'ready'
+function whereText(v: RaidView, side: SideId, f: Fighter): string {
+  if (f.state === 'ko') return `KO · back at ${isWar(v) ? 'spawn' : 'camp'} ${left(f.arriveAt)}`
+  if (f.state === 'walk') return f.target === 'camp' || !f.target ? `→ ${isWar(v) ? 'spawn' : 'camp'} ${left(f.arriveAt)}` : `→ ${spotName(v, f.target)} ${left(f.arriveAt)}`
+  if (f.state === 'in' && f.at) {
+    const armour = armourPct(v, side, f)
+    return `at ${spotName(v, f.at)}${armour > 0 ? `  ·  ${shield(armour)} armour` : ''}`
+  }
+  return v.status === 'live' ? (isWar(v) ? 'at spawn' : 'at camp') : 'ready'
 }
 
 function FighterCard(props: { key?: string; v: RaidView; side: SideId; f: Fighter }) {
@@ -632,7 +750,7 @@ function FighterCard(props: { key?: string; v: RaidView; side: SideId; f: Fighte
           <Text value={`HP ${f.hp}/${f.hpMax}`} size={S(21)} color={C.yellow} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(26) }} />
           <Text value={`ATK ${f.atk}`} size={S(21)} color={C.yellow} nowrap align="middle-right" uiTransform={{ width: S(90), height: S(26) }} />
         </UiEntity>
-        <Text value={whereText(v, f)} size={S(20)} color={ko ? C.red : sideColor(side)} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
+        <Text value={whereText(v, side, f)} size={S(20)} color={ko ? C.red : sideColor(side)} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
       </UiEntity>
     </UiEntity>
   )
@@ -686,6 +804,10 @@ function Header(props: { v: RaidView }) {
   const beat = urgent ? pulse(secs <= 10 ? 500 : 1000) : 0
   const bigColor = urgent ? Color4.create(1, 0.35 + 0.35 * beat, 0.35 + 0.35 * beat, 1) : C.white
   const bigSize = S(38 + (urgent ? 5 * beat : 0))
+  // Guild War day: the next flag to open and when, under the clock, so the schedule reads without hunting the field.
+  const nextOpen = v.status === 'live' && v.battle?.war ? [...CAMP_IDS, ...POINT_IDS].map((p) => [p, unlockAt(v, p)] as const).filter(([, at]) => at > 0).sort((p, q) => p[1] - q[1])[0] : undefined
+  // Standing in a building your side holds: say how much less you are taking (the buff was invisible before).
+  const myArmour = v.status === 'live' && me && v.mine ? armourPct(v, v.mine, me) : 0
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(46), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
@@ -694,6 +816,12 @@ function Header(props: { v: RaidView }) {
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
         {big ? <OutlinedText value={big} size={bigSize} color={bigColor} uiTransform={{ height: S(50) }} /> : null}
         {down ? <OutlinedText value={`YOU'RE DOWN  •  BACK IN ${backIn(me!)}s`} size={S(26)} color={C.red} uiTransform={{ height: S(34) }} /> : null}
+        {!down && (nextOpen || myArmour > 0) ? (
+          // One plain Text on a dark pill (two entities) rather than an OutlinedText (ten).
+          <UiEntity uiTransform={{ height: S(32), padding: { left: S(14), right: S(14) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}>
+            <Text value={nextOpen ? `🔒 ${spotLabel(v, nextOpen[0])} OPENS IN ${leftLong(nextOpen[1])}` : `${shield(myArmour)} ARMOUR  •  ${spotLabel(v, me!.at!)} IS YOURS`} size={S(22)} color={nextOpen ? C.orange : ARMOUR_BLUE} nowrap uiTransform={{ width: 'auto', height: S(32) }} />
+          </UiEntity>
+        ) : null}
       </UiEntity>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { right: S(24) } }}>
         <OutlinedText value={`${v.score.b}  ${sideTag(b, v.mode)}`} size={S(44)} color={C.yellow} align="middle-right" uiTransform={{ height: S(60) }} />
@@ -710,9 +838,9 @@ function ActionRow(props: { v: RaidView }) {
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: S(26), right: S(30) }, flexDirection: 'row', alignItems: 'center' }}>
       {me && v.mine && v.status === 'live' && (me.state === 'in' || (me.state === 'walk' && me.target !== 'camp')) ? (
-        <Button label="BACK TO CAMP" color={C.blue} size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => { const from = myDrawnSpot(v, me); requestGo('camp', from, walkMs(v, v.mine!, from, 'camp', me.speed)) }} />
+        <Button label={isWar(v) ? "BACK TO SPAWN" : "BACK TO CAMP"} color={C.blue} size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => { const from = myDrawnSpot(v, me); requestGo('camp', from, walkMs(v, v.mine!, from, 'camp', me.speed)) }} />
       ) : null}
-      {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(210), ...btn }} onClick={() => requestLeaveRaid()} /> : null}
+      {me && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(210), ...btn }} onClick={() => { arenaOpen = false; requestLeaveRaid() }} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}
       {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(250), ...btn }} onClick={() => stopSpectating()} /> : null}
@@ -817,11 +945,12 @@ function Field(props: { v: RaidView }) {
       <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(shake.dy), left: S(shake.dx) }, width: '100%', height: '100%', pointerFilter: 'none' }}>
         <Captures />
         {POINT_IDS.map((p) => <Marker key={`marker-${p}`} v={v} point={p} />)}
+        {isWar(v) ? CAMP_IDS.map((c) => <CampMarker key={`marker-${c}`} v={v} camp={c} />) : null}
         <Puffs />
         <Tokens v={v} />
         <Floats />
       </UiEntity>
-      {canMove ? POINT_IDS.map((p) => <HitArea key={`hit-${p}`} v={v} point={p} me={me!} />) : null}
+      {canMove ? [...POINT_IDS, ...(isWar(v) ? CAMP_IDS : [])].map((p) => <HitArea key={`hit-${p}`} v={v} point={p} me={me!} />) : null}
       <Roster v={v} side="a" />
       <Roster v={v} side="b" />
       <Header v={v} />
@@ -1045,7 +1174,7 @@ function BoardRow(props: { key?: string; e: BoardEntry }) {
   const text = e.status === 'gathering'
     ? e.mode === 'battle' ? `${label}  •  ${who(e.a)} ${e.a?.count ?? 0}/${raid.rules.sideMax}  vs  ${who(e.b)} ${e.b?.count ?? 0}/${raid.rules.sideMax}  •  gathering`
       : `${label} gathering  •  ${e.a?.count ?? 0}/${e.mode === 'pickup' ? raid.rules.sideMax * 2 : raid.rules.sideMax}  •  starts in ${left(e.gatherUntil)}`
-    : `${label}  •  ${e.mode === 'pickup' ? 'DUSK' : who(e.a)} ${e.score.a}  vs  ${e.score.b} ${e.mode === 'pickup' ? 'DAWN' : who(e.b)}  •  ${left(e.endAt)} left`
+    : `${label}  •  ${e.mode === 'pickup' ? 'DUSK' : who(e.a)} ${e.score.a}  vs  ${e.score.b} ${e.mode === 'pickup' ? 'DAWN' : who(e.b)}  •  ${leftLong(e.endAt)} left`
   return (
     <UiEntity uiTransform={{ width: '100%', height: S(60), flexDirection: 'row', alignItems: 'center', margin: { top: S(6) } }}>
       <Text value={text} size={S(20)} color={C.text} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(30) }} />
@@ -1054,11 +1183,17 @@ function BoardRow(props: { key?: string; e: BoardEntry }) {
   )
 }
 
-// Intro screen: the battlefield dimmed under the ANTROM STORM logo, then two cards side by side (the everyday Storm
-// and the Thursday Guild War) and whatever is going on right now (WATCH).
+// Intro screen (the WAR menu): the battlefield dimmed under two modes side by side, each with its own logo over its
+// card: the everyday ANTROM STORM and the Thursday GUILD WAR; then whatever is going on right now (WATCH).
 const LOGO = `${ART}/antrom_storm_v1.png`
-const LOGO_W = 460
+const WAR_LOGO = `${ART}/guild_war_v1.png`
+const LOGO_W = 400
 const LOGO_H = Math.round(LOGO_W * (538 / 867))
+/**
+ * Day-long Guild War: the guild's war raid is the tab's view all day, but the menu stays up until you choose
+ * ENTER THE WAR (auto-joins) or WATCH; LEAVE brings the menu back. Spectating always shows the field.
+ */
+let arenaOpen = false
 const IDLE_W = 780
 const IDLE_H = 380
 const IDLE_GAP = 30
@@ -1085,7 +1220,7 @@ function StormCard() {
   const me = raid.me
   return (
     <IdleCard title="ANTROM STORM" sub="Every day  •  any headcount" color={PURPLE_LIGHT}>
-      <Button label={pk?.status === 'gathering' ? 'JOIN THE STORM' : 'ENTER THE STORM'} color={canJoin ? C.purple : C.gray} textColor={canJoin ? C.white : C.textMuted} disabled={!canJoin} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => requestJoinRaid()} />
+      <Button label={pk?.status === 'gathering' ? 'JOIN THE STORM' : 'ENTER THE STORM'} color={canJoin ? C.purple : C.gray} textColor={canJoin ? C.white : C.textMuted} disabled={!canJoin} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => requestJoinRaid('pickup')} />
       {error
         ? line(error, C.red, 22, 'st-err')
         : liveNow ? line(`A Storm is on  •  next one opens in ${leftLong(pk!.nextAt)}`, PALE, 22, 'st-live')
@@ -1127,7 +1262,11 @@ function WarCard() {
     rows.push(line(`Starts when both guilds have ${b.teamSize}  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
   } else {
     rows.push(line(`${b.allDay ? 'WAR DAY' : 'WAR NIGHT'}  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
-    if (b.match) { rows.push(line(vs(b.match), PALE, 22, 'wr-2')); rows.push(line("JOIN on the left: your guild's match is open", C.green, 22, 'wr-3')) }
+    if (b.match) {
+      // Same style as ENTER THE STORM: one tap puts you on your guild's field.
+      rows.push(<Button key="wr-enter" label="ENTER THE GUILD WAR" color={raid.busy ? C.gray : C.gold} textColor={raid.busy ? C.textMuted : C.white} disabled={raid.busy} size={S(32)} uiTransform={{ width: S(440), height: S(90), margin: { top: S(8) } }} onClick={() => { arenaOpen = true; requestJoinRaid('battle') }} />)
+      rows.push(line(vs(b.match), PALE, 22, 'wr-2'))
+    }
     else if ((b.matches?.length ?? 0) > 0) rows.push(line(b.allDay ? 'Your guild is not matched this week. Watch the matches below.' : 'Your guild is not matched tonight. Watch the matches below.', PALE, 22, 'wr-2'))
     else rows.push(line('No matches this week.', PALE, 22, 'wr-2'))
   }
@@ -1144,11 +1283,16 @@ function WarCard() {
 function IdleScreen() {
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.66) }}>
-      <UiEntity uiTransform={{ width: S(LOGO_W), height: S(LOGO_H) }} uiBackground={{ textureMode: 'stretch', texture: { src: LOGO } }} />
-      <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6) } }}>
-        <StormCard />
+      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+        <UiEntity uiTransform={{ width: S(IDLE_W), flexDirection: 'column', alignItems: 'center' }}>
+          <UiEntity uiTransform={{ width: S(LOGO_W), height: S(LOGO_H), margin: { bottom: S(2) } }} uiBackground={{ textureMode: 'stretch', texture: { src: LOGO } }} />
+          <StormCard />
+        </UiEntity>
         <UiEntity uiTransform={{ width: S(IDLE_GAP) }} />
-        <WarCard />
+        <UiEntity uiTransform={{ width: S(IDLE_W), flexDirection: 'column', alignItems: 'center' }}>
+          <UiEntity uiTransform={{ width: S(LOGO_W), height: S(LOGO_H), margin: { bottom: S(2) } }} uiBackground={{ textureMode: 'stretch', texture: { src: WAR_LOGO } }} />
+          <WarCard />
+        </UiEntity>
       </UiEntity>
       {raid.board.length > 0 ? (
         <UiEntity uiTransform={{ width: S(IDLE_W * 2 + IDLE_GAP), flexDirection: 'column', margin: { top: S(IDLE_GAP / 2) }, padding: { left: S(24), right: S(24), top: S(10), bottom: S(14) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: IDLE_BG }}>
@@ -1165,7 +1309,10 @@ export function WarTab(props: { height: number }) {
   warAudioTick()
   const v = raid.view
   const showResult = v !== null && (v.status === 'done' || v.status === 'cancelled') && dismissedResult !== v.id
-  const idle = v === null || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
+  // Day-long war: the guild's raid is the view all day, but the menu stays up until ENTER THE GUILD WAR (or WATCH).
+  if (v === null) arenaOpen = false
+  const menuOverWar = v !== null && !!v.battle?.war && v.status === 'live' && !v.you && !arenaOpen && !raid.spectating
+  const idle = v === null || menuOverWar || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
   return (
     <UiEntity uiTransform={{ width: S(W), flexDirection: 'column' }}>
       <UiEntity uiTransform={{ width: S(W), height: S(props.height), positionType: 'relative', overflow: 'hidden' }} uiBackground={{ textureMode: 'stretch', texture: { src: BG } }}>

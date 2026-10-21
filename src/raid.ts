@@ -13,6 +13,11 @@ import { playErrorSound, playSuccessSound } from './uiSounds'
 const BACKEND_URL = 'https://dcl-firebase-backend.vercel.app'
 
 export type PointId = 'watchtower' | 'sawmill' | 'citadel' | 'quarry' | 'shrine'
+/** Guild War day: the two camps are shared field hospitals you can walk to; 'camp' (home) is then the mid-field spawn. */
+export type CampId = 'camp1' | 'camp2'
+export const CAMP_IDS: CampId[] = ['camp1', 'camp2']
+/** Anywhere a fighter can stand. */
+export type Spot = PointId | CampId
 export const POINT_IDS: PointId[] = ['watchtower', 'sawmill', 'citadel', 'quarry', 'shrine']
 export type SideId = 'a' | 'b'
 export type RaidStatus = 'gathering' | 'live' | 'done' | 'cancelled'
@@ -35,8 +40,8 @@ export interface Fighter {
   atk: number
   hp: number
   state: FighterState
-  at: PointId | null
-  target: PointId | 'camp' | null
+  at: Spot | null
+  target: Spot | 'camp' | null
   arriveAt: number
   /** Where the current walk started (field %), and when; null/0 when not walking. Walk times scale with distance. */
   fromX: number | null
@@ -56,6 +61,22 @@ export interface Fighter {
 export interface Side { guildId: string; tag: string; name: string; wraith: boolean; fighters: Fighter[] }
 export interface PointDef { name: string; pips: number; armour: number; x: number; y: number }
 export type Reward = { wood: number; rock: number; meat: number; bone: number }
+/** Day-long Guild War rules (server battle.war): fighter-minutes per flag, the unlock schedule, decay and pay. */
+export interface WarRules {
+  tickMs: number
+  koWalkMs: number
+  sideMax: number
+  maxCapturers: number
+  captureMin: Record<PointId, number>
+  /** Minutes after the start each flag opens; locked flags cannot be walked to. */
+  unlockMin: Record<Spot, number>
+  decayMin: number
+  holdCap: number
+  fullMin: number
+  taperMin: number
+  taperFloor: number
+  pointsPerPip: number
+}
 export interface RaidView {
   id: string
   mode: RaidMode
@@ -64,7 +85,14 @@ export interface RaidView {
   gatherUntil: number
   /** Battle: end of the two-hour window (gatherUntil moves ahead of it once both sides are full). */
   windowEnd: number
-  battle: { week: string; pointsMult: number; reward: { win: Reward; lose: Reward } } | null
+  /** `war` is set on the day-long Guild War (one tick a minute, hour-scale captures); absent on a Storm. */
+  battle: { week: string; pointsMult: number; reward: { win: Reward; lose: Reward }; war?: WarRules } | null
+  /** Guild War only: when each flag was last taken (0 = never) and minutes it has stood unguarded. */
+  took?: Record<PointId, number>
+  decay?: Record<PointId, number>
+  /** Guild War only: camp names and the shared spawn (field %). */
+  camps?: Record<CampId, { name: string }>
+  spawn?: [number, number]
   startAt: number
   endAt: number
   tick: number
@@ -176,9 +204,9 @@ interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: 
  * building stops counting me as a defender and nothing hands over mid-leg. Same distance / speed rule as the server,
  * so the legs agree to within the uplink delay. Dropped if the server refuses, knocks me out or never confirms.
  */
-export const pendingGo = { to: null as PointId | 'camp' | null, from: [0, 0] as [number, number], at: 0, ms: 0 }
+export const pendingGo = { to: null as Spot | 'camp' | null, from: [0, 0] as [number, number], at: 0, ms: 0 }
 /** A GO clicked while another action was in flight: sent the moment the line is free instead of being dropped. */
-let queuedGo: PointId | 'camp' | null = null
+let queuedGo: Spot | 'camp' | null = null
 
 /** Overwrite my fighter in `v` with the clicked leg (see pendingGo); clears it once the server agrees I am there. */
 function applyPendingGo(v: RaidView | null) {
@@ -281,7 +309,11 @@ const EVENT_LAG_MS = 300
 export function pollRaid() {
   const v = raid.view
   const hot = v !== null && (v.status === 'gathering' || v.status === 'live')
-  const interval = hot ? 3_000 : 20_000
+  // Day-long war: it is 'live' for 24 h, so the Storm's 3 s would be ~29k requests a client a day. With one tick a
+  // minute nothing changes faster than a walk, and ticks / arrivals still trigger their own poll below, so 10 s on
+  // the field is plenty; off the field (the menu, or in it but not fighting) the idle 20 s.
+  const war = hot && v.status === 'live' && !!v.battle?.war
+  const interval = !hot ? 20_000 : war ? (v.you ? 10_000 : 20_000) : 3_000
   let due = Date.now() - raid.loadedAt >= interval
   if (!due && hot && Date.now() - raid.loadedAt >= 500) {
     const now = serverNow()
@@ -314,11 +346,14 @@ export function stopSpectating() {
   refreshRaid()
 }
 
-/** JOIN: your guild's battle raid when there is one, else the pickup queue (opening it if nobody is waiting). */
-export function requestJoinRaid() {
+/**
+ * JOIN. 'battle' (default): your guild's battle raid when there is one, else the pickup queue. 'pickup': the Storm
+ * queue even while your guild's day-long war is on (the WAR menu offers both). Opens the queue if nobody is waiting.
+ */
+export function requestJoinRaid(mode: 'battle' | 'pickup' = 'battle') {
   raid.spectating = ''
-  send('join', {}, (r) => {
-    flash(r.raid?.mode === 'pickup' && r.raid.status === 'gathering' ? 'YOU ARE IN  •  TEAMS ARE DRAWN AT THE BELL' : 'YOU ARE IN  •  CLICK A BUILDING WHEN IT STARTS')
+  send('join', { mode }, (r) => {
+    flash(r.raid?.mode === 'pickup' && r.raid.status === 'gathering' ? 'YOU ARE IN  •  TEAMS ARE DRAWN AT THE BELL' : r.raid?.battle?.war ? 'YOU ARE ON THE FIELD  •  CLICK AN OPEN BUILDING' : 'YOU ARE IN  •  CLICK A BUILDING WHEN IT STARTS')
     playSuccessSound()
   })
 }
@@ -338,7 +373,7 @@ export function requestLeaveRaid() {
  * Click on a building (or BACK TO CAMP): the token sets off this frame from `from` (field %, where it is drawn) on a
  * leg of `ms`; the server is told now, or as soon as the line is free. A new click simply replaces the leg.
  */
-export function requestGo(to: PointId | 'camp', from: [number, number], ms: number) {
+export function requestGo(to: Spot | 'camp', from: [number, number], ms: number) {
   pendingGo.to = to
   pendingGo.from = from
   pendingGo.at = serverNow()
@@ -347,7 +382,7 @@ export function requestGo(to: PointId | 'camp', from: [number, number], ms: numb
   if (raid.busy) { queuedGo = to; return }
   sendGo(to)
 }
-function sendGo(to: PointId | 'camp') {
+function sendGo(to: Spot | 'camp') {
   // Refused (not live, knocked out, ...): drop the leg and let the next view put the token back where it really is.
   const onFail = () => { if (pendingGo.to === to) clearPendingGo() }
   if (to === 'camp') send('home', {}, undefined, onFail)
@@ -403,5 +438,5 @@ export const sideTag = (s: Side | null, mode: RaidMode = 'guild') => (s ? (s.wra
 export const fighterName = (v: RaidView, f: Fighter) => (v.mode === 'pickup' && f.tag && f.id.startsWith('0x') ? `${f.name} [${f.tag}]` : f.name)
 
 /** Fighters standing in a building (hp > 0). */
-export const standingAt = (s: Side | null, point: PointId) => (s ? s.fighters.filter((f) => f.state === 'in' && f.at === point && f.hp > 0) : [])
+export const standingAt = (s: Side | null, point: Spot) => (s ? s.fighters.filter((f) => f.state === 'in' && f.at === point && f.hp > 0) : [])
 export const sumAtk = (list: Fighter[]) => list.reduce((sum, f) => sum + f.atk, 0)

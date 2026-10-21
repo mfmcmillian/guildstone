@@ -771,6 +771,7 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string, strin
   ['A building stays yours, even empty, until the enemy takes it.', 'Un bâtiment reste à toi, même vide, jusqu’à ce que l’ennemi le prenne.', 'Un edificio sigue siendo tuyo, aunque esté vacío, hasta que el enemigo lo tome.', '建筑即使空着也属于你，直到敌人夺走。', 'Ein Gebäude bleibt deins, auch leer, bis der Feind es nimmt.'],
   ['{0} · held', '{0} · tenu', '{0} · en poder', '{0} · 已占领', '{0} · gehalten'],
   ['{0} · {1}  ·  taking', '{0} · {1}  ·  prise', '{0} · {1}  ·  tomando', '{0} · {1}  ·  夺取中', '{0} · {1}  ·  nehme'],
+  ['{0} · {1}  ·  taking  {2}', '{0} · {1}  ·  prise  {2}', '{0} · {1}  ·  tomando  {2}', '{0} · {1}  ·  夺取中  {2}', '{0} · {1}  ·  nehme  {2}'],
   ['Team with the most points at the end of the timer wins.', "L'équipe avec le plus de points à la fin du chrono gagne.", 'Gana el equipo con más puntos al acabar el tiempo.', '计时结束时分数最高的队伍获胜。', 'Das Team mit den meisten Punkten am Ende der Zeit gewinnt.'],
   ['Both sides set. Watch it from here.', "Les deux camps sont prêts. Regarde d'ici.", 'Ambos bandos listos. Míralo desde aquí.', '双方已就位。在此观战。', 'Beide Seiten stehen. Schau von hier zu.'],
   ['BACK IN {0}s', 'RETOUR DANS {0}s', 'VUELVE EN {0}s', '{0}秒后归队', 'ZURÜCK IN {0} s'],
