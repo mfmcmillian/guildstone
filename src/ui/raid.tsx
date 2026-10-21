@@ -142,15 +142,23 @@ const left = (until: number) => timerText(until - raid.clockOffset)
 const leftLong = (until: number) => { const sec = Math.max(0, Math.ceil((until - raid.clockOffset - Date.now()) / 1000)); return sec < 3600 ? timerText(until - raid.clockOffset) : `${Math.floor(sec / 3600)}:${timerText(Date.now() + (sec % 3600) * 1000).padStart(5, '0')}` }
 
 /**
- * Armour a fighter is under right now, as a whole percent: standing in a building their side holds cuts the damage
- * they take by the building's armour (Citadel 30%, corners 15%). 0 anywhere else.
+ * A building's bonus for the side holding it: armour (damage taken cut: Sawmill, Quarry 15%) or attack (damage dealt
+ * up: Watchtower, Bone Shrine 15%). Null when it gives neither (Citadel). Values come from the live rules.
  */
-function armourPct(v: RaidView, side: SideId, f: Fighter): number {
-  if (f.state !== 'in' || !f.at || f.at === 'camp1' || f.at === 'camp2' || v.held[f.at] !== side) return 0
-  return Math.round((v.points[f.at].armour ?? 0) * 100)
+type Buff = { tag: string; word: 'armour' | 'attack' }
+function buffOf(def: { armour?: number; attack?: number }): Buff | null {
+  if ((def.armour ?? 0) > 0) return { tag: `🛡 ${Math.round(def.armour! * 100)}%`, word: 'armour' }
+  if ((def.attack ?? 0) > 0) return { tag: `⚔ ${Math.round(def.attack! * 100)}%`, word: 'attack' }
+  return null
 }
-const shield = (pct: number) => `🛡 ${pct}%`
+/** The bonus a fighter is under right now: standing in a building their side holds. Null anywhere else. */
+function myBuff(v: RaidView, side: SideId, f: Fighter): Buff | null {
+  if (f.state !== 'in' || !f.at || f.at === 'camp1' || f.at === 'camp2' || v.held[f.at] !== side) return null
+  return buffOf(v.points[f.at])
+}
 const ARMOUR_BLUE = Color4.create(0.55, 0.85, 1, 1)
+const ATTACK_RED = Color4.create(1, 0.6, 0.5, 1)
+const buffColor = (b: Buff) => (b.word === 'armour' ? ARMOUR_BLUE : ATTACK_RED)
 
 /**
  * Capture bar. The server counts whole ticks (Storm: cap.n of captureTicks; war: fighter-minutes of captureMin), so a
@@ -516,7 +524,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
   const ko = f.state === 'ko' || f.hp <= 0
   const tint = ko ? Color4.create(0.6, 0.6, 0.7, 0.55) : hit > 0 ? Color4.create(1, 0.45, 0.45, 1) : C.white
   const you = v.you === f.id
-  const armour = armourPct(v, side, f)
+  const buff = myBuff(v, side, f)
   const healing = v.status === 'live' && !isWar(v) && f.state === 'camp' && f.hp < f.hpMax
   const size = S(TOKEN)
   const scale = hitPose ? 1 + hit * 0.05 : p.scale
@@ -544,7 +552,7 @@ function Token(props: { key?: string; v: RaidView; side: SideId; f: Fighter; ind
           uiTransform={{ height: S(26), padding: { left: S(8), right: S(8) }, alignItems: 'center', justifyContent: 'center' }}
           uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: you ? Color4.create(0.62 + 0.12 * youPulse, 0.4 + 0.14 * youPulse, 1, 1) : DARK }}
         >
-          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : `${you ? 'YOU' : f.name.toUpperCase().slice(0, 8)}${armour > 0 ? `  ${shield(armour)}` : healing ? '  ✚' : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
+          <Text value={f.state === 'ko' ? `BACK IN ${backIn(f)}s` : `${you ? 'YOU' : f.name.toUpperCase().slice(0, 8)}${buff ? `  ${buff.tag}` : healing ? '  ✚' : ''}`} size={S(20)} color={f.state === 'ko' ? C.red : you ? C.white : sideColor(side)} nowrap uiTransform={{ width: 'auto', height: S(26) }} />
         </UiEntity>
       </UiEntity>
       <Sprite src={sheetFor(side, f)} anim={anim} frame={frame} flip={p.flip} size={size} scale={scale} color={tint} />
@@ -629,8 +637,8 @@ function Marker(props: { key?: string; v: RaidView; point: PointId }) {
         uiTransform={{ height: S(44), padding: { left: S(18), right: S(18) }, alignItems: 'center', justifyContent: 'center' }}
         uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btnFlat }, textureSlices: SLICE_128, color: pillColor }}
       >
-        {/* Held: the holder's armour rides in the same label (one text; a second child stacked under it in the 44 px pill). */}
-        <OutlinedText value={holder && opensAt === 0 ? `${POINT_LABEL[point]}  +${def.pips}  ${shield(Math.round(def.armour * 100))}` : `${POINT_LABEL[point]}  +${def.pips}`} size={S(24)} uiTransform={{ width: 'auto', height: S(44), margin: { bottom: S(2) } }} />
+        {/* Held: the holder's bonus rides in the same label (one text; a second child stacked under it in the 44 px pill). */}
+        <OutlinedText value={holder && opensAt === 0 ? `${POINT_LABEL[point]}  +${def.pips}${buffOf(def) ? `  ${buffOf(def)!.tag}` : ''}` : `${POINT_LABEL[point]}  +${def.pips}`} size={S(24)} uiTransform={{ width: 'auto', height: S(44), margin: { bottom: S(2) } }} />
       </UiEntity>
       <UiEntity
         uiTransform={{ height: S(32), padding: { left: S(12), right: S(12) }, margin: { top: S(4) }, alignItems: 'center', justifyContent: 'center' }}
@@ -762,8 +770,8 @@ function whereText(v: RaidView, side: SideId, f: Fighter): string {
   if (f.state === 'ko') return `KO · back at ${isWar(v) ? 'spawn' : 'camp'} ${left(f.arriveAt)}`
   if (f.state === 'walk') return f.target === 'camp' || !f.target ? `→ ${isWar(v) ? 'spawn' : 'camp'} ${left(f.arriveAt)}` : `→ ${spotName(v, f.target)} ${left(f.arriveAt)}`
   if (f.state === 'in' && f.at) {
-    const armour = armourPct(v, side, f)
-    return `at ${spotName(v, f.at)}${armour > 0 ? `  ·  ${shield(armour)} armour` : ''}`
+    const buff = myBuff(v, side, f)
+    return `at ${spotName(v, f.at)}${buff ? `  ·  ${buff.tag} ${buff.word}` : ''}`
   }
   // Storm camps are hospitals: a wounded fighter waiting there mends a little every tick (server CAMP_REGEN_PCT).
   if (v.status === 'live' && !isWar(v) && f.state === 'camp' && f.hp < f.hpMax) return 'at camp  ·  ✚ healing'
@@ -843,7 +851,7 @@ function Header(props: { v: RaidView }) {
   // Guild War day: the next flag to open and when, under the clock, so the schedule reads without hunting the field.
   const nextOpen = v.status === 'live' && v.battle?.war ? [...CAMP_IDS, ...POINT_IDS].map((p) => [p, unlockAt(v, p)] as const).filter(([, at]) => at > 0).sort((p, q) => p[1] - q[1])[0] : undefined
   // Standing in a building your side holds: say how much less you are taking (the buff was invisible before).
-  const myArmour = v.status === 'live' && me && v.mine ? armourPct(v, v.mine, me) : 0
+  const buff = v.status === 'live' && me && v.mine ? myBuff(v, v.mine, me) : null
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(46), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
@@ -852,10 +860,10 @@ function Header(props: { v: RaidView }) {
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', alignItems: 'center' }}>
         {big ? <OutlinedText value={big} size={bigSize} color={bigColor} uiTransform={{ height: S(50) }} /> : null}
         {down ? <OutlinedText value={`YOU'RE DOWN  •  BACK IN ${backIn(me!)}s`} size={S(26)} color={C.red} uiTransform={{ height: S(34) }} /> : null}
-        {!down && (nextOpen || myArmour > 0) ? (
+        {!down && (nextOpen || buff) ? (
           // One plain Text on a dark pill (two entities) rather than an OutlinedText (ten).
           <UiEntity uiTransform={{ height: S(32), padding: { left: S(14), right: S(14) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}>
-            <Text value={nextOpen ? `🔒 ${spotLabel(v, nextOpen[0])} OPENS IN ${leftLong(nextOpen[1])}` : `${shield(myArmour)} ARMOUR  •  ${spotLabel(v, me!.at!)} IS YOURS`} size={S(22)} color={nextOpen ? C.orange : ARMOUR_BLUE} nowrap uiTransform={{ width: 'auto', height: S(32) }} />
+            <Text value={nextOpen ? `🔒 ${spotLabel(v, nextOpen[0])} OPENS IN ${leftLong(nextOpen[1])}` : `${buff!.tag} ${buff!.word.toUpperCase()}  •  ${spotLabel(v, me!.at!)} IS YOURS`} size={S(22)} color={nextOpen ? C.orange : buffColor(buff!)} nowrap uiTransform={{ width: 'auto', height: S(32) }} />
           </UiEntity>
         ) : null}
       </UiEntity>
