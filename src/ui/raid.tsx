@@ -1332,9 +1332,10 @@ function WarCard() {
     else rows.push(line(b.signedUp ? `✓  [${g?.tag ?? ''}] is signed up` : 'Ask your leader to sign the guild up', b.signedUp ? C.green : PALE, 24, 'wr-3'))
   } else if (!live) {
     // Free-for-all: every signed-up guild takes the same field when the window opens; nothing to pair.
-    if (b.signedUp) rows.push(line(`${b.allDay ? 'THIS WEEK' : 'TONIGHT'}  •  [${g?.tag ?? ''}] is in  •  ${n} guild${n === 1 ? '' : 's'}, every one for itself`, C.gold, 26, 'wr-1'))
+    // Card text is one line each (724 px inside): keep every line under ~50 characters at 26, ~70 at 20.
+    if (b.signedUp) rows.push(line(`${b.allDay ? 'THIS WEEK' : 'TONIGHT'}  •  [${g?.tag ?? ''}] is in  •  ${n} guild${n === 1 ? '' : 's'}`, C.gold, 26, 'wr-1'))
     else { rows.push(line(`[${g?.tag ?? ''}] is not in this week's war.`, PALE, 22, 'wr-1')); rows.push(line('Sign-ups for next week open after the event.', MUTED, 20, 'wr-1b')) }
-    if (n > 0) rows.push(line(`On the field:   ${tags}`, MUTED, 20, 'wr-2'))
+    if (n > 0) rows.push(line(`Every one for itself:   ${tags}`, MUTED, 20, 'wr-2'))
     rows.push(line(b.allDay ? `Fight any time ${b.when}` : `Be on WAR at ${b.when}`, MUTED, 20, 'wr-4'))
     rows.push(line(`Open from the first minute  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
   } else {
@@ -1352,7 +1353,7 @@ function WarCard() {
     <IdleCard title="GUILD WAR" sub={b.mini ? 'Mini war' : b.when ?? ''} color={C.gold}>
       {rows}
       <Spacer />
-      {line(`Top guild banks ${rewardText(b.reward!.win)} each  •  every signed-up guild, one field`, MUTED, 20, 'wr-prize')}
+      {line(`Top guild banks ${rewardText(b.reward!.win)}`, MUTED, 20, 'wr-prize')}
       {record}
     </IdleCard>
   )
