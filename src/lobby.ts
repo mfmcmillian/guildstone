@@ -28,7 +28,8 @@ const GUILD_CHAT_KEEP = 200
 export interface ChatMessage {
   id: string; at: number; from: string; name: string; tag: string; text: string
   /** Poster's VIP tier 0..10 (src/vip.ts); on a system line with kind 'vip', the tier the line celebrates. */ vip?: number
-  /** Server-written line flavour: 'vip' = a VIP 3+ entrance line (coloured in the tier's colour). */ kind?: string
+  /** Server-written line flavour: 'vip' = a VIP 3+ entrance line (coloured in the tier's colour); 'tool' = a tool rank-up (coloured by `tier`). */ kind?: string
+  /** On a 'tool' line, the tool tier reached (its band picks the colour). */ tier?: number
   /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean
   /** Wallets named with @Name in the text (server-resolved). */ mentions?: string[]
   /** A private line (`/w`). Received: `from` is the sender, `text` the words. Sent: the server's echo carries `to` / `toName` and the bare words in `body`. */

@@ -23,6 +23,17 @@ export const C = {
   clear: Color4.create(0, 0, 0, 0)
 }
 
+/** Tool rank colours by band (Iron, Steel, Gold, Runic, Eldritch): bright for navy rows, dark for paper panels. */
+const TOOL_RANK_HEX = ['#b9c0d0', '#3aa0ff', '#ffd23f', '#c084ff', '#3ddc84']
+const TOOL_RANK_HEX_DARK = ['#6b7590', '#1f6fd0', '#b87a00', '#8a3ff2', '#1fa35c']
+export const TOOL_RANK_COLORS = TOOL_RANK_HEX.map((h) => Color4.fromHexString(`${h}ff`))
+export const TOOL_RANK_COLORS_DARK = TOOL_RANK_HEX_DARK.map((h) => Color4.fromHexString(`${h}ff`))
+/** Colour for a tool tier's rank; `onLight` picks the darkened ladder for paper panels. */
+export const toolRankColor = (tier: number, onLight = false): Color4 => {
+  const band = Math.max(0, Math.min(4, Math.ceil(tier / 4) - 1))
+  return (onLight ? TOOL_RANK_COLORS_DARK : TOOL_RANK_COLORS)[band]
+}
+
 export const TEX = {
   panel: 'images/ui/panel.png',
   panelFlat: 'images/ui/panel_flat.png',

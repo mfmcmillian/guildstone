@@ -33,6 +33,7 @@ import {
   toolRarePct,
   toolForgeMs,
   applyFinishedForges,
+  toolTitle,
   toolPct,
   setSkills,
   MASTERY_ENABLED
@@ -586,7 +587,7 @@ export function settleTools() {
   if (profileState.status !== 'ready' || !profileState.walletAddress || settleInFlight) return
   const landed = applyFinishedForges()
   if (landed.length === 0) return
-  for (const skill of landed) flash(`${TOOL_NAME[skill].toUpperCase()} MASTERWORK DONE  •  TIER ${player.tools[skill]}  +${Math.round(toolPct(skill) * 100)}% ${RESOURCE_INFO[SKILL_INFO[skill].resource].name.toUpperCase()}  •  RARES +${Math.round(toolRarePct(player.tools[skill]) * 100)}%`)
+  for (const skill of landed) flash(`${toolTitle(skill, player.tools[skill]).toUpperCase()} MASTERWORK DONE  •  TIER ${player.tools[skill]}  +${Math.round(toolPct(skill) * 100)}% ${RESOURCE_INFO[SKILL_INFO[skill].resource].name.toUpperCase()}  •  RARES +${Math.round(toolRarePct(player.tools[skill]) * 100)}%`)
   playSuccessSound()
   settleInFlight = true
   executeTask(async () => {

@@ -795,6 +795,12 @@ export const TOOL_PCT_PER_TIER = 0.1
 export const TOOL_PCT_AFTER_FIVE = 0.05
 export const TOOL_RARE_PCT_PER_TIER = 0.05
 export const TOOL_NAME: Record<Skill, string> = { lumberjack: 'Axe', miner: 'Pickaxe', butcher: 'Cleaver', assassin: 'Dagger' }
+/** Cosmetic rank per band: tiers 1-4 Iron, 5-8 Steel, 9-12 Gold, 13-16 Runic, 17-20 Eldritch (mirrors the server's AFK_TOOL_RANKS). */
+export const TOOL_RANKS = ['Iron', 'Steel', 'Gold', 'Runic', 'Eldritch']
+/** Band index 0-4 of a tool tier (tier 0 counts as band 0 so an unforged tool still has a colour slot). */
+export const toolBand = (tier: number) => Math.max(0, Math.min(TOOL_RANKS.length - 1, Math.ceil(tier / TOOL_BAND) - 1))
+/** 'Gold Axe' for a tier-10 axe; plain 'Axe' when the tool has not been forged yet. */
+export const toolTitle = (skill: Skill, tier: number) => (tier > 0 ? `${TOOL_RANKS[toolBand(tier)]} ${TOOL_NAME[skill]}` : TOOL_NAME[skill])
 export const TOOL_TIERS = [
   { level: 1, own: 20, others: 0 },
   { level: 10, own: 60, others: 10 },

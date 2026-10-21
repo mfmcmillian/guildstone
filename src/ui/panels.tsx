@@ -1,7 +1,7 @@
 import ReactEcs, { Input, UiEntity } from '@dcl/sdk/react-ecs'
 import { t } from '../i18n'
 import { Color4 } from '@dcl/sdk/math'
-import { C, TEX, SLICE_128, SLICE_PILL, glow } from './theme'
+import { C, TEX, SLICE_128, SLICE_PILL, glow, toolRankColor } from './theme'
 import { OutlinedText, Text, Panel, Pill, Icon, Bar, Button, Modal, Spacer, timerText, durationText } from './components'
 import { S, fitModal, CONTENT_W } from './responsive'
 import { LobbyTab, RankingsTab, resetLobbyView } from './lobby'
@@ -36,6 +36,9 @@ import {
   haveOf,
   ToolCostKey,
   TOOL_NAME,
+  TOOL_RANKS,
+  toolBand,
+  toolTitle,
   TOOL_MAX,
   TOOL_BAND,
   MATERIALS,
@@ -559,13 +562,14 @@ export function SkillsPanel() {
             </UiEntity>
             <RareDropColumn skill={s} />
             <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', margin: { left: S(30) } }}>
-              <Text value={`${TOOL_NAME[s].toUpperCase()} T${player.tools[s]}`} size={S(28)} color={player.tools[s] > 0 ? C.gold : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
+              {/* Rank by band (Iron … Eldritch) in its colour; one pip per band, lit once the band is started */}
+              <Text value={`${toolTitle(s, player.tools[s]).toUpperCase()} T${player.tools[s]}`} size={S(28)} color={player.tools[s] > 0 ? toolRankColor(player.tools[s], true) : C.textMuted} nowrap uiTransform={{ height: S(38) }} />
               <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6), bottom: S(6) } }}>
-                {[1, 2, 3, 4, 5].map((lv) => (
+                {[0, 1, 2, 3, 4].map((band) => (
                   <UiEntity
-                    key={lv}
+                    key={band}
                     uiTransform={{ width: S(34), height: S(34), margin: { left: S(4), right: S(4) } }}
-                    uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: player.tools[s] >= lv ? C.blue : C.gray }}
+                    uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: player.tools[s] > band * TOOL_BAND ? toolRankColor(band * TOOL_BAND + 1, true) : C.gray }}
                   />
                 ))}
               </UiEntity>
@@ -1026,18 +1030,21 @@ export function ForgePanel() {
             const ok = canUpgradeTool(s)
             const forge = toolForging(s)
             const forgeMs = cost ? toolForgeMs(tier + 1) : 0
+            // Cosmetic rank: the frame, title and pips take the band's colour (Iron grey … Eldritch green). Tier 20 gets a star.
+            const rankColor = tier > 0 ? toolRankColor(tier, true) : skillColor(s)
+            const nextRank = cost && toolBand(tier + 1) !== toolBand(tier) ? TOOL_RANKS[toolBand(tier + 1)] : null
             return (
               <Panel key={s} flat color={C.paper2} uiTransform={{ width: S(410), height: S(900), alignItems: 'center', padding: S(22), margin: { left: S(10), right: S(10) } }}>
                 <UiEntity
                   uiTransform={{ width: S(150), height: S(150), alignItems: 'center', justifyContent: 'center' }}
-                  uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: skillColor(s) }}
+                  uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.square }, textureSlices: SLICE_128, color: rankColor }}
                 >
                   <Icon src={SKILL_ICON[s]} size={S(120)} />
                 </UiEntity>
-                <OutlinedText value={TOOL_NAME[s].toUpperCase()} size={S(32)} uiTransform={{ margin: { top: S(12) } }} />
+                <OutlinedText value={`${tier >= TOOL_MAX ? '★ ' : ''}${toolTitle(s, tier).toUpperCase()}`} size={S(32)} color={tier > 0 ? rankColor : C.white} uiTransform={{ margin: { top: S(12) } }} />
                 <OutlinedText value={forge ? `MASTERWORKING  T${forge.tier}` : cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(36)} color={C.gold} />
                 <Text value={cost ? `Band ${toolLadderTier(tier + 1) + 1} of 5  •  paid in ${toolLadderTier(tier + 1) === 0 ? 'base materials' : `${LADDER[s][toolLadderTier(tier + 1)][1]} (Tier ${toolLadderTier(tier + 1)})`}` : 'Every band complete'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(26) }} />
-                {/* 20 pips in five bands of four; the band being worked on is brighter */}
+                {/* 20 pips in five bands of four, each band lit in its rank colour */}
                 <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6) } }}>
                   {[0, 1, 2, 3, 4].map((band) => (
                     <UiEntity key={`band-${band}`} uiTransform={{ flexDirection: 'row', margin: { left: S(5), right: S(5) } }}>
@@ -1047,13 +1054,14 @@ export function ForgePanel() {
                           <UiEntity
                             key={lv}
                             uiTransform={{ width: S(14), height: S(14), margin: { left: S(1), right: S(1) } }}
-                            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: tier >= lv ? skillColor(s) : C.gray }}
+                            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.circle }, textureSlices: SLICE_128, color: tier >= lv ? toolRankColor(lv, true) : C.gray }}
                           />
                         )
                       })}
                     </UiEntity>
                   ))}
                 </UiEntity>
+                {nextRank ? <Text value={`Next tier makes it ${nextRank}`} size={S(20)} color={toolRankColor(tier + 1, true)} nowrap uiTransform={{ height: S(26), margin: { top: S(4) } }} /> : null}
                 <Text
                   value={cost ? `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}% -> +${Math.round(toolYieldPct(tier + 1) * 100)}%${toolRarePct(tier + 1) > 0 ? `  •  rares +${Math.round(toolRarePct(tier) * 100)}% -> +${Math.round(toolRarePct(tier + 1) * 100)}%` : ''}` : `${RESOURCE_INFO[SKILL_INFO[s].resource].name.toUpperCase()}  +${Math.round(toolPct(s) * 100)}%  •  rares +${Math.round(toolRarePct(tier) * 100)}%`}
                   size={S(24)}
