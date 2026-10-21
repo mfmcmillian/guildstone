@@ -131,6 +131,17 @@ function sanitizeMastery(value: AfkPlayerProfile['mastery']): typeof player.mast
   return { lumberjack: one(value?.lumberjack), miner: one(value?.miner), butcher: one(value?.butcher), assassin: one(value?.assassin) }
 }
 
+function sanitizeToolForge(value: AfkPlayerProfile['toolForge']): typeof player.toolForge {
+  const out: typeof player.toolForge = {}
+  for (const s of SKILLS) {
+    const f = value?.[s]
+    const tier = cleanAmount(f?.tier)
+    const endsAt = cleanAmount(f?.endsAt)
+    if (tier >= 1 && tier <= TOOL_MAX && endsAt > 0) out[s] = { tier, startedAt: cleanAmount(f?.startedAt), endsAt }
+  }
+  return out
+}
+
 function sanitizeTools(value: AfkPlayerProfile['tools']): typeof player.tools {
   const one = (v: number | undefined) => Math.min(TOOL_MAX, cleanAmount(v))
   return { lumberjack: one(value?.lumberjack), miner: one(value?.miner), butcher: one(value?.butcher), assassin: one(value?.assassin) }
@@ -185,6 +196,7 @@ export function initializeBackpackPersistence() {
     player.skills = sanitizeSkills(profileState.profile.skills)
     player.mastery = sanitizeMastery(profileState.profile.mastery)
     player.tools = sanitizeTools(profileState.profile.tools)
+    player.toolForge = sanitizeToolForge(profileState.profile.toolForge)
     player.heroes = sanitizeHeroes(profileState.profile.heroes)
     player.hero = sanitizeHeroId(profileState.profile.hero)
     player.vip = cleanVip(profileState.profile.vip)

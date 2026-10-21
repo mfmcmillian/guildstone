@@ -3,7 +3,7 @@
 // impact frame). No ambience: the field is quiet between blows.
 import { AudioSource, engine, Entity, Transform } from '@dcl/sdk/ecs'
 import { Vector3 } from '@dcl/sdk/math'
-import { isMuted } from './uiSounds'
+import { scaledVolume, soundOff } from './uiSounds'
 
 export type WarSfx = 'hit' | 'ko' | 'capture' | 'bellStart' | 'bellEnd' | 'tick'
 const FILE: Record<WarSfx, string> = {
@@ -41,10 +41,13 @@ function init() {
 // flag go false and then true, so it is cleared now and set again on the next system tick.
 const restart = new Set<Entity>()
 function fire(name: WarSfx) {
-  if (isMuted()) return
+  if (soundOff()) return
   const e = name === 'hit' ? hitSources[hitTurn++ % hitSources.length] : oneShot[name]
   if (!e || !AudioSource.has(e)) return
-  AudioSource.getMutable(e).playing = false
+  const source = AudioSource.getMutable(e)
+  source.playing = false
+  // Master volume may have moved since the source was made; apply it on every shot.
+  source.volume = scaledVolume(VOLUME[name])
   restart.add(e)
 }
 

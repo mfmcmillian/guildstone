@@ -13,14 +13,30 @@ export const settings = {
    * (purchases, errors, BACKPACK FULL, the away summary) always shows.
    */
   alerts: true,
+  /**
+   * Master volume for every ring sound (clicks, coins, alert chimes, war). 0..1 in tenths; each clip's own level
+   * is multiplied by it, so the mix between clips stays as authored. Default half: the clips were too loud at 1.
+   */
+  volume: 0.5,
   /** True once the profile's settings have been read, so a save never races the load. */
   seeded: false,
   /** False until the profile said which UI language to use (or confirmed it never chose one). */
   languageSeeded: false
 }
 
+export const VOLUME_DEFAULT = 0.5
+export const VOLUME_STEP = 0.1
+
+/** Snap a saved or requested volume to a tenth in 0..1; anything that is not a number falls back to the default. */
+export function clampVolume(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return VOLUME_DEFAULT
+  return Math.round(Math.min(1, Math.max(0, value)) * 10) / 10
+}
+
 export interface ProfileSettings extends SocialSettings {
   alerts?: boolean
+  /** Master sound volume 0..1 (see `settings.volume`). Unset = default. */
+  volume?: number
   /** UI language (i18n.ts). Unset = never chose one: the ring then adopts the KoA choice if there is one. */
   language?: string
   chatLanguage?: string
@@ -30,6 +46,7 @@ export interface ProfileSettings extends SocialSettings {
 /** @returns true when the profile carried a language choice; false means the caller may look for a default. */
 export function seedSettings(raw: ProfileSettings | undefined): boolean {
   settings.alerts = raw?.alerts !== false
+  settings.volume = clampVolume(raw?.volume)
   settings.seeded = true
   seedSocial(raw)
   const chosen = isLanguage(raw?.language)

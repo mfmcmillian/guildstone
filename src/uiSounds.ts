@@ -1,5 +1,6 @@
 import { AudioSource, engine, Entity, Transform } from '@dcl/sdk/ecs'
 import { Vector3 } from '@dcl/sdk/math'
+import { settings } from './settings'
 
 let clickEntity: Entity | null = null
 let feedbackEntity: Entity | null = null
@@ -13,6 +14,12 @@ export function setMuted(value: boolean) {
   muted = value
 }
 
+/** True when nothing should play: the speaker is muted or the master volume sits at 0. */
+export const soundOff = () => muted || settings.volume <= 0
+
+/** A clip's authored level once the master volume (settings.volume, the dock's - / + control) is applied. */
+export const scaledVolume = (base: number) => Math.min(1, Math.max(0, base * settings.volume))
+
 function createSound(path: string, volume: number): Entity {
   const entity = engine.addEntity()
   Transform.create(entity, {
@@ -23,17 +30,17 @@ function createSound(path: string, volume: number): Entity {
     audioClipUrl: path,
     playing: false,
     loop: false,
-    volume
+    volume: scaledVolume(volume)
   })
   return entity
 }
 
 function play(entity: Entity | null, path: string, volume: number) {
-  if (muted || !entity || !AudioSource.has(entity)) return
+  if (soundOff() || !entity || !AudioSource.has(entity)) return
   const source = AudioSource.getMutable(entity)
   source.playing = false
   source.audioClipUrl = path
-  source.volume = volume
+  source.volume = scaledVolume(volume)
   source.playing = true
 }
 

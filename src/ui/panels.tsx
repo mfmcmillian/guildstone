@@ -31,6 +31,8 @@ import {
   toolYieldPct,
   toolRarePct,
   toolLadderTier,
+  toolForgeMs,
+  toolForging,
   haveOf,
   ToolCostKey,
   TOOL_NAME,
@@ -1022,6 +1024,8 @@ export function ForgePanel() {
             const tier = player.tools[s]
             const cost = toolCost(s)
             const ok = canUpgradeTool(s)
+            const forge = toolForging(s)
+            const forgeMs = cost ? toolForgeMs(tier + 1) : 0
             return (
               <Panel key={s} flat color={C.paper2} uiTransform={{ width: S(410), height: S(900), alignItems: 'center', padding: S(22), margin: { left: S(10), right: S(10) } }}>
                 <UiEntity
@@ -1031,7 +1035,7 @@ export function ForgePanel() {
                   <Icon src={SKILL_ICON[s]} size={S(120)} />
                 </UiEntity>
                 <OutlinedText value={TOOL_NAME[s].toUpperCase()} size={S(32)} uiTransform={{ margin: { top: S(12) } }} />
-                <OutlinedText value={cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(36)} color={C.gold} />
+                <OutlinedText value={forge ? `MASTERWORKING  T${forge.tier}` : cost ? `TIER ${tier} -> ${tier + 1}` : `TIER ${tier}  MAX`} size={S(36)} color={C.gold} />
                 <Text value={cost ? `Band ${toolLadderTier(tier + 1) + 1} of 5  •  paid in ${toolLadderTier(tier + 1) === 0 ? 'base materials' : `${LADDER[s][toolLadderTier(tier + 1)][1]} (Tier ${toolLadderTier(tier + 1)})`}` : 'Every band complete'} size={S(20)} color={C.textMuted} nowrap uiTransform={{ height: S(26) }} />
                 {/* 20 pips in five bands of four; the band being worked on is brighter */}
                 <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(6) } }}>
@@ -1057,8 +1061,16 @@ export function ForgePanel() {
                   nowrap
                   uiTransform={{ height: S(34), margin: { top: S(10) } }}
                 />
-                {cost ? (
+                {forge ? (
+                  <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%', margin: { top: S(18) } }}>
+                    <Text value={`${TOOL_NAME[s]} is at the forge. Tier ${forge.tier} lands in`} size={S(22)} color={C.textMuted} nowrap uiTransform={{ height: S(30) }} />
+                    <UiEntity uiTransform={{ width: '100%', margin: { top: S(6) } }}>
+                      <Bar value={Math.min(1, Math.max(0, (Date.now() - forge.startedAt) / Math.max(1, forge.endsAt - forge.startedAt)))} color={C.purple} height={S(34)} label={durationText((forge.endsAt - Date.now()) / 1000)} labelSize={S(22)} />
+                    </UiEntity>
+                  </UiEntity>
+                ) : cost ? (
                   <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-start', margin: { top: S(18) } }}>
+                    {forgeMs > 0 ? <Text value={`Takes ${durationText(forgeMs / 1000)} at the forge`} size={S(22)} color={C.gold} align="middle-left" nowrap uiTransform={{ height: S(30), margin: { bottom: S(4) } }} /> : null}
                     <Text value="NEEDS" size={S(22)} color={C.textMuted} align="middle-left" nowrap uiTransform={{ height: S(30), margin: { bottom: S(4) } }} />
                     <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(50), margin: { bottom: S(4) } }}>
                       <Icon src={SKILL_ICON[s]} size={S(44)} />
@@ -1072,7 +1084,7 @@ export function ForgePanel() {
                   <Text value="Fully upgraded" size={S(24)} color={C.greenDark} uiTransform={{ margin: { top: S(18) } }} />
                 )}
                 <Spacer />
-                <Button label={cost ? 'CRAFT' : 'MAXED'} color={C.blue} disabled={!ok} size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => requestTool(s)} />
+                <Button label={forge ? 'AT THE FORGE' : cost ? (forgeMs > 0 ? 'MASTERWORK' : 'CRAFT') : 'MAXED'} color={forgeMs > 0 || forge ? C.purple : C.blue} disabled={!ok} size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => requestTool(s)} />
               </Panel>
             )
           })}

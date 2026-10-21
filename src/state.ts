@@ -363,8 +363,10 @@ export const player = {
     butcher: { level: 1, xp: 0 },
     assassin: { level: 1, xp: 0 }
   } as Record<Skill, MasteryState>,
-  /** Tool tier per profession (0-5). */
+  /** Tool tier per profession (0-20). */
   tools: { lumberjack: 0, miner: 0, butcher: 0, assassin: 0 } as Record<Skill, number>,
+  /** Masterworks in progress (tiers 5+): the tier being forged and when it lands. Mirrors the server's toolForge. */
+  toolForge: {} as Partial<Record<Skill, ToolForge>>,
   /** Hero levels (src/hero.ts): a base-resource sink that feeds the raid fighter. */
   heroes: emptyHeroes(),
   /** The hero that fights in raids. */
@@ -807,6 +809,7 @@ export const TOOL_BANDS: Array<Array<{ level: number; raw: number; refined: numb
   [{ level: 72, raw: 10, refined: 2, coins: 250_000 }, { level: 76, raw: 20, refined: 4, coins: 350_000 }, { level: 80, raw: 40, refined: 8, coins: 500_000 }, { level: 84, raw: 80, refined: 16, coins: 750_000 }],
   [{ level: 86, raw: 6, refined: 1, coins: 600_000 }, { level: 89, raw: 12, refined: 2, coins: 900_000 }, { level: 92, raw: 24, refined: 4, coins: 1_200_000 }, { level: 95, raw: 48, refined: 8, coins: 1_800_000 }]
 ]
+export interface ToolForge { tier: number; startedAt: number; endsAt: number }
 export type ToolCostKey = ItemId | 'coins'
 export interface ToolCost { level: number; cost: Partial<Record<ToolCostKey, number>> }
 /** Which ladder tier (0 = base … 4) a tool tier is paid in. */
@@ -834,9 +837,30 @@ export function haveOf(key: ToolCostKey): number {
   if (key in player.materials) return player.materials[key as MaterialKey]
   return player.storage[key as StorageKey] ?? 0
 }
+/** Hours a masterwork takes, per band sub-tier (bands 2-5); band 1 is instant. Mirrors the server's AFK_TOOL_FORGE_HOURS. */
+export const TOOL_FORGE_HOURS: Array<number[] | null> = [null, [1, 2, 4, 8], [3, 6, 12, 24], [6, 12, 24, 36], [12, 24, 36, 48]]
+export function toolForgeMs(tier: number): number {
+  if (tier <= TOOL_BAND || tier > TOOL_MAX) return 0
+  return TOOL_FORGE_HOURS[toolLadderTier(tier)]![(tier - 1) % TOOL_BAND] * 60 * 60 * 1000
+}
+/** The masterwork running on this tool, if any (finished ones are applied by applyFinishedForges). */
+export const toolForging = (skill: Skill): ToolForge | null => player.toolForge[skill] ?? null
+/** Apply masterworks whose clock has run out (optimistic; the server does the same on its side). Returns the skills that landed. */
+export function applyFinishedForges(now = Date.now()): Skill[] {
+  const done: Skill[] = []
+  for (const s of SKILLS) {
+    const f = player.toolForge[s]
+    if (f && f.endsAt <= now) {
+      player.tools[s] = Math.max(player.tools[s], Math.min(TOOL_MAX, f.tier))
+      delete player.toolForge[s]
+      done.push(s)
+    }
+  }
+  return done
+}
 export function canUpgradeTool(skill: Skill): boolean {
   const c = toolCost(skill)
-  if (!c || player.skills[skill].level < c.level) return false
+  if (!c || player.toolForge[skill] || player.skills[skill].level < c.level) return false
   return (Object.keys(c.cost) as ToolCostKey[]).every((k) => haveOf(k) >= (c.cost[k] ?? 0))
 }
 /** Zone yield bonus for a tool tier: +10% each for tiers 1-5, +5% for every tier after (tier 20 = +125%). */

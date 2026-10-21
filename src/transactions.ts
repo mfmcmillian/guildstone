@@ -31,10 +31,13 @@ import {
   StorageKey,
   TOOL_NAME,
   toolRarePct,
+  toolForgeMs,
+  applyFinishedForges,
   toolPct,
   setSkills,
   MASTERY_ENABLED
 } from './state'
+import { durationText } from './ui/components'
 import { sanitizeCraftedRelics, sanitizeCraftedSuits, sanitizeMaterials, sanitizePendingCraft, sanitizeRareProgress, sanitizeStorage } from './backpackPersistence'
 import { playBoostSound, playCraftDoneSound, playErrorSound, playRareFindSound, playSuccessSound } from './uiSounds'
 
@@ -577,6 +580,36 @@ export function requestBoost(boost: Boost, pay: 'berries' | 'materials' = 'berri
   })
 }
 
+let settleInFlight = false
+/** A masterwork clock ran out: ask the server to land it (it also settles on every claim; this covers an idle player). */
+export function settleTools() {
+  if (profileState.status !== 'ready' || !profileState.walletAddress || settleInFlight) return
+  const landed = applyFinishedForges()
+  if (landed.length === 0) return
+  for (const skill of landed) flash(`${TOOL_NAME[skill].toUpperCase()} MASTERWORK DONE  •  TIER ${player.tools[skill]}  +${Math.round(toolPct(skill) * 100)}% ${RESOURCE_INFO[SKILL_INFO[skill].resource].name.toUpperCase()}  •  RARES +${Math.round(toolRarePct(player.tools[skill]) * 100)}%`)
+  playSuccessSound()
+  settleInFlight = true
+  executeTask(async () => {
+    try {
+      const response = await signedFetch({
+        url: `${BACKEND_URL}/antrom-afk/player/${profileState.walletAddress}/tool`,
+        init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ skill: landed[0], action: 'settle' }) }
+      })
+      if (!response.ok) return
+      const result = JSON.parse(response.body) as { updatedAt: number; tools: typeof player.tools; toolForge?: typeof player.toolForge }
+      if (result.updatedAt >= lastServerUpdateAt) {
+        lastServerUpdateAt = result.updatedAt
+        player.tools = result.tools
+        player.toolForge = result.toolForge ?? {}
+      }
+    } catch (error) {
+      console.error('[transaction] Tool settle failed:', error instanceof Error ? error.message : String(error))
+    } finally {
+      settleInFlight = false
+    }
+  })
+}
+
 /** Tool Bench: buy the next tool tier for a profession (band 1 crafted materials; bands 2-5 that ladder tier's raw + refined + coins; server validates). */
 export function requestTool(skill: Skill) {
   if (profileState.status !== 'ready' || !profileState.walletAddress || upgradeRequestInFlight) return
@@ -610,6 +643,7 @@ export function requestTool(skill: Skill) {
         storage?: typeof player.storage
         currency?: { coins: number; berries: number }
         tools: typeof player.tools
+        toolForge?: typeof player.toolForge
       }
       if (result.updatedAt >= lastServerUpdateAt) {
         lastServerUpdateAt = result.updatedAt
@@ -620,9 +654,15 @@ export function requestTool(skill: Skill) {
           player.berries = result.currency.berries
         }
         player.tools = result.tools
+        player.toolForge = result.toolForge ?? {}
       }
-      const rare = toolRarePct(player.tools[skill])
-      flash(`${TOOL_NAME[skill].toUpperCase()} TIER ${player.tools[skill]}  +${Math.round(toolPct(skill) * 100)}% ${RESOURCE_INFO[SKILL_INFO[skill].resource].name.toUpperCase()}${rare > 0 ? `  •  RARES +${Math.round(rare * 100)}%` : ''}`)
+      const forge = player.toolForge[skill]
+      if (forge) {
+        flash(`${TOOL_NAME[skill].toUpperCase()} MASTERWORK STARTED  •  TIER ${forge.tier} lands in ${durationText(toolForgeMs(forge.tier) / 1000)}`)
+      } else {
+        const rare = toolRarePct(player.tools[skill])
+        flash(`${TOOL_NAME[skill].toUpperCase()} TIER ${player.tools[skill]}  +${Math.round(toolPct(skill) * 100)}% ${RESOURCE_INFO[SKILL_INFO[skill].resource].name.toUpperCase()}${rare > 0 ? `  •  RARES +${Math.round(rare * 100)}%` : ''}`)
+      }
       playSuccessSound()
     } catch (error) {
       console.error('[transaction] Tool upgrade failed:', error instanceof Error ? error.message : String(error))

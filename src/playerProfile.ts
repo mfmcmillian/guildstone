@@ -96,8 +96,10 @@ export interface AfkPlayerProfile {
   equippedSuits?: Partial<Record<string, string | string[]>>
   /** Zone Mastery per profession (level 1-99, xp toward next). */
   mastery?: Partial<Record<string, { level?: number; xp?: number }>>
-  /** Tool tier per profession (0-5). */
+  /** Tool tier per profession (0-20). */
   tools?: Partial<Record<string, number>>
+  /** Masterwork in progress per profession: the tier being forged and when it lands (server afkToolsNow). */
+  toolForge?: Partial<Record<string, { tier?: number; startedAt?: number; endsAt?: number }>>
   /** Hero levels (server afkHero.js). */
   heroes?: Partial<Record<string, { level?: number }>>
   /** The hero that fights in raids (a HeroId). */

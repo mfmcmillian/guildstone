@@ -2,15 +2,15 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { C, FONT, glow, TEX, SLICE_PILL } from './theme'
 import { OutlinedText, Panel, Button, Icon, IconButton } from './components'
-import { isMuted, setMuted, playButtonSound } from '../uiSounds'
+import { isMuted, setMuted, playButtonSound, playSuccessSound, soundOff } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
 import { togglePanel, ui } from './uiState'
 import { campHint, ringStationsEnabled } from '../remoteConfig'
 import { S, setScale, hudScale, getCanvas } from './responsive'
 import { profileState } from '../playerProfile'
 import { activeSkill, toggleProfession } from '../work'
-import { settings } from '../settings'
-import { setAlerts, setLanguagePref } from '../transactions'
+import { settings, VOLUME_STEP } from '../settings'
+import { setAlerts, setLanguagePref, setVolumePref } from '../transactions'
 import { LANGUAGES, getLanguage, languageInfo } from '../i18n'
 import { showShop, showToolBench, showWorkshop, stepTarget } from './guide'
 import { dragOffsetPx, startDrag } from './drag'
@@ -57,6 +57,43 @@ export function ShowUiButton() {
 /** 'LUMBER CAMP' -> 'Lumber Camp' for sentence use. */
 /** Language picker row under the header; closes on pick or when the UI is hidden. */
 let languageOpen = false
+/** Volume row under the header (speaker icon); one of the two rows shows at a time. */
+let volumeOpen = false
+
+const VOLUME_SEGMENTS = 10
+
+/**
+ * Step the master volume and let the player hear the result: the coin chime (the notification sound) plays at the
+ * new level. Stepping also un-mutes, since a player reaching for + wants to hear something.
+ */
+function stepVolume(direction: -1 | 1) {
+  if (!setVolumePref(settings.volume + direction * VOLUME_STEP)) return
+  if (direction > 0 && isMuted()) setMuted(false)
+  playSuccessSound()
+}
+
+/** One row: mute toggle, -, ten segments lit up to the current level, +, and the percentage. */
+function VolumeRow() {
+  const lit = Math.round(settings.volume * VOLUME_SEGMENTS)
+  const off = soundOff()
+  return (
+    <UiEntity uiTransform={{ width: '100%', height: S(74), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(10) }, padding: { left: S(4), right: S(4) } }}>
+      <IconButton icon={isMuted() ? 'images/ui/ic_sound_off.png' : 'images/ui/ic_sound.png'} size={S(36)} uiTransform={{ margin: { right: S(12) } }} onClick={() => setMuted(!isMuted())} />
+      <Button key="vol-down" label="-" color={C.paper} textColor={C.text} size={S(26)} pad={0} disabled={settings.volume <= 0} uiTransform={{ width: S(52), minWidth: S(52), height: S(52) }} onClick={() => stepVolume(-1)} />
+      <UiEntity uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(52), flexDirection: 'row', alignItems: 'center', padding: { left: S(8), right: S(8) } }}>
+        {Array.from({ length: VOLUME_SEGMENTS }, (_, i) => (
+          <UiEntity
+            key={`vol-seg-${i}`}
+            uiTransform={{ flexGrow: 1, flexBasis: 0, minWidth: 0, height: S(26), margin: { left: S(2), right: S(2) } }}
+            uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: i < lit && !off ? C.purple : i < lit ? C.gray : C.navy }}
+          />
+        ))}
+      </UiEntity>
+      <Button key="vol-up" label="+" color={C.paper} textColor={C.text} size={S(26)} pad={0} disabled={settings.volume >= 1} uiTransform={{ width: S(52), minWidth: S(52), height: S(52) }} onClick={() => stepVolume(1)} />
+      <OutlinedText value={`${Math.round(settings.volume * 100)}%`} raw size={S(20)} color={off ? C.gray : C.white} align="middle-right" uiTransform={{ width: S(60), height: S(30), margin: { left: S(8) } }} />
+    </UiEntity>
+  )
+}
 
 const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 
@@ -87,14 +124,16 @@ export function Dock() {
     >
       <Panel flat color={C.navySoft} uiTransform={{ width: S(420), padding: S(18), flexDirection: 'column' }}>
         {/* Header: title, then four frameless controls: language flag, hide the Antrom UI (eye), alerts (bell), sounds (speaker).
-            The crossed-out glyph is the OFF state. Alerts and language are saved on the profile. */}
+            The crossed-out glyph is the OFF state. The flag and the speaker each open a row under the header (language
+            picker / volume control). Alerts, language and volume are saved on the profile. */}
         <UiEntity uiTransform={{ width: '100%', height: S(44), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(8) } }}>
           <OutlinedText value="ANTROM AFK" size={S(FONT.body + 2)} color={C.yellow} align="middle-left" uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(40) }} />
-          <IconButton icon={languageInfo().flag} size={S(34)} aspect={1.375} uiTransform={{ margin: { right: S(16) } }} onClick={() => { languageOpen = !languageOpen }} />
-          <IconButton icon="images/ui/ic_eye.png" size={S(42)} uiTransform={{ margin: { right: S(14) } }} onClick={() => { languageOpen = false; ui.hidden = true }} />
+          <IconButton icon={languageInfo().flag} size={S(34)} aspect={1.375} uiTransform={{ margin: { right: S(16) } }} onClick={() => { languageOpen = !languageOpen; volumeOpen = false }} />
+          <IconButton icon="images/ui/ic_eye.png" size={S(42)} uiTransform={{ margin: { right: S(14) } }} onClick={() => { languageOpen = false; volumeOpen = false; ui.hidden = true }} />
           <IconButton icon={settings.alerts ? 'images/ui/ic_bell.png' : 'images/ui/ic_bell_off.png'} size={S(42)} uiTransform={{ margin: { right: S(14) } }} onClick={() => setAlerts(!settings.alerts)} />
-          <IconButton icon={isMuted() ? 'images/ui/ic_sound_off.png' : 'images/ui/ic_sound.png'} size={S(42)} onClick={() => setMuted(!isMuted())} />
+          <IconButton icon={soundOff() ? 'images/ui/ic_sound_off.png' : 'images/ui/ic_sound.png'} size={S(42)} onClick={() => { volumeOpen = !volumeOpen; languageOpen = false }} />
         </UiEntity>
+        {volumeOpen ? <VolumeRow /> : null}
         {languageOpen ? (
           // Language picker: one row of flags with native names; the current one sits on a purple pill.
           <UiEntity uiTransform={{ width: '100%', height: S(74), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: { bottom: S(10) }, padding: { left: S(4), right: S(4) } }}>

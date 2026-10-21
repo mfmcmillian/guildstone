@@ -1,6 +1,6 @@
 import { engine } from '@dcl/sdk/ecs'
 import { addXp, craftTick, cycleXp, flash, gather, gatherMult, MASTERY_ENABLED, MASTERY_MAX, masteryXpForLevel, player, Skill, SKILL_INFO, WORK_CYCLE_SECS, ZoneId, ZONE_SKILL } from './state'
-import { pollCraftSuit, refreshGuild, requestWork, syncCraftQueue } from './transactions'
+import { pollCraftSuit, refreshGuild, requestWork, settleTools, syncCraftQueue } from './transactions'
 import { profileState } from './playerProfile'
 import { playButtonSound } from './uiSounds'
 import { refreshRemoteConfig } from './remoteConfig'
@@ -68,6 +68,7 @@ function afkSystem(dt: number) {
     // Background guild refresh so HQ level-ups from other members get announced even with the panel closed.
     refreshGuild(3 * 60_000)
     refreshRemoteConfig()
+    settleTools() // lands any masterwork whose clock ran out
   }
   const skill = activeSkill()
   if (!skill) return
