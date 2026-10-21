@@ -1168,8 +1168,11 @@ const RES_COL_W = 520
 const RES_COLS = { name: 220, dealt: 100, taken: 100, kos: 70 }
 const RES_BG = Color4.create(0.06, 0.05, 0.12, 0.82)
 /** '300 Wood, 300 Rock, 150 Meat, 150 Bone'. */
-const rewardText = (r: Reward) => (['wood', 'rock', 'meat', 'bone'] as const).filter((k) => r[k] > 0).map((k) => `${r[k]} ${k[0].toUpperCase()}${k.slice(1)}`).join(', ')
-const sumReward = (a: Reward, b: Reward): Reward => ({ wood: a.wood + b.wood, rock: a.rock + b.rock, meat: a.meat + b.meat, bone: a.bone + b.bone })
+const REWARD_KEYS = ['wood', 'rock', 'meat', 'bone', 'coins'] as const
+/** The bank icon for a payout key (coins use the purse's coin icon). */
+const rewardIcon = (k: (typeof REWARD_KEYS)[number]) => (k === 'coins' ? RESOURCE_INFO.coin.icon : RESOURCE_INFO[k].icon)
+const rewardText = (r: Reward) => REWARD_KEYS.filter((k) => r[k] > 0).map((k) => `${r[k]} ${k[0].toUpperCase()}${k.slice(1)}`).join(', ')
+const sumReward = (a: Reward, b: Reward): Reward => ({ wood: a.wood + b.wood, rock: a.rock + b.rock, meat: a.meat + b.meat, bone: a.bone + b.bone, coins: (a.coins ?? 0) + (b.coins ?? 0) })
 /** Storm result: what a ranked fighter banked (the winning side `win`, the rest `lose`); nothing on an unranked Storm. */
 function stormBanked(v: RaidView, won: boolean): string {
   const me = myFighter()
@@ -1366,9 +1369,9 @@ function StormResultScreen(props: { v: RaidView; conceded?: boolean }) {
       {banked ? (
         <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(40), margin: { top: S(10) } }}>
           <Text value="BANKED" size={S(20)} color={Color4.create(color.r, color.g, color.b, fade2)} nowrap uiTransform={{ width: 'auto', height: S(34), margin: { right: S(14) } }} />
-          {(['wood', 'rock', 'meat', 'bone'] as const).filter((k) => banked[k] > 0).map((k) => (
+          {REWARD_KEYS.filter((k) => banked[k] > 0).map((k) => (
             <UiEntity key={`bank-${k}`} uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { right: S(16) } }}>
-              <Icon src={RESOURCE_INFO[k].icon} size={S(28)} />
+              <Icon src={rewardIcon(k)} size={S(28)} />
               <Text value={`+${banked[k]}`} size={S(22)} color={Color4.create(1, 1, 1, fade2)} nowrap uiTransform={{ width: 'auto', height: S(34), margin: { left: S(5) } }} />
             </UiEntity>
           ))}
@@ -1455,13 +1458,13 @@ function IdleCard(props: { title: string; sub: string; color: Color4; children?:
 const line = (text: string, color: Color4, size = 22, key?: string) => <Text key={key} value={text} size={S(size)} color={color} nowrap uiTransform={{ height: S(size + 10), margin: { top: S(4) } }} />
 /** A payout on a card: a short label, then each resource as its icon and amount (the bank's icons). */
 function RewardRow(props: { key?: string; label: string; reward: Reward; color: Color4 }) {
-  const keys = (['wood', 'rock', 'meat', 'bone'] as const).filter((k) => props.reward[k] > 0)
+  const keys = REWARD_KEYS.filter((k) => props.reward[k] > 0)
   return (
     <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { top: S(4) } }}>
       <Text value={props.label} size={S(20)} color={props.color} nowrap align="middle-left" uiTransform={{ width: S(74), height: S(34) }} />
       {keys.map((k) => (
         <UiEntity key={`rw-${props.label}-${k}`} uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { right: S(16) } }}>
-          <Icon src={RESOURCE_INFO[k].icon} size={S(28)} />
+          <Icon src={rewardIcon(k)} size={S(28)} />
           <Text value={`${props.reward[k]}`} size={S(22)} color={C.white} nowrap align="middle-left" uiTransform={{ width: 'auto', height: S(34), margin: { left: S(5) } }} />
         </UiEntity>
       ))}

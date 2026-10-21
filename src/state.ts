@@ -38,7 +38,7 @@ export const LADDER: Record<Skill, Array<[StorageKey, string, MaterialKey, strin
   butcher: [['meat', 'Meat', 'jerky', 'Jerky'], ['hide', 'Beast Pelt', 'leather', 'Leather'], ['horn', 'Horn', 'horn_plate', 'Horn Plate'], ['prime_pelt', 'Alpha Hide', 'royal_leather', 'Royal Leather'], ['behemoth_hide', 'Behemoth Hide', 'behemoth_plate', 'Behemoth Plate']],
   assassin: [['bone', 'Bone', 'bonedust', 'Bone Dust'], ['fang', 'Fang', 'fang_powder', 'Fang Powder'], ['skull', 'Skull', 'skull_charm', 'Skull Charm'], ['wraith_bone', 'Wraith Bone', 'wraith_ash', 'Wraith Ash'], ['lich_marrow', 'Lich Marrow', 'lich_sigil', 'Lich Sigil']]
 }
-export const TIER_RATES = [0, 40, 120, 300, 800]
+export const TIER_RATES = [0, 25, 120, 300, 800]
 /** `until`: tier raws stop rolling once the suit is above this tier (own tier + one below roll; combos have no ceiling). */
 export interface RareDropDef { gate: Partial<Record<Skill, number>>; zones: Skill[]; rate: number; name: string; until?: number }
 export const COMBOS: Record<string, RareDropDef> = {
@@ -99,9 +99,9 @@ export const ZONE_SKILL: Record<ZoneId, Skill> = { lumber: 'lumberjack', quarry:
 
 /** Name / icon / sell value (0 = cannot be sold) for every item id plus coins and berries. */
 export const RESOURCE_INFO: Record<ItemId | 'coin' | 'berry', { name: string; icon: string; value: number }> = {
-  wood: { name: 'Wood', icon: 'images/icons/wood.png', value: 2 },
-  rock: { name: 'Rock', icon: 'images/icons/rock.png', value: 2 },
-  meat: { name: 'Meat', icon: 'images/icons/meat.png', value: 3 },
+  wood: { name: 'Wood', icon: 'images/icons/wood.png', value: 4 },
+  rock: { name: 'Rock', icon: 'images/icons/rock.png', value: 4 },
+  meat: { name: 'Meat', icon: 'images/icons/meat.png', value: 6 },
   bone: { name: 'Bone', icon: 'images/icons/bone.png', value: 3 },
   plank: { name: 'Plank', icon: 'images/icons/plank.png', value: 30 },
   brick: { name: 'Brick', icon: 'images/icons/brick.png', value: 30 },
@@ -137,7 +137,7 @@ export const SKILL_ICON: Record<Skill, string> = {
 // The table is kept at 1 so the client/server rounding chain stays identical.
 export const SUIT_MULT = [1, 1, 1, 1, 1]
 /** Index 0 is everyone's base backpack; 1-4 is what each worn suit tier adds. Mirrors the server's AFK_SUIT_CAP. */
-export const SUIT_CAP = [500, 500, 1000, 2000, 4000]
+export const SUIT_CAP = [1500, 500, 1000, 2000, 4000]
 export const WORK_CYCLE_SECS = 3 // demo speed (design: 5s)
 export const CRAFT_SECS = 2 // demo speed
 
@@ -718,7 +718,7 @@ export function suitRecipe(skill: Skill, level: number): SuitRecipe | null {
   const comboL3: Record<string, ItemId> = { lumberjack: 'ghostwood', miner: 'bloodstone', butcher: 'bloodstone' }
   switch (level) {
     case 1: {
-      const cost: SuitRecipe['cost'] = { [ref(skill, 0)]: 300, coins: 2000 }
+      const cost: SuitRecipe['cost'] = { [ref(skill, 0)]: 150, coins: 1000 }
       for (const o of others) cost[ref(o, 0)] = 100
       return { cost, level: 10 }
     }

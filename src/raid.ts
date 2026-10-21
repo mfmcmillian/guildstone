@@ -64,7 +64,7 @@ export interface Fighter {
 }
 export interface Side { guildId: string; tag: string; name: string; wraith: boolean; fighters: Fighter[] }
 export interface PointDef { name: string; pips: number; armour: number; attack: number; x: number; y: number }
-export type Reward = { wood: number; rock: number; meat: number; bone: number }
+export type Reward = { wood: number; rock: number; meat: number; bone: number; coins: number }
 /** Day-long Guild War rules (server battle.war): fighter-minutes per flag, the unlock schedule, decay and pay. */
 export interface WarRules {
   tickMs: number
