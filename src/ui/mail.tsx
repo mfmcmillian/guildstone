@@ -21,6 +21,8 @@ const READ_W = W - 72 - LIST_W - GAP
 const PAD = 24
 const ROW_H = 92
 const ROWS = Math.floor((BODY_H - 2 * PAD) / (ROW_H + 8))
+/** Font size (design px) at which a one-line upper-case title fits `width`: a capital is ~0.62 of the size wide. Never below 20. */
+const fitTitle = (text: string, width: number, max: number) => Math.max(20, Math.min(max, Math.floor(width / (Math.max(1, text.length) * 0.62))))
 const ROW_UNREAD = Color4.create(1, 1, 1, 0.9)
 const ROW_READ = Color4.create(1, 1, 1, 0.45)
 const ROW_OPEN = Color4.create(1, 0.82, 0.25, 0.35)
@@ -40,7 +42,9 @@ function Row(props: { key?: string; m: Letter; now: number }) {
     >
       <UiEntity uiTransform={{ width: '100%', height: S(34), flexDirection: 'row', alignItems: 'center' }}>
         {!m.read ? <UiEntity uiTransform={{ width: S(14), height: S(14), margin: { right: S(10) } }} uiBackground={{ color: C.red }} /> : null}
-        <Text value={m.subject || '(no subject)'} raw={m.subject !== ''} nowrap size={S(24)} color={m.read ? C.textMuted : C.text} align="middle-left" uiTransform={{ width: S(prize ? 330 : 440), height: S(34) }} />
+        <UiEntity uiTransform={{ width: S(prize ? 330 : 440), height: S(34), overflow: 'hidden' }}>
+          <Text value={m.subject || '(no subject)'} raw={m.subject !== ''} nowrap size={S(24)} color={m.read ? C.textMuted : C.text} align="middle-left" uiTransform={{ width: '100%', height: S(34) }} />
+        </UiEntity>
         <Spacer />
         {prize ? (
           <UiEntity uiTransform={{ height: S(28), padding: { left: S(10), right: S(10) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: CHIP_GOLD }}>
@@ -66,7 +70,8 @@ function Reader(props: { m: Letter | null }) {
   const keys = m.attach ? MAIL_ATTACH_KEYS.filter((k) => (m.attach?.[k] ?? 0) > 0) : []
   return (
     <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column' }}>
-      <OutlinedText value={m.subject.toUpperCase() || '(NO SUBJECT)'} size={S(32)} color={C.gold} align="middle-left" uiTransform={{ width: '100%', height: S(40) }} />
+      {/* Long subjects shrink to fit the line (a 60-character subject spilled past the pane at 32). */}
+      <OutlinedText value={m.subject.toUpperCase() || '(NO SUBJECT)'} size={S(fitTitle(m.subject || '(NO SUBJECT)', READ_W - 2 * PAD, 32))} color={C.gold} align="middle-left" uiTransform={{ width: '100%', height: S(40) }} />
       <Text value={`FROM ${m.from.toUpperCase()}  •  ${mailAge(m.at)}`} nowrap size={S(18)} color={C.textMuted} align="middle-left" uiTransform={{ width: '100%', height: S(26), margin: { bottom: S(14) } }} />
       <Text value={m.body} raw size={S(22)} color={C.text} align="top-left" uiTransform={{ width: '100%', height: S(BODY_H - 2 * PAD - 40 - 40 - (keys.length ? 120 : 0) - 76) }} />
       {keys.length > 0 ? (
