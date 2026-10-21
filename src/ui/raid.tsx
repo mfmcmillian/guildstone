@@ -15,7 +15,7 @@ import { withVip } from '../vip'
 import { VipName } from './vipName'
 import {
   BoardEntry, CampId, CAMP_IDS, Fighter, flagsOf, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId, Spot,
-  fighterName, myFighter, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestJoinRaid, requestLeaveRaid, requestSkip,
+  fighterName, myFighter, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestJoinRaid, requestLeaveRaid, requestSkip, requestStartRaid,
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
 
@@ -1109,6 +1109,8 @@ function LobbyCard(props: { v: RaidView }) {
       {notes.map((line, i) => <Text key={`note-${i}`} value={line} size={S(24)} color={i === 0 ? noteColor : PALE} nowrap uiTransform={{ height: S(32), margin: { top: i === 0 ? S(18) : 0 } }} />)}
       <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(12) } }}>
         {canJoin ? <Button label="JOIN" color={C.green} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => requestJoinRaid()} /> : null}
+        {/* Storm: anyone in the lobby can ring the bell instead of waiting out the gather (server 'start', ~10 s). Hidden once the bell is that close. */}
+        {pickup && v.you && !raid.spectating && !short && v.gatherUntil - serverNow() > 12_000 ? <Button label="START NOW" color={C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(300), height: S(84), margin: { right: S(16) } }} onClick={() => requestStartRaid()} /> : null}
         {v.you && !raid.spectating ? <Button label="LEAVE" color={C.red} sound="cancel" disabled={raid.busy} size={S(30)} uiTransform={{ width: S(260), height: S(84) }} onClick={() => requestLeaveRaid()} /> : null}
       </UiEntity>
     </UiEntity>

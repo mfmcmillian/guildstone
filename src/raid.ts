@@ -214,7 +214,7 @@ export const raid = {
 /** Server time right now, as the client best knows it. */
 export const serverNow = () => Date.now() + raid.clockOffset
 
-type RaidAction = 'view' | 'join' | 'leave' | 'go' | 'home' | 'skip' | 'signup' | 'withdraw' | 'hero'
+type RaidAction = 'view' | 'join' | 'leave' | 'go' | 'home' | 'skip' | 'signup' | 'withdraw' | 'hero' | 'start'
 interface RaidResponse { raid: RaidView | null; board: BoardEntry[]; guildRaid: GuildRaidSummary; officer: boolean; tester?: boolean; features?: unknown; rules?: Partial<RaidRules>; pickup?: PickupInfo; battle?: BattleInfo; me: MyRaid; serverNow: number; updatedAt: number }
 
 /**
@@ -380,6 +380,13 @@ export function requestJoinRaid(mode: 'battle' | 'pickup' = 'battle') {
 export function requestBattleSignup(on: boolean) {
   send(on ? 'signup' : 'withdraw', {}, () => {
     flash(on ? 'SIGNED UP  •  SEE YOU THURSDAY' : 'WITHDRAWN FROM THE BATTLE')
+    playSuccessSound()
+  })
+}
+/** START NOW in a Storm lobby: the server rings the bell ~10 s out and deals teams from whoever is in. */
+export function requestStartRaid() {
+  send('start', {}, () => {
+    flash('THE BELL IS RUNG  •  STORM IN 10 S')
     playSuccessSound()
   })
 }
