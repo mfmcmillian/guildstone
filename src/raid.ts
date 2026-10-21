@@ -90,6 +90,8 @@ export interface RaidView {
   status: RaidStatus
   createdAt: number
   gatherUntil: number
+  /** Storm: who pressed START NOW (one ring per Storm; the lobby hides the button for everyone once set). */
+  bell?: { by: string; name: string } | null
   /** Battle: end of the two-hour window (gatherUntil moves ahead of it once both sides are full). */
   windowEnd: number
   /** `war` is set on the day-long Guild War (one tick a minute, hour-scale captures); absent on a Storm. */

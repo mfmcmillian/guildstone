@@ -1094,6 +1094,7 @@ function LobbyCard(props: { v: RaidView }) {
     : battle
       ? bothReady ? (v.you ? rules : ['Both guilds are ready.']) : [`Begins when both guilds have ${v.rules.sideMin} fighters`, `The window closes at ${raid.battle?.endWhen ?? ''}; a short side forfeits the night`]
       : short ? [`Need ${v.rules.sideMin} on your side or it is called off`] : v.you ? rules : !v.mine ? [v.sides.b ? 'Both sides set. Watch it from here.' : 'Waiting for an answer.'] : []
+  if (pickup && v.bell) notes.unshift(`${v.bell.by === v.you ? 'You' : v.bell.name} rang the bell: the Storm begins at the count`)
   const noteColor = short && !battle ? C.red : v.you ? C.green : PALE
   const title = battle ? 'GUILD WAR' : `${v.rules.test ? 'TEST ' : ''}STORM GATHERING`
   return (
@@ -1108,8 +1109,9 @@ function LobbyCard(props: { v: RaidView }) {
       {notes.map((line, i) => <Text key={`note-${i}`} value={line} size={S(24)} color={i === 0 ? noteColor : PALE} nowrap uiTransform={{ height: S(32), margin: { top: i === 0 ? S(18) : 0 } }} />)}
       <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(12) } }}>
         {canJoin ? <Button label="JOIN" color={C.green} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => requestJoinRaid()} /> : null}
-        {/* Storm: anyone in the lobby can ring the bell instead of waiting out the gather (server 'start', ~10 s). Hidden once the bell is that close. */}
-        {pickup && v.you && !raid.spectating && !short && v.gatherUntil - serverNow() > 12_000 ? <Button label="START NOW" color={C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(300), height: S(84), margin: { right: S(16) } }} onClick={() => requestStartRaid()} /> : null}
+        {/* Storm: anyone in the lobby can ring the bell instead of waiting out the gather (server 'start', ~10 s). One ring
+            per Storm: gone for everyone once `bell` is set (the server refuses a second press anyway), or once the bell is that close. */}
+        {pickup && v.you && !raid.spectating && !short && !v.bell && v.gatherUntil - serverNow() > 12_000 ? <Button label="START NOW" color={C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(300), height: S(84), margin: { right: S(16) } }} onClick={() => requestStartRaid()} /> : null}
         {v.you && !raid.spectating ? <Button label="CANCEL" color={C.red} sound="cancel" disabled={raid.busy} size={S(30)} uiTransform={{ width: S(260), height: S(84) }} onClick={() => requestLeaveRaid()} /> : null}
       </UiEntity>
     </UiEntity>
