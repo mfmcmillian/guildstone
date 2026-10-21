@@ -755,7 +755,8 @@ function whereText(v: RaidView, side: SideId, f: Fighter): string {
   if (f.state === 'walk') return f.target === 'camp' || !f.target ? `→ ${isWar(v) ? 'spawn' : 'camp'} ${left(f.arriveAt)}` : `→ ${spotName(v, f.target)} ${left(f.arriveAt)}`
   if (f.state === 'in' && f.at) {
     const buff = myBuff(v, side, f)
-    return `at ${spotName(v, f.at)}${buff ? `  ·  ${buff.tag} ${buff.word}` : ''}`
+    // Tag only (⚔ 15%): with the word it spills past the card on the war's longer names ("at Watchtower · ⚔ 15% attack").
+    return `at ${spotName(v, f.at)}${buff ? `  ·  ${buff.tag}` : ''}`
   }
   // Storm camps are hospitals: a wounded fighter waiting there mends a little every tick (server CAMP_REGEN_PCT).
   if (v.status === 'live' && !isWar(v) && f.state === 'camp' && f.hp < f.hpMax) return 'at camp  ·  ✚ healing'
@@ -778,7 +779,7 @@ function FighterCard(props: { key?: string; v: RaidView; side: SideId; f: Fighte
           <Text value={`HP ${f.hp}/${f.hpMax}`} size={S(21)} color={C.yellow} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(26) }} />
           <Text value={`ATK ${f.atk}`} size={S(21)} color={C.yellow} nowrap align="middle-right" uiTransform={{ width: S(90), height: S(26) }} />
         </UiEntity>
-        <Text value={whereText(v, side, f)} size={S(20)} color={ko ? C.red : sideColor(side)} nowrap align="middle-left" uiTransform={{ height: S(26) }} />
+        <Text value={whereText(v, side, f)} size={S(20)} color={ko ? C.red : sideColor(side)} nowrap align="middle-left" uiTransform={{ height: S(26), overflow: 'hidden' }} />
       </UiEntity>
     </UiEntity>
   )
