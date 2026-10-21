@@ -895,11 +895,13 @@ function Header(props: { v: RaidView }) {
 // Action buttons over the bottom-right of the field, clear of the CLOSE tab in the middle and the frame edge.
 function ActionRow(props: { v: RaidView }) {
   const v = props.v
+  const me = myFighter()
   const btn = { height: S(56), margin: { left: S(10) } }
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: S(26), right: S(30) }, flexDirection: 'row', alignItems: 'center' }}>
-      {/* No BACK TO CAMP / LEAVE on the field (2026-10-21): the camp halo and building highlights are the navigation.
-          Guild War: CLOSE leaves the war (WarScreen). Storm lobby keeps its LEAVE (LobbyCard). */}
+      {/* No BACK TO CAMP on the field (2026-10-21): the camp halo and building highlights are the navigation.
+          Guild War: no LEAVE either; CLOSE leaves the war (WarScreen). */}
+      {me && !isWar(v) && (v.status === 'live' || v.status === 'gathering') ? <Button label="LEAVE" color={C.red} sound="cancel" disabled={raid.busy} size={S(22)} uiTransform={{ width: S(210), ...btn }} onClick={() => { arenaOpen = false; requestLeaveRaid() }} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}
       {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(250), ...btn }} onClick={() => stopSpectating()} /> : null}
