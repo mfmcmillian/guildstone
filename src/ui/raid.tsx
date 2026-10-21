@@ -875,7 +875,8 @@ function Roster(props: { v: RaidView; side: SideId }) {
     else if (v.status === 'gathering' || joinable) slots.push(<OpenSlot key={`${side}-slot-${i}`} v={v} side={side} />)
   }
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: side === 'a' ? { left: S(38), top: S(ROSTER_TOP) } : { right: S(38), top: S(ROSTER_TOP) }, width: S(ROSTER_W), flexDirection: 'column' }}>
+    // War: the single card sits in the top-left corner, level with the standings (the Storm's score line is not drawn there).
+    <UiEntity uiTransform={{ positionType: 'absolute', position: side === 'a' ? { left: S(38), top: S(isWar(v) ? STANDINGS_TOP : ROSTER_TOP) } : { right: S(38), top: S(ROSTER_TOP) }, width: S(ROSTER_W), flexDirection: 'column' }}>
       {slots}
     </UiEntity>
   )
