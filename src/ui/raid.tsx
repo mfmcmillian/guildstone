@@ -795,6 +795,32 @@ function OpenSlot(props: { key?: string; v: RaidView; side: SideId }) {
   )
 }
 
+/** Guild War: the right column is the table, every guild ranked by score (yours in purple), not the other side's roster. */
+function Standings(props: { v: RaidView }) {
+  const v = props.v
+  const st = v.standings ?? []
+  const mine = v.sides.a.tag
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { right: S(38), top: S(ROSTER_TOP) }, width: S(ROSTER_W), flexDirection: 'column' }}>
+      {st.map((g, i) => {
+        const you = g.tag === mine
+        const col = you ? PURPLE_LIGHT : C.yellow
+        return (
+          <UiEntity key={`st-${g.guildId}`} uiTransform={{ width: S(ROSTER_W), height: S(74), margin: { bottom: S(CARD_GAP) }, padding: S(3) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: you ? C.purple : DARK_SOFT }}>
+            <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', padding: { left: S(12), right: S(12), top: S(6) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: DARK }}>
+              <UiEntity uiTransform={{ width: '100%', height: S(34), flexDirection: 'row', alignItems: 'center' }}>
+                <Text value={`${i + 1}.  [${g.tag}]`} size={S(26)} color={col} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(34) }} />
+                <Text value={`${g.score}`} size={S(28)} color={C.white} nowrap align="middle-right" uiTransform={{ width: S(110), height: S(34) }} />
+              </UiEntity>
+              <Text value={`${g.count} on the field  ·  ${g.flags} flag${g.flags === 1 ? '' : 's'}`} size={S(18)} color={C.gray} nowrap align="middle-left" uiTransform={{ height: S(24) }} />
+            </UiEntity>
+          </UiEntity>
+        )
+      })}
+    </UiEntity>
+  )
+}
+
 function Roster(props: { v: RaidView; side: SideId }) {
   const { v, side } = props
   const s = v.sides[side]
@@ -834,12 +860,11 @@ function Header(props: { v: RaidView }) {
   const nextOpen = v.status === 'live' && v.battle?.war ? [...CAMP_IDS, ...POINT_IDS].map((p) => [p, unlockAt(v, p)] as const).filter(([, at]) => at > 0).sort((p, q) => p[1] - q[1])[0] : undefined
   // Standing in a building your side holds: say how much less you are taking (the buff was invisible before).
   const buff = v.status === 'live' && me && v.mine ? myBuff(v, v.mine, me) : null
-  // Guild War (free-for-all): left is your guild with its place among all the guilds, right the best of the others.
+  // Guild War (free-for-all): left is your guild with its place among all the guilds; the right column is the Standings table.
   const st = isWar(v) ? v.standings ?? [] : null
   const rank = st ? st.findIndex((g) => g.tag === a.tag) + 1 : 0
-  const rival = st ? st.find((g) => g.tag !== a.tag) ?? null : null
   const leftText = st ? `${sideTag(a, v.mode)}  ${v.score.a}${rank > 0 && st.length > 1 ? `  ·  ${ordinal(rank)} of ${st.length}` : ''}` : `${sideTag(a, v.mode)}  ${v.score.a}`
-  const rightText = st ? (rival ? `${rival.score}  [${rival.tag}]` : '') : `${v.score.b}  ${sideTag(b, v.mode)}`
+  const rightText = st ? '' : `${v.score.b}  ${sideTag(b, v.mode)}`
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(46), left: 0 }, width: '100%', height: S(84), flexDirection: 'row', alignItems: 'flex-start' }}>
       <UiEntity uiTransform={{ width: S(380), height: S(60), padding: { left: S(24) } }}>
@@ -986,7 +1011,7 @@ function Field(props: { v: RaidView }) {
       {canMove ? [...POINT_IDS, ...(isWar(v) ? CAMP_IDS : [])].map((p) => <HitArea key={`hit-${p}`} v={v} point={p} me={me!} />) : null}
       {canMove && !isWar(v) && v.mine ? <HomeHit v={v} side={v.mine} me={me!} /> : null}
       <Roster v={v} side="a" />
-      <Roster v={v} side="b" />
+      {isWar(v) ? <Standings v={v} /> : <Roster v={v} side="b" />}
       <Header v={v} />
       <ActionRow v={v} />
     </UiEntity>
