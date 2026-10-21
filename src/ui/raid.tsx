@@ -87,6 +87,11 @@ const W = WAR_FRAME_W - FRAME_EDGE * 2
 const H = 990
 // The window is exactly the field; the action buttons float over its bottom-right corner (ActionRow).
 const WAR_FRAME_H = H + FRAME_EDGE * 2
+/**
+ * Guild War (2026-10-21): a spawn strip under the field (design px). Fighters at the spawn and the knocked-out wait
+ * there, so the map itself shows only the fighters on the flags and the legs between them.
+ */
+const SPAWN_H = 184
 const px = (x: number) => S((x / 100) * W)
 const py = (y: number) => S((y / 100) * H)
 
@@ -100,9 +105,12 @@ const FIELD: Record<PointId, { label: [number, number]; stand: [number, number];
   shrine: { label: [71, 59], stand: [71, 88], hit: [71, 78, 310, 290] }
 }
 const CAMP: Record<SideId, [number, number]> = { a: [19, 52], b: [80, 52] }
-// Guild War day (mirrors the server): every guild spawns and respawns at a neutral mid-field spot, and the two camps
-// are flags like the buildings (no bonus, no healing). West camp open from the start, east camp at hour one.
-const SPAWN: [number, number] = [49.5, 54]
+// Guild War day: on the server every guild spawns and respawns at a neutral mid-field spot (SERVER_SPAWN, also sent as
+// v.spawn), and the two camps are flags like the buildings (no bonus, no healing). On screen the spawn is drawn in the
+// strip under the field (SPAWN_STRIP, feet in field % past 100), so the map shows only the fight; a leg the server
+// started at its spawn is drawn from the strip (fighterPose).
+const SERVER_SPAWN: [number, number] = [49.5, 54]
+const SPAWN_STRIP: [number, number] = [50, ((H + 150) / H) * 100]
 // `hit` is the Storm's own-camp tap box (in front of the tent, where the fighters stand); `glow` is the war's: the
 // tent and palisade themselves, outlined like the buildings (guildstone.dev img/raid/glow_camp*_v1.png is cut to it).
 const CAMP_FIELD: Record<CampId, { label: [number, number]; stand: [number, number]; hit: [number, number, number, number]; glow: [number, number, number, number] }> = {
@@ -115,7 +123,10 @@ const spotField = (where: Spot) => (where === 'camp1' || where === 'camp2' ? CAM
 const spotName = (v: RaidView, where: Spot) => (where === 'camp1' || where === 'camp2' ? v.camps?.[where]?.name ?? 'Camp' : v.points[where].name)
 const spotLabel = (v: RaidView, where: Spot) => (where === 'camp1' || where === 'camp2' ? spotName(v, where).toUpperCase() : POINT_LABEL[where])
 /** Where 'home' is drawn: the side's camp, or the shared spawn on the war day. */
-const homeOf = (v: RaidView, side: SideId): [number, number] => (isWar(v) ? v.spawn ?? SPAWN : CAMP[side])
+const homeOf = (v: RaidView, side: SideId): [number, number] => (isWar(v) ? SPAWN_STRIP : CAMP[side])
+/** The server's own spawn spot (field %), where its legs out of the spawn start. */
+const serverSpawn = (v: RaidView): [number, number] => v.spawn ?? SERVER_SPAWN
+const nearSpot = (x: number | null, y: number | null, p: [number, number]) => x !== null && y !== null && Math.abs(x - p[0]) < 0.01 && Math.abs(y - p[1]) < 0.01
 const ROSTER_W = 270
 const CARD_H = 160
 const CARD_GAP = 10
@@ -242,9 +253,9 @@ const SNAP_DIST = 30 // field %: a gap this big is a new raid or a knock-out tel
 /** Where each token is drawn (field %), when, and the design px it has walked so far (drives the walk frames). */
 const drawn: Record<string, { x: number; y: number; at: number; dist: number }> = {}
 /** Move the drawn token toward (x, y) at up to `pxPerS` design px/s. */
-function approach(key: string, x: number, y: number, pxPerS: number, now: number): { x: number; y: number; moving: boolean } {
+function approach(key: string, x: number, y: number, pxPerS: number, now: number, snap = false): { x: number; y: number; moving: boolean } {
   const d = drawn[key]
-  if (!d || now - d.at > 2000 || Math.hypot(x - d.x, y - d.y) > SNAP_DIST) {
+  if (snap || !d || now - d.at > 2000 || Math.hypot(x - d.x, y - d.y) > SNAP_DIST) {
     drawn[key] = { x, y, at: now, dist: 0 }
     return { x, y, moving: false }
   }
@@ -307,14 +318,24 @@ function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose
   let anim: Anim = 'idle'
   let flip = side === 'b'
   let koStart = 0
+  // War: a knocked-out fighter is off the map at once, waiting in the spawn strip with the countdown (no five-minute
+  // crawl across the field); the Storm keeps the crawl home.
+  const koToStrip = isWar(v) && f.state === 'ko'
   if (f.state === 'in' && f.at) [x, y] = spot(f.at, index)
-  else if (f.state === 'camp') [x, y] = spot('camp', index)
-  else {
+  else if (f.state === 'camp' || koToStrip) {
+    ;[x, y] = spot('camp', index)
+    if (koToStrip) {
+      anim = 'ko'
+      koStart = f.departAt
+    }
+  } else {
     const to: Spot | 'camp' = f.target && f.target !== 'camp' ? f.target : 'camp'
     const [tx, ty] = spot(to, index)
     const base = spotBase(v, side, to)
-    const sx = f.fromX !== null ? f.fromX + (tx - base[0]) : spot('camp', index)[0]
-    const sy = f.fromY !== null ? f.fromY + (ty - base[1]) : spot('camp', index)[1]
+    // A leg the server started at its (mid-field) spawn is drawn from the strip, where the token stood.
+    const fromSpawn = f.fromX === null || (isWar(v) && nearSpot(f.fromX, f.fromY, serverSpawn(v)))
+    const sx = !fromSpawn ? f.fromX! + (tx - base[0]) : spot('camp', index)[0]
+    const sy = !fromSpawn ? f.fromY! + (ty - base[1]) : spot('camp', index)[1]
     const [fx, fy] = legFrom(key, f.departAt, sx, sy, now)
     const total = f.arriveAt - f.departAt
     const t = total > 0 ? Math.max(0, Math.min(1, 1 - (f.arriveAt - serverNow()) / total)) : 1
@@ -327,7 +348,7 @@ function fighterPose(v: RaidView, side: SideId, f: Fighter, index: number): Pose
   }
 
   // 2. Draw it there, walking the gap if there is one.
-  const g = approach(key, x, y, Math.max(MIN_CATCH_PX_S, pace * CATCH_UP), now)
+  const g = approach(key, x, y, Math.max(MIN_CATCH_PX_S, pace * CATCH_UP), now, koToStrip)
   if (g.moving && anim !== 'ko') {
     anim = 'walk'
     flip = x < g.x
@@ -584,8 +605,12 @@ function Tokens(props: { v: RaidView }) {
     const s = v.sides[side]
     if (!s) continue
     const counters: Record<string, number> = {}
-    for (const f of s.fighters) {
-      const where = f.state === 'in' && f.at ? f.at : f.state === 'camp' ? 'camp' : `walk:${f.target ?? 'camp'}`
+    // War: the knocked-out wait in the spawn strip with the fighters at the spawn, one fan, the ready ones nearest the middle.
+    const war = isWar(v)
+    const rank = (f: Fighter) => (war && f.state === 'ko' ? 1 : 0)
+    const fighters = war ? [...s.fighters].sort((p, q) => rank(p) - rank(q)) : s.fighters
+    for (const f of fighters) {
+      const where = f.state === 'in' && f.at ? f.at : f.state === 'camp' || (war && f.state === 'ko') ? 'camp' : `walk:${f.target ?? 'camp'}`
       const i = counters[where] ?? 0
       counters[where] = i + 1
       out.push(<Token key={`${side}-${f.id}`} v={v} side={side} f={f} index={i} />)
@@ -730,7 +755,9 @@ function HitArea(props: { key?: string; v: RaidView; point: Spot; me: Fighter })
           return
         }
         const from = myDrawnSpot(v, me)
-        requestGo(point, from, walkMs(v, v.mine, from, point, me.speed))
+        // War: the token stands in the spawn strip, but the server measures the leg from its own spawn spot.
+        const measureFrom = isWar(v) && me.state === 'camp' ? serverSpawn(v) : from
+        requestGo(point, from, walkMs(v, v.mine, measureFrom, point, me.speed))
       }}
     >
       {color ? (
@@ -1027,6 +1054,8 @@ function Field(props: { v: RaidView }) {
 // (teams are drawn at the bell); battles show the two guilds and wait for a full side each.
 const MUTED = Color4.create(0.7, 0.66, 0.85, 1)
 const PALE = Color4.create(0.85, 0.82, 0.95, 1)
+/** The war's spawn strip under the field. */
+const STRIP_BG = Color4.create(0.07, 0.08, 0.13, 1)
 function LobbyColumn(props: { key?: string; v: RaidView; side: SideId }) {
   const { v, side } = props
   const s = v.sides[side]
@@ -1546,9 +1575,20 @@ export function WarTab(props: { height: number }) {
     )
   }
   const idle = v === null || menuOverWar || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
+  // War field: the spawn strip under the map (WarScreen made the window taller by SPAWN_H). The art keeps its own
+  // height; the strip is a dark band with a gold rule, and the tokens of the spawn / knocked-out fan out inside it.
+  const strip = props.height > H
   return (
     <UiEntity uiTransform={{ width: S(W), flexDirection: 'column' }}>
-      <UiEntity uiTransform={{ width: S(W), height: S(props.height), positionType: 'relative', overflow: 'hidden' }} uiBackground={{ textureMode: 'stretch', texture: { src: BG } }}>
+      <UiEntity uiTransform={{ width: S(W), height: S(props.height), positionType: 'relative', overflow: 'hidden' }}>
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: S(H), pointerFilter: 'none' }} uiBackground={{ textureMode: 'stretch', texture: { src: BG } }} />
+        {strip ? (
+          <UiEntity uiTransform={{ positionType: 'absolute', position: { top: S(H), left: 0 }, width: '100%', height: S(props.height - H), pointerFilter: 'none' }} uiBackground={{ color: STRIP_BG }}>
+            <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: S(3) }} uiBackground={{ color: GLOW_HEADING }} />
+            <Text value="SPAWN" size={S(22)} color={MUTED} nowrap align="middle-left" uiTransform={{ positionType: 'absolute', position: { top: S(12), left: S(38) }, width: S(200), height: S(28) }} />
+            <Text value="knocked out fighters wait here" size={S(18)} color={MUTED} nowrap align="middle-left" uiTransform={{ positionType: 'absolute', position: { top: S(40), left: S(38) }, width: S(360), height: S(24) }} />
+          </UiEntity>
+        ) : null}
         <FieldAnim />
         <Weather sky={idle || (v !== null && v.status === 'live')} />
         {!idle && v ? <Field v={v} /> : null}
@@ -1567,8 +1607,16 @@ export function WarTab(props: { height: number }) {
  */
 // Own window: the field covers the whole frame up to its painted border (no paper margin), the title tab drags it
 // like the other windows (saved as uiLayout.war) and a GUILD tab at the bottom-left goes back.
+/** The war field itself is on screen (not the WAR menu over it, not a Storm, not a result): the spawn strip is shown. */
+function warStripOn(): boolean {
+  const v = raid.view
+  if (v === null || raid.conceded || !isWar(v) || v.status !== 'live') return false
+  return !!v.you || !!raid.spectating || arenaOpen
+}
 export function WarScreen(props: { title: string; onBack: () => void; onClose: () => void }) {
-  const fit = fitModal(WAR_FRAME_W, WAR_FRAME_H)
+  // Guild War field: the window grows by the spawn strip under the map.
+  const frameH = warStripOn() ? WAR_FRAME_H + SPAWN_H : WAR_FRAME_H
+  const fit = fitModal(WAR_FRAME_W, frameH)
   const o = dragOffsetPx('war')
   const s = fit.scale
   return (
@@ -1576,7 +1624,7 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
       title={props.title}
       color={C.purple}
       width={WAR_FRAME_W}
-      height={WAR_FRAME_H}
+      height={frameH}
       scale={s}
       offsetX={fit.offsetX + o.dx}
       offsetY={o.dy}
@@ -1598,8 +1646,8 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
       }
     >
       {/* Modal lays content out 36 (padding) + 26 (title room) inside the frame; pull the field back out to the frame edge. */}
-      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: -(36 + 26 - FRAME_EDGE) * s, left: -(36 - FRAME_EDGE) * s }, width: S(W), height: S(H) }}>
-        <WarTab height={H} />
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { top: -(36 + 26 - FRAME_EDGE) * s, left: -(36 - FRAME_EDGE) * s }, width: S(W), height: S(frameH - FRAME_EDGE * 2) }}>
+        <WarTab height={frameH - FRAME_EDGE * 2} />
       </UiEntity>
     </Modal>
   )
