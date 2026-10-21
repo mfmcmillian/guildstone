@@ -1254,6 +1254,95 @@ function ResultCard(props: { v: RaidView }) {
   )
 }
 
+// ---------------------------------------------------------------- Storm result (2026-10-21)
+// Regular Storm only: a full verdict screen instead of the shared card. VICTORY in gold-green with a slow shimmer,
+// DEFEAT in ember red, DRAW in blue. Under the title: the final score, your own numbers (KO, dealt, taken, match time)
+// as four tiles, what you banked, the MVP, both teams' tallies, and the way out (next Storm / back to the lobby).
+const dur = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+const WIN_BG = Color4.create(0.03, 0.09, 0.06, 0.78)
+const LOSE_BG = Color4.create(0.11, 0.03, 0.04, 0.8)
+const DRAW_BG = Color4.create(0.04, 0.05, 0.12, 0.78)
+const WIN_LINES = ['The field is yours. One for the record.', 'The buildings answered to you. One for the record.', 'Held to the last clash. One for the record.']
+const LOSE_LINES = ['The other side held longer. One on the far side of the record.', 'Not this time. Spread out, hold the buildings, strike back.', 'Outheld, not outfought. The next Storm is never far.']
+function StatTile(props: { key?: string; label: string; value: string; color: Color4; fade: number }) {
+  return (
+    <UiEntity uiTransform={{ width: S(200), height: S(104), flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: { left: S(8), right: S(8) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(RES_BG.r, RES_BG.g, RES_BG.b, RES_BG.a * props.fade) }}>
+      <OutlinedText value={props.value} size={S(40)} color={Color4.create(props.color.r, props.color.g, props.color.b, props.fade)} />
+      <Text value={props.label} size={S(18)} color={Color4.create(MUTED.r, MUTED.g, MUTED.b, props.fade)} nowrap uiTransform={{ height: S(24), margin: { top: -S(4) } }} />
+    </UiEntity>
+  )
+}
+function StormResultScreen(props: { v: RaidView }) {
+  const v = props.v
+  const r = v.result
+  const mine = v.mine
+  const me = myFighter()
+  const won = !!r && !!mine && r.winner === mine
+  const lost = !!r && !!mine && r.winner !== 'draw' && r.winner !== mine
+  const draw = !r || r.winner === 'draw'
+  const winnerSide = r && r.winner !== 'draw' ? v.sides[r.winner] : null
+  const winnerName = winnerSide ? sideTag(winnerSide, v.mode) : ''
+  const title = !mine ? (winnerSide ? `${winnerName} WIN` : 'DRAW') : won ? 'VICTORY' : lost ? 'DEFEAT' : 'DRAW'
+  const color = won ? C.green : lost ? C.red : C.blue
+  const bg = won ? WIN_BG : lost ? LOSE_BG : DRAW_BG
+  // A steady pick per raid so the line does not flicker between frames.
+  const pick = v.id.split('').reduce((n, ch) => n + ch.charCodeAt(0), 0)
+  const sub = v.rules.test ? 'Test Storm  •  nothing recorded' : won ? WIN_LINES[pick % WIN_LINES.length] : lost ? LOSE_LINES[pick % LOSE_LINES.length] : draw ? 'Even on points. A draw on the record.' : `${winnerName} held the field.`
+  if (resultShownFor !== v.id) { resultShownFor = v.id; resultShownAt = Date.now() }
+  const age = Date.now() - resultShownAt
+  const grow = ease(age / 600)
+  const fade = ease((age - 400) / 500)
+  const fade2 = ease((age - 700) / 500)
+  const shimmer = won ? 0.85 + 0.15 * pulse(1600) : 1
+  const banked = me && me.ranked !== false && v.rules.reward && !v.rules.test ? (won ? v.rules.reward.win : v.rules.reward.lose) : null
+  const mvp = mvpOf(v)
+  const a = v.sides.a
+  const b = v.sides.b
+  const scoreText = `${sideTag(a, v.mode)}  ${v.score.a}   —   ${v.score.b}  ${sideTag(b, v.mode)}`
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: bg }}>
+      <UiEntity uiTransform={{ height: S(120), alignItems: 'center', justifyContent: 'center' }}>
+        <OutlinedText value={title} size={S(40 + 70 * grow)} color={Color4.create(color.r * shimmer, color.g * shimmer, color.b * shimmer, 0.3 + 0.7 * grow)} />
+      </UiEntity>
+      <Text value={scoreText} size={S(30)} color={Color4.create(1, 1, 1, fade)} nowrap uiTransform={{ height: S(40) }} />
+      <Text value={sub} size={S(22)} color={Color4.create(PALE.r, PALE.g, PALE.b, fade)} nowrap uiTransform={{ height: S(30), margin: { top: S(2) } }} />
+      {me ? (
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(16) } }}>
+          <StatTile key="st-ko" label="KNOCKOUTS" value={String(me.kos)} color={C.yellow} fade={fade2} />
+          <StatTile key="st-dealt" label="DAMAGE DEALT" value={String(me.dealt)} color={PURPLE_LIGHT} fade={fade2} />
+          <StatTile key="st-taken" label="DAMAGE TAKEN" value={String(me.taken)} color={PALE} fade={fade2} />
+          <StatTile key="st-time" label="MATCH TIME" value={dur(v.endAt - v.startAt)} color={C.white} fade={fade2} />
+        </UiEntity>
+      ) : null}
+      {banked ? (
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(40), margin: { top: S(10) } }}>
+          <Text value="BANKED" size={S(20)} color={Color4.create(color.r, color.g, color.b, fade2)} nowrap uiTransform={{ width: 'auto', height: S(34), margin: { right: S(14) } }} />
+          {(['wood', 'rock', 'meat', 'bone'] as const).filter((k) => banked[k] > 0).map((k) => (
+            <UiEntity key={`bank-${k}`} uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { right: S(16) } }}>
+              <Icon src={RESOURCE_INFO[k].icon} size={S(28)} />
+              <Text value={`+${banked[k]}`} size={S(22)} color={Color4.create(1, 1, 1, fade2)} nowrap uiTransform={{ width: 'auto', height: S(34), margin: { left: S(5) } }} />
+            </UiEntity>
+          ))}
+        </UiEntity>
+      ) : null}
+      {mvp ? (
+        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', height: S(34), margin: { top: S(6) } }}>
+          <Text value="MVP" size={S(22)} color={Color4.create(C.yellow.r, C.yellow.g, C.yellow.b, fade2)} nowrap uiTransform={{ width: 'auto', height: S(32), margin: { right: S(12) } }} />
+          <Text value={`${fighterName(v, mvp.f)}  •  ${mvp.f.dealt} dealt  •  ${mvp.f.kos} KO`} size={S(22)} color={Color4.create(sideColor(mvp.side).r, sideColor(mvp.side).g, sideColor(mvp.side).b, fade2)} nowrap uiTransform={{ width: 'auto', height: S(32) }} />
+        </UiEntity>
+      ) : null}
+      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'flex-start', margin: { top: S(12) } }}>
+        <ResultColumn v={v} side="a" />
+        <ResultColumn v={v} side="b" />
+      </UiEntity>
+      <UiEntity uiTransform={{ flexDirection: 'row', margin: { top: S(20) } }}>
+        {!raid.spectating ? <Button label="JOIN THE NEXT STORM" color={won ? C.green : C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(400), height: S(84), margin: { right: S(16) } }} onClick={() => { dismissedResult = v.id; requestJoinRaid() }} /> : null}
+        <Button label={raid.spectating ? 'STOP WATCHING' : 'BACK TO LOBBY'} color={C.navySoft} sound="cancel" size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => { if (raid.spectating) stopSpectating(); else dismissedResult = v.id }} />
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
 function BoardRow(props: { key?: string; e: BoardEntry }) {
   const e = props.e
   const who = (x: BoardEntry['a']) => (x ? (x.wraith ? 'SHADES' : `[${x.tag}]`) : '?')
@@ -1430,7 +1519,8 @@ export function WarTab(props: { height: number }) {
         <Weather sky={idle || (v !== null && v.status === 'live')} />
         {!idle && v ? <Field v={v} /> : null}
         {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
-        {!idle && v && showResult ? <ResultCard v={v} /> : null}
+        {/* Regular Storm gets its own win / lose screen; CALLED OFF, guild raids and the war keep the shared card. */}
+        {!idle && v && showResult ? (v.mode === 'pickup' && v.status === 'done' ? <StormResultScreen v={v} /> : <ResultCard v={v} />) : null}
         {idle ? <IdleScreen /> : null}
       </UiEntity>
     </UiEntity>
