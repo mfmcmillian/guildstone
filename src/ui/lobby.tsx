@@ -316,14 +316,16 @@ function ChatColumn(props: { channel: Channel; height: number }) {
   const visible = st.messages.filter((m) => !lobby.muted.has(m.from))
   const tagOf = Object.fromEntries(lobby.board.guilds.map((g) => [g.tag, g.id]))
   // Guild channel: everyone shares the tag, so skip it. System lines read as "— X joined the guild".
-  const lineOf = (m: typeof visible[number]) => (m.system ? `—  ${m.text}` : `${m.tag && !guildChannel ? `[${m.tag}] ` : ''}${withVip(labelFor(m.from, m.name), m.vip)}:  ${m.text}`)
+  // Guild War alerts (server kind 'alert'): the big red line, no dash.
+  const isAlert = (m: typeof visible[number]) => m.system === true && m.kind === 'alert'
+  const lineOf = (m: typeof visible[number]) => (isAlert(m) ? m.text : m.system ? `—  ${m.text}` : `${m.tag && !guildChannel ? `[${m.tag}] ` : ''}${withVip(labelFor(m.from, m.name), m.vip)}:  ${m.text}`)
   // Row height follows the wrapped line count: the text box is ~970 px wide at 22 px, which fits about 80 characters per
   // line (a little less when the paging arrows take the right edge), so estimate on 75 and add 26 px per extra line.
   // Under-estimating makes rows overlap; over-estimating only leaves a small gap.
-  const heightOf = (m: typeof visible[number]) => 30 + 26 * (Math.min(8, Math.ceil(lineOf(m).length / 75)) - 1)
+  const heightOf = (m: typeof visible[number]) => (isAlert(m) ? 36 + 32 * (Math.min(8, Math.ceil(lineOf(m).length / 60)) - 1) : 30 + 26 * (Math.min(8, Math.ceil(lineOf(m).length / 75)) - 1))
   const feedKey = `ch-${channel}`
   const page = pageBack(visible, heightOf, feedH, feedKey)
-  const rows = page.rows.map(({ m, h }) => ({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', color: m.color, stamp: chatStamp(m.at), line: lineOf(m), h, system: m.system === true, me: mentionsMe(m), vipLine: m.system === true && m.kind === 'vip' ? cleanVip(m.vip) : 0, toolLine: m.system === true && m.kind === 'tool' ? Math.max(0, Math.floor(Number(m.tier) || 0)) : 0 }))
+  const rows = page.rows.map(({ m, h }) => ({ id: m.id, from: m.from, guild: m.tag ? tagOf[m.tag] ?? '' : '', color: m.color, stamp: chatStamp(m.at), line: lineOf(m), h, system: m.system === true, alert: isAlert(m), me: mentionsMe(m), vipLine: m.system === true && m.kind === 'vip' ? cleanVip(m.vip) : 0, toolLine: m.system === true && m.kind === 'tool' ? Math.max(0, Math.floor(Number(m.tier) || 0)) : 0 }))
   const moderator = canModerate(channel)
   const emptyText = !lobby.loadedOnce
     ? lobby.failed ? 'Could not reach the lobby. Retrying...' : 'Joining the lobby...'
@@ -360,7 +362,7 @@ function ChatColumn(props: { channel: Channel; height: number }) {
               }}
             >
               <Text value={r.stamp} size={S(20)} color={C.textMuted} nowrap raw align="top-left" uiTransform={{ width: S(190), height: S(r.h), margin: { right: S(10) } }} />
-              <Text value={r.line} size={S(22)} color={r.vipLine ? vipColor(r.vipLine) : r.toolLine ? toolRankColor(r.toolLine) : r.system ? C.textMuted : r.me ? C.orange : nameColor(r.from, r.guild, r.color)} align="top-left" raw={!r.system} uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
+              <Text value={r.line} size={S(r.alert ? 28 : 22)} color={r.alert ? C.red : r.vipLine ? vipColor(r.vipLine) : r.toolLine ? toolRankColor(r.toolLine) : r.system ? C.textMuted : r.me ? C.orange : nameColor(r.from, r.guild, r.color)} align="top-left" raw={!r.system} uiTransform={{ flexGrow: 1, flexShrink: 1, minWidth: 0, height: S(r.h) }} />
               {moderator && !r.system ? (
                 <UiEntity
                   uiTransform={{ width: S(30), height: S(26), alignItems: 'center', justifyContent: 'center', margin: { left: S(6) } }}
