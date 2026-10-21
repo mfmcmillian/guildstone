@@ -71,6 +71,8 @@ export interface WarRules {
   koWalkMs: number
   sideMax: number
   maxCapturers: number
+  /** Capture speed exponent: n fighters add n ** capturePower fighter-minutes a minute (absent on older raids = 1). */
+  capturePower?: number
   captureMin: FlagMap<number>
   /** Minutes after the start each flag opens; locked flags cannot be walked to. */
   unlockMin: Record<Spot, number>
@@ -91,7 +93,8 @@ export interface RaidView {
   /** Battle: end of the two-hour window (gatherUntil moves ahead of it once both sides are full). */
   windowEnd: number
   /** `war` is set on the day-long Guild War (one tick a minute, hour-scale captures); absent on a Storm. */
-  battle: { week: string; pointsMult: number; reward: { win: Reward; lose: Reward }; war?: WarRules } | null
+  /** War payout: everyone who fought banks `join`; the top guild's fighters bank `win` on top of it. */
+  battle: { week: string; pointsMult: number; reward: { win: Reward; join: Reward }; war?: WarRules } | null
   /** Guild War only: when each flag was last taken (0 = never) and minutes it has stood unguarded. */
   took?: FlagMap<number>
   decay?: FlagMap<number>
@@ -165,7 +168,7 @@ export interface BattleInfo {
   endWhen?: string
   tz?: string
   teamSize?: number
-  reward?: { win: Reward; lose: Reward }
+  reward?: { win: Reward; join: Reward }
   leader?: boolean
   signedUp?: boolean
   signups?: { tag: string; name: string }[]
@@ -180,7 +183,7 @@ export interface BattleInfo {
 }
 
 /** Balance numbers from the server. A raid view carries the snapshot it was called with; `raid.rules` is the current set. */
-export interface RaidRules { tickMs: number; ticks: number; walkMs: number; homeMs: number; koWalkMs: number; sideMax: number; sideMin: number; pickupMin: number; gatherMs: number; raidsPerDay: number; captureTicks: number; test?: boolean }
+export interface RaidRules { tickMs: number; ticks: number; walkMs: number; homeMs: number; koWalkMs: number; sideMax: number; sideMin: number; pickupMin: number; gatherMs: number; raidsPerDay: number; reward?: { win: Reward; lose: Reward }; captureTicks: number; test?: boolean }
 const DEFAULT_RULES: RaidRules = { tickMs: 3000, ticks: 80, walkMs: 7500, homeMs: 5000, koWalkMs: 20000, sideMax: 4, sideMin: 2, pickupMin: 4, gatherMs: 120000, raidsPerDay: 5, captureTicks: 2 }
 
 export const raid = {

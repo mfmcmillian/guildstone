@@ -120,6 +120,8 @@ const ROSTER_W = 270
 const CARD_H = 160
 const CARD_GAP = 10
 const ROSTER_TOP = 136
+/** The war's standings table sits at the top right, level with the header (the Header's right slot is empty in a war). */
+const STANDINGS_TOP = 46
 // Cell size on screen. The character stands about 74% of its 144 px cell, so this matches the old 80 px tokens.
 const TOKEN = 108
 const TOKEN_GAP = 72
@@ -178,8 +180,8 @@ function captureProgress(v: RaidView, point: Spot, side: SideId, count: number):
   const tickMs = Math.max(1, v.rules.tickMs)
   const war = v.battle?.war
   const done = v.cap[point]?.side === side ? v.cap[point]!.n : 0
-  // War: every fighter standing adds a minute a tick (up to maxCapturers); a guild at the hold cap needs twice as many.
-  const rate = war ? Math.max(1, Math.min(count, war.maxCapturers)) : 1
+  // War: n fighters standing add n ** capturePower fighter-minutes a tick (up to maxCapturers); a guild at the hold cap needs twice as many.
+  const rate = war ? Math.max(1, Math.min(count, war.maxCapturers)) ** (war.capturePower ?? 1) : 1
   const flags = flagsOf(v).filter((p) => v.held[p] === side).length
   const need = war ? (war.captureMin[point] ?? 60) * (flags >= war.holdCap ? 2 : 1) : Math.max(1, v.rules.captureTicks)
   const ticksLeft = Math.max(1, Math.ceil((need - done) / rate))
@@ -801,7 +803,7 @@ function Standings(props: { v: RaidView }) {
   const st = v.standings ?? []
   const mine = v.sides.a.tag
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { right: S(38), top: S(ROSTER_TOP) }, width: S(ROSTER_W), flexDirection: 'column' }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { right: S(38), top: S(STANDINGS_TOP) }, width: S(ROSTER_W), flexDirection: 'column' }}>
       {st.map((g, i) => {
         const you = g.tag === mine
         const col = you ? PURPLE_LIGHT : C.yellow
@@ -1120,6 +1122,13 @@ const RES_COLS = { name: 220, dealt: 100, taken: 100, kos: 70 }
 const RES_BG = Color4.create(0.06, 0.05, 0.12, 0.82)
 /** '300 Wood, 300 Rock, 150 Meat, 150 Bone'. */
 const rewardText = (r: Reward) => (['wood', 'rock', 'meat', 'bone'] as const).filter((k) => r[k] > 0).map((k) => `${r[k]} ${k[0].toUpperCase()}${k.slice(1)}`).join(', ')
+const sumReward = (a: Reward, b: Reward): Reward => ({ wood: a.wood + b.wood, rock: a.rock + b.rock, meat: a.meat + b.meat, bone: a.bone + b.bone })
+/** Storm result: what a ranked fighter banked (the winning side `win`, the rest `lose`); nothing on an unranked Storm. */
+function stormBanked(v: RaidView, won: boolean): string {
+  const me = myFighter()
+  if (!v.rules.reward || !me || me.ranked === false) return ''
+  return `${rewardText(won ? v.rules.reward.win : v.rules.reward.lose)} banked.  `
+}
 function ResultColumn(props: { key?: string; v: RaidView; side: SideId }) {
   const { v, side } = props
   const s = v.sides[side]
@@ -1180,7 +1189,7 @@ function ResultCard(props: { v: RaidView }) {
   const color = cancelled ? C.textMuted : won ? C.green : lost ? C.red : C.blue
   const sub = cancelled
     ? (v.feed.length > 0 ? v.feed[v.feed.length - 1].text : '')
-    : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${st && st.length > 1 ? `${st.length} guilds fought  •  ` : ''}${rewardText(won ? v.battle.reward.win : v.battle.reward.lose)} banked for every fighter${won ? '. Bragging rights are yours until next Thursday.' : '.'}` : won ? 'One for the record. Hold the Citadel longer next time for a bigger margin.' : lost ? 'One on the other side of the record. The buildings pay every clash you hold them: spread out and strike back.' : 'Even on points. A draw on the record.'
+    : v.rules.test ? 'Test raid  •  nothing recorded' : v.mode === 'battle' && v.battle ? `${st && st.length > 1 ? `${st.length} guilds fought  •  ` : ''}${rewardText(won ? sumReward(v.battle.reward.win, v.battle.reward.join) : v.battle.reward.join)} banked for every fighter${won ? '. Bragging rights are yours until next Thursday.' : '.'}` : `${stormBanked(v, won === true)}${won ? 'One for the record. Hold the Citadel longer next time for a bigger margin.' : lost ? 'One on the other side of the record. The buildings pay every clash you hold them: spread out and strike back.' : 'Even on points. A draw on the record.'}`
   // The verdict lands with a beat: the title grows in over the first half second, then the MVP line and the final
   // building tally fade up under it.
   if (resultShownFor !== v.id) { resultShownFor = v.id; resultShownAt = Date.now() }
@@ -1272,7 +1281,7 @@ const LOGO_H = Math.round(LOGO_W * (538 / 867))
  */
 let arenaOpen = false
 const IDLE_W = 780
-const IDLE_H = 380
+const IDLE_H = 420
 const IDLE_GAP = 30
 const IDLE_BG = Color4.create(0.06, 0.05, 0.12, 0.82)
 
@@ -1353,7 +1362,8 @@ function WarCard() {
     <IdleCard title="GUILD WAR" sub={b.mini ? 'Mini war' : b.when ?? ''} color={C.gold}>
       {rows}
       <Spacer />
-      {line(`Top guild banks ${rewardText(b.reward!.win)}`, MUTED, 20, 'wr-prize')}
+      {line(`Every fighter banks ${rewardText(b.reward!.join)}`, MUTED, 20, 'wr-prize')}
+      {line(`Top guild banks ${rewardText(b.reward!.win)} on top`, MUTED, 20, 'wr-prize2')}
       {record}
     </IdleCard>
   )
