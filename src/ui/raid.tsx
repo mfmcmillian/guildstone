@@ -641,14 +641,13 @@ function Marker(props: { key?: string; v: RaidView; point: Spot }) {
   } else {
     line2 = <Text value="empty" size={S(22)} color={C.gray} nowrap uiTransform={{ width: 'auto', height: S(28) }} />
   }
-  const pillColor = opensAt > 0 ? Color4.create(0.2, 0.18, 0.22, 0.9) : holder === 'a' ? Color4.create(0.5, 0.3, 0.85, 0.95) : holder === 'b' ? Color4.create(0.72, 0.5, 0.05, 0.95) : DARK_SOFT
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(lx) - width / 2, top: py(ly) - S(22) }, width, flexDirection: 'column', alignItems: 'center' }}>
-      <UiEntity
-        uiTransform={{ height: S(44), padding: { left: S(18), right: S(18) }, alignItems: 'center', justifyContent: 'center' }}
-        uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btnFlat }, textureSlices: SLICE_128, color: pillColor }}
-      >
-        {/* Held: the holder's bonus rides in the same label (one text; a second child stacked under it in the 44 px pill). */}
+      {/* No pill behind the name (2026-10-21): OutlinedText is absolute layers, so an auto-width pill measured zero and
+          collapsed to a 36x44 tinted square under the centred text. The outline carries the name on its own; the holder
+          still shows in the line under it. */}
+      <UiEntity uiTransform={{ height: S(44), alignItems: 'center', justifyContent: 'center' }}>
+        {/* Held: the holder's bonus rides in the same label. */}
         <OutlinedText value={holder && opensAt === 0 ? `${spotLabel(v, point)}  +${def.pips}${buffOf(def) ? `  ${buffOf(def)!.tag}` : ''}` : `${spotLabel(v, point)}  +${def.pips}`} size={S(24)} uiTransform={{ width: 'auto', height: S(44), margin: { bottom: S(2) } }} />
       </UiEntity>
       <UiEntity
@@ -743,8 +742,8 @@ function HitArea(props: { key?: string; v: RaidView; point: Spot; me: Fighter })
       ) : null}
       {hovered && isWar(v) ? (
         // War only: the pill says LOCKED on a flag that has not opened yet. The regular Storm has nothing to say, the halo is the hint.
-        <UiEntity uiTransform={{ height: S(40), padding: { left: S(20), right: S(20) }, margin: { bottom: -S(20) }, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.btn }, textureSlices: SLICE_128, color: C.yellow }}>
-          <OutlinedText value={heading ? 'ON YOUR WAY' : locked ? 'LOCKED' : 'GO'} size={S(22)} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
+        <UiEntity uiTransform={{ height: S(40), margin: { bottom: -S(20) }, alignItems: 'center', justifyContent: 'center' }}>
+          <OutlinedText value={heading ? 'ON YOUR WAY' : locked ? 'LOCKED' : 'GO'} size={S(22)} color={locked ? C.orange : C.yellow} uiTransform={{ width: 'auto', height: S(40), margin: { bottom: S(4) } }} />
         </UiEntity>
       ) : null}
     </UiEntity>
