@@ -1195,6 +1195,7 @@ function LobbyCard(props: { v: RaidView }) {
         {/* Storm: anyone in the lobby can ring the bell instead of waiting out the gather (server 'start', ~10 s). One ring
             per Storm: gone for everyone once `bell` is set (the server refuses a second press anyway), or once the bell is that close. */}
         {pickup && v.you && !raid.spectating && !short && !v.bell && v.gatherUntil - serverNow() > 12_000 ? <Button label="START NOW" color={C.purple} disabled={raid.busy} size={S(30)} uiTransform={{ width: S(300), height: S(84), margin: { right: S(16) } }} onClick={() => requestStartRaid()} /> : null}
+        {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(30)} uiTransform={{ width: S(300), height: S(84) }} onClick={() => stopSpectating()} /> : null}
         {v.you && !raid.spectating ? <Button label="CANCEL" color={C.red} sound="cancel" disabled={raid.busy} size={S(30)} uiTransform={{ width: S(260), height: S(84) }} onClick={() => requestLeaveRaid()} /> : null}
       </UiEntity>
     </UiEntity>
@@ -1873,10 +1874,12 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
       edgeToEdge
       tabs={
         // Bottom-left tab, positioned relative to the frame like the CLOSE tab, so it sits above the frame overlay.
-        // One back button: on the live war field it goes to the WAR menu (your fighter stays on the field; the Storm is on
+        // One back button: watching someone else's raid, or on the live war field, it goes to the WAR menu (your fighter stays on the field; the Storm is on
         // that menu too), and from the menu it goes back to the guild.
         <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s, left: 24 * s }, width: 260 * s, height: 68 * s }}>
-          {onWarField()
+          {raid.spectating
+            ? <Button key="war-back-watch" label="◀  WAR MENU" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={() => { menuWanted = true; arenaOpen = false; stopSpectating() }} />
+            : onWarField()
             ? <Button key="war-back-menu" label="◀  WAR MENU" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={() => { menuWanted = true }} />
             : <Button key="war-back-guild" label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onBack} />}
         </UiEntity>
