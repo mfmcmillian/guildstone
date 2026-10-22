@@ -2035,7 +2035,9 @@ export function WarTab(props: { height: number }) {
       </UiEntity>
     )
   }
-  const idle = v === null || menuOverWar || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
+  // A Storm you are not in and did not pick to WATCH (the server's fallback view when there is no war) stays behind the menu.
+  const notMine = v !== null && v.mode === 'pickup' && !v.you && !raid.spectating
+  const idle = v === null || menuOverWar || notMine || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
   // RULES from the war card: the empty field with the spawn strip and the guided tour over it (only where the menu would show).
   const tour = idle && rulesOpen
   const results = idle && !tour && resultsOpen
