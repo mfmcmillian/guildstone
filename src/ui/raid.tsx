@@ -943,8 +943,6 @@ function ActionRow(props: { v: RaidView }) {
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="NEXT TICK" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(190), ...btn }} onClick={() => requestSkip('next')} /> : null}
       {raid.tester && v.rules.test && v.status === 'live' ? <Button label="FINISH" color={C.orange} disabled={raid.busy} size={S(22)} uiTransform={{ width: S(150), ...btn }} onClick={() => requestSkip('end')} /> : null}
       {raid.spectating ? <Button label="STOP WATCHING" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(250), ...btn }} onClick={() => stopSpectating()} /> : null}
-      {/* Guild War: back to the WAR menu without leaving the war (your fighter stays on the field) - the Storm is on that menu too. */}
-      {me && isWar(v) && v.status === 'live' && !raid.spectating ? <Button label="◀  WAR MENU" color={C.navySoft} sound="cancel" size={S(22)} uiTransform={{ width: S(230), ...btn }} onClick={() => { menuWanted = true }} /> : null}
     </UiEntity>
   )
 }
@@ -1440,6 +1438,11 @@ let arenaOpen = false
 let menuWanted = false
 /** The WAR menu covers a live war when: not yet entered (arenaOpen) or, once in it, asked for (menuWanted). Spectating always shows the field. */
 const menuOverLiveWar = (v: RaidView): boolean => isWar(v) && v.status === 'live' && !raid.spectating && (v.you ? menuWanted : !arenaOpen)
+/** On the live Guild War field as a fighter (menu not showing): the window's back tab goes to the WAR menu, not the guild. */
+const onWarField = (): boolean => {
+  const v = raid.view
+  return v !== null && !!v.you && isWar(v) && v.status === 'live' && !raid.spectating && !raid.conceded && !menuOverLiveWar(v)
+}
 const IDLE_W = 780
 const IDLE_H = 420
 const IDLE_GAP = 30
@@ -1828,8 +1831,12 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
       edgeToEdge
       tabs={
         // Bottom-left tab, positioned relative to the frame like the CLOSE tab, so it sits above the frame overlay.
-        <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s, left: 24 * s }, width: 220 * s, height: 68 * s }}>
-          <Button label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onBack} />
+        // One back button: on the live war field it goes to the WAR menu (your fighter stays on the field; the Storm is on
+        // that menu too), and from the menu it goes back to the guild.
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: -34 * s, left: 24 * s }, width: 260 * s, height: 68 * s }}>
+          {onWarField()
+            ? <Button key="war-back-menu" label="◀  WAR MENU" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={() => { menuWanted = true }} />
+            : <Button key="war-back-guild" label="◀  GUILD" color={C.navySoft} sound="cancel" size={S(24)} uiTransform={{ width: '100%', height: '100%' }} onClick={props.onBack} />}
         </UiEntity>
       }
     >
