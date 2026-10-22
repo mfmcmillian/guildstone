@@ -59,7 +59,9 @@ export function Toast() {
   const canvas = getCanvas()
   // Over the zone block on the HUD; a little lower over a window's title tab so it does not cover it.
   // When the Storm bell is up it moves below the banner so the two never overlap.
-  const top = stormBannerShown() ? stormBannerTop() + S(54 + 12) : ui.open !== null ? S(150) : S(player.activeZone ? 204 : 96)
+  // With a zone active it sits under the guide line's row (204); when there is no guide line it takes that row (150)
+  // instead of floating in the empty space.
+  const top = stormBannerShown() ? stormBannerTop() + S(54 + 12) : ui.open !== null ? S(150) : S(player.activeZone ? (nextStep() ? 204 : 150) : 96)
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: canvas.top + top, left: '50%' }, width: 0, height: 0, alignItems: 'center', justifyContent: 'center' }}>
       <OutlinedText value={toast} size={S(toast.length > 34 ? FONT.hero - 16 : FONT.hero - 6)} color={toast.includes('FULL') ? C.red : C.yellow} uiTransform={{ width: S(toast.length > 34 ? 1100 : 800) }} />
