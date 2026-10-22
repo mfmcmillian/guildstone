@@ -2103,6 +2103,7 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
         // Guild War (2026-10-21): closing the window only closes it. Your fighter stays on the field, holding, capturing
         // and fighting where you left them, and you are back in the same spot when you open the WAR tab again.
         // (It used to send `leave`, which dropped the fighter and let a rejoin reset HP and skip the knock-out walk.)
+        if (raid.spectating) stopSpectating()
         props.onClose()
       }}
       edgeToEdge
@@ -2131,5 +2132,7 @@ export function resetWarTab() {
   hoverPoint = null
   rulesOpen = false
   resultsOpen = false
+  // Watching is for while the window is open: the WAR tab always reopens on your own raid / the WAR menu.
+  if (raid.spectating) stopSpectating()
   refreshRaid()
 }
