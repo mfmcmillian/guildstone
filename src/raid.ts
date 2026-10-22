@@ -60,6 +60,8 @@ export interface Fighter {
   dealt: number
   taken: number
   kos: number
+  /** KOs in a row since this fighter was last knocked out (server-kept kill streak). */
+  streak?: number
   joinedAt: number
 }
 export interface Side { guildId: string; tag: string; name: string; wraith: boolean; fighters: Fighter[] }
@@ -306,6 +308,7 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
       // offset is "stamp minus send time" (off by the uplink delay only). Halving the round trip put the clock a
       // second behind: every walk drew behind the server and jumped when the arrival landed.
       raid.clockOffset = result.serverNow - sentAt
+      announceMyStreak(raid.view, result.raid)
       raid.view = result.raid
       applyPendingGo(raid.view)
       raid.board = result.board ?? []
@@ -336,6 +339,22 @@ function send(action: RaidAction, details: Record<string, unknown> = {}, onOk?: 
       }
     }
   })
+}
+
+/**
+ * Kill streak toast: when a poll shows my own streak crossed a milestone (3, 5, 7, 10, 15…; same steps as the
+ * server's chat lines), a flash with the server's word for it. Polls can skip a milestone (10 s cadence on the war
+ * day), so anything crossed since the last view counts, highest step wins.
+ */
+const STREAK_STEPS = [3, 5, 7, 10, 15, 20, 25, 30]
+const streakWord = (n: number) => (n >= 15 ? 'GODLIKE' : n >= 10 ? 'LEGENDARY' : n >= 7 ? 'UNSTOPPABLE' : n >= 5 ? 'DOMINATING' : 'ON A RAMPAGE')
+function announceMyStreak(prev: RaidView | null, next: RaidView | null) {
+  if (!prev || !next || prev.id !== next.id || !next.you || !next.mine) return
+  const was = prev.sides[prev.mine ?? next.mine]?.fighters.find((f) => f.id === next.you)?.streak ?? 0
+  const now = next.sides[next.mine]?.fighters.find((f) => f.id === next.you)?.streak ?? 0
+  if (now <= was || !STREAK_STEPS.some((s) => was < s && s <= now)) return
+  flash(`${now} KOs IN A ROW  •  ${streakWord(now)}`)
+  playSuccessSound()
 }
 
 /** Server-clock time the last poll was sent, so each tick / arrival is asked about once. */

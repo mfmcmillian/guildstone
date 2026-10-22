@@ -734,6 +734,15 @@ export const ROWS: ReadonlyArray<readonly [string, string, string, string, strin
   ['CITADEL', 'CITADELLE', 'CIUDADELA', '堡垒', 'ZITADELLE'],
   ['BONE SHRINE', "AUTEL D'OS", 'SANTUARIO DE HUESOS', '白骨神龛', 'KNOCHENSCHREIN'],
   ['SHADES', 'OMBRES', 'SOMBRAS', '暗影', 'SCHATTEN'],
+  ['WEST CAMP', 'CAMP OUEST', 'CAMPAMENTO OESTE', '西营地', 'WESTLAGER'],
+  ['EAST CAMP', 'CAMP EST', 'CAMPAMENTO ESTE', '东营地', 'OSTLAGER'],
+  // Kill streak toast (your own fighter): '5 KOs IN A ROW  •  DOMINATING'
+  ['{0} KOs IN A ROW  •  {1}', '{0} KO D’AFFILÉE  •  {1}', '{0} KO SEGUIDOS  •  {1}', '连续击倒 {0} 人  •  {1}', '{0} K.o. IN FOLGE  •  {1}'],
+  ['ON A RAMPAGE', 'DÉCHAÎNÉ', 'DESATADO', '势不可挡', 'AUF DEM KRIEGSPFAD'],
+  ['DOMINATING', 'DOMINATION', 'DOMINANDO', '全面压制', 'DOMINIEREND'],
+  ['UNSTOPPABLE', 'INARRÊTABLE', 'IMPARABLE', '无人能挡', 'UNAUFHALTSAM'],
+  ['LEGENDARY', 'LÉGENDAIRE', 'LEGENDARIO', '传奇', 'LEGENDÄR'],
+  ['GODLIKE', 'DIVIN', 'DIVINO', '神一般', 'GÖTTLICH'],
   // Building label pills: 'CITADEL  +2'
   ['{0}  +{1}', '{0}  +{1}', '{0}  +{1}', '{0}  +{1}', '{0}  +{1}'],
   ['the Wraiths', 'les Spectres', 'los Espectros', '幽灵', 'die Geister'],

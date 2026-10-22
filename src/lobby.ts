@@ -31,7 +31,8 @@ export interface ChatMessage {
   /** Server-written line flavour: 'vip' = a VIP 3+ entrance line (coloured in the tier's colour); 'tool' = a tool rank-up (coloured by `tier`). */ kind?: string
   /** On a 'tool' line, the tool tier reached (its band picks the colour). */ tier?: number
   /** Poster's VIP name colour 0..10 (vip.ts NAME_COLORS). */ color?: number
-  /** Server-written line (join / leave); never translated, not tappable. */ system?: boolean
+  /** Server-written line (join / leave / war announcement); translated by the server like any other line, not tappable. */ system?: boolean
+  /** Language the line was written in (ISO 639-1, server-detected; 'en' on server-written lines). */ lang?: string
   /** Wallets named with @Name in the text (server-resolved). */ mentions?: string[]
   /** A private line (`/w`). Received: `from` is the sender, `text` the words. Sent: the server's echo carries `to` / `toName` and the bare words in `body`. */
   whisper?: boolean; to?: string; toName?: string; body?: string

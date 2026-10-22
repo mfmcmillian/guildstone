@@ -1791,8 +1791,20 @@ const PODIUM = [
   { dx: -300, h: 140, hero: 172, delay: 250 },
   { dx: 300, h: 100, hero: 172, delay: 0 }
 ]
-const PODIUM_W = 250
+const PODIUM_W = 270
 const PODIUM_BASE = 680
+/** Days/hours until a war, then minutes, then a ticking m:ss once it is close. */
+function startsIn(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000))
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${m < 10 ? '0' : ''}${m}m`
+  return `${m}:${s % 60 < 10 ? '0' : ''}${s % 60}`
+}
+/** Shrink a one-line label so it stays inside `width` design px (nowrap text otherwise runs off the card). */
+const fitSize = (text: string, size: number, width: number) => Math.min(size, Math.floor(width / (Math.max(1, text.length) * 0.56)))
 const RISE_MS = 650
 const easeBack = (t: number) => { const c = 1.70158; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2) }
 const num = (n: number) => n.toLocaleString('en-US')
@@ -1856,18 +1868,19 @@ function PodiumStep(props: { key?: string; g: WarResultGuild; slot: number; mine
         <UiEntity uiTransform={{ positionType: 'absolute', position: { left: S(cx - 170), top: heroTop - S(slot === 0 ? 124 : 96) }, width: S(340), flexDirection: 'column', alignItems: 'center' }}>
           {slot === 0 ? <OutlinedText value="CHAMPIONS" size={S(24)} color={MEDAL[0]} uiTransform={{ height: S(28) }} /> : null}
           <OutlinedText value={`[${g.tag}]`} size={S(slot === 0 ? 46 : 38)} color={mine ? PURPLE_LIGHT : MEDAL[i]} raw uiTransform={{ height: S(slot === 0 ? 50 : 42) }} />
-          <Text value={g.name} size={S(20)} color={C.white} nowrap raw uiTransform={{ height: S(24) }} />
-          {g.leader.name ? <Text value={`led by ${g.leader.name}`} size={S(17)} color={MUTED} nowrap raw uiTransform={{ height: S(22) }} /> : null}
+          <Text value={g.name} size={S(fitSize(g.name, 20, 330))} color={C.white} nowrap raw uiTransform={{ height: S(24) }} />
+          {g.leader.name ? <Text value={`led by ${g.leader.name}`} size={S(fitSize(`led by ${g.leader.name}`, 17, 330))} color={MUTED} nowrap raw uiTransform={{ height: S(22) }} /> : null}
         </UiEntity>
       ) : null}
       {h > 1 ? (
         <UiEntity uiTransform={{ positionType: 'absolute', position: { left, top }, width: S(PODIUM_W), height: S(h), flexDirection: 'column', alignItems: 'center', overflow: 'hidden' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: MEDAL_DARK[i] }}>
           <UiEntity uiTransform={{ width: '100%', height: S(12) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: MEDAL[i] }} />
-          <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
+          <UiEntity uiTransform={{ width: S(PODIUM_W - 24), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
             <Medal place={g.place} size={slot === 0 ? 66 : 54} />
-            <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-start', margin: { left: S(12) } }}>
-              <OutlinedText value={num(g.score)} size={S(slot === 0 ? 34 : 30)} color={C.white} align="middle-left" raw uiTransform={{ height: S(38) }} />
-              <Text value={`${MEDAL_NAME[i]}  •  POINTS`} size={S(16)} color={MEDAL[i]} nowrap align="middle-left" uiTransform={{ height: S(20) }} />
+            {/* Explicit width: nowrap text in an auto-sized column gets clipped by the block's overflow: hidden. */}
+            <UiEntity uiTransform={{ width: S(PODIUM_W - 24 - (slot === 0 ? 66 : 54) - 12), flexDirection: 'column', alignItems: 'flex-start', margin: { left: S(12) } }}>
+              <OutlinedText value={num(g.score)} size={S(slot === 0 ? 34 : 30)} color={C.white} align="middle-left" raw uiTransform={{ width: '100%', height: S(38) }} />
+              <Text value={`${MEDAL_NAME[i]} • POINTS`} size={S(15)} color={MEDAL[i]} nowrap align="middle-left" uiTransform={{ height: S(20) }} />
             </UiEntity>
           </UiEntity>
         </UiEntity>
@@ -1879,6 +1892,8 @@ function PodiumStep(props: { key?: string; g: WarResultGuild; slot: number; mine
 /** A card in a side column: label over a big value, optional hero sprite on the left. */
 function AwardCard(props: { key?: string; label: string; who: string; value: string; color: Color4; hero?: string; mine?: boolean }) {
   const sz = S(84)
+  // Text column in design px: card minus padding, minus the hero and its gap when there is one.
+  const textW = 430 - 28 - (props.hero ? 94 : 0)
   return (
     <UiEntity uiTransform={{ width: S(430), height: S(104), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(10) }, padding: { left: S(14), right: S(14) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: props.mine ? Color4.create(0.3, 0.16, 0.48, 0.95) : RES_CARD }}>
       {props.hero ? (
@@ -1887,9 +1902,9 @@ function AwardCard(props: { key?: string; label: string; who: string; value: str
         </UiEntity>
       ) : null}
       <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column' }}>
-        <Text value={props.label} size={S(18)} color={props.color} nowrap align="middle-left" uiTransform={{ height: S(24) }} />
-        <OutlinedText value={props.who} size={S(28)} color={C.white} align="middle-left" raw uiTransform={{ height: S(36) }} />
-        <Text value={props.value} size={S(19)} color={PALE} nowrap align="middle-left" raw uiTransform={{ height: S(24) }} />
+        <Text value={props.label} size={S(fitSize(props.label, 18, textW))} color={props.color} nowrap align="middle-left" uiTransform={{ height: S(24) }} />
+        <OutlinedText value={props.who} size={S(fitSize(props.who, 28, textW))} color={C.white} align="middle-left" raw uiTransform={{ height: S(36) }} />
+        <Text value={props.value} size={S(fitSize(props.value, 19, textW))} color={PALE} nowrap align="middle-left" raw uiTransform={{ height: S(24) }} />
       </UiEntity>
     </UiEntity>
   )
@@ -1913,7 +1928,8 @@ function WarResultsScreen() {
   const rows = gs.slice(0, 4)
   const own = gs.find((g) => g.tag === mine)
   if (own && !rows.includes(own)) rows[rows.length - 1] = own
-  const nextWar = b && b.startAt && b.startAt > serverNow() ? `Next Guild War: ${b.when}` : ''
+  const untilWar = b && b.startAt ? b.startAt - serverNow() : 0
+  const nextWar = untilWar > 0 ? `Next Guild War: ${b!.when}  •  starts in ${startsIn(untilWar)}` : ''
   const COLS = [70, 330, 150, 160, 120, 170, 140]
   const cell = (text: string, w: number, color: Color4, key: string, size = 22, align: 'middle-left' | 'middle-center' = 'middle-center') => <Text key={key} value={text} size={S(size)} color={color} nowrap raw align={align} uiTransform={{ width: S(w), height: S(36) }} />
   const tableW = COLS.reduce((t, w) => t + w, 0) + 40
@@ -1936,7 +1952,7 @@ function WarResultsScreen() {
         <OutlinedText value="STAR FIGHTERS" size={S(26)} color={GLOW_GOLD} align="middle-left" uiTransform={{ height: S(36), margin: { bottom: S(6) } }} />
         {st.kos ? <AwardCard key="st-mvp" label="MVP  •  MOST KOs" who={st.kos.name} value={`[${st.kos.tag}]  ${st.kos.kos} KOs`} color={GLOW_GOLD} hero={st.kos.hero} mine={st.kos.tag === mine} /> : null}
         {st.dealt ? <AwardCard key="st-hit" label="HEAVY HITTER" who={st.dealt.name} value={`[${st.dealt.tag}]  ${num(st.dealt.dealt)} damage`} color={C.orange} hero={st.dealt.hero} mine={st.dealt.tag === mine} /> : null}
-        {st.taken ? <AwardCard key="st-wall" label="IRON WALL  •  TOOK THE MOST HITS" who={st.taken.name} value={`[${st.taken.tag}]  ${num(st.taken.taken)} damage taken`} color={C.blue} hero={st.taken.hero} mine={st.taken.tag === mine} /> : null}
+        {st.taken ? <AwardCard key="st-wall" label="IRON WALL  •  MOST HITS TAKEN" who={st.taken.name} value={`[${st.taken.tag}]  ${num(st.taken.taken)} damage taken`} color={C.blue} hero={st.taken.hero} mine={st.taken.tag === mine} /> : null}
         {st.minutes ? <AwardCard key="st-time" label="NEVER LEFT THE FIELD" who={st.minutes.name} value={`[${st.minutes.tag}]  ${hoursText(st.minutes.minutes)}`} color={C.green} hero={st.minutes.hero} mine={st.minutes.tag === mine} /> : null}
       </UiEntity>
 
@@ -1966,7 +1982,7 @@ function WarResultsScreen() {
       </UiEntity>
 
       <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: S(22), left: 0 }, width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
-        {nextWar ? <OutlinedText value={nextWar} size={S(24)} color={GLOW_GOLD} align="middle-right" raw uiTransform={{ height: S(60), margin: { right: S(24) } }} /> : null}
+        {nextWar ? <OutlinedText value={nextWar} size={S(fitSize(nextWar, 24, 760))} color={GLOW_GOLD} align="middle-right" raw uiTransform={{ width: S(760), height: S(60), margin: { right: S(24) } }} /> : null}
         <Button label="BACK TO WAR MENU" color={C.gold} size={S(24)} uiTransform={{ width: S(340), height: S(60) }} onClick={() => { resultsOpen = false }} />
       </UiEntity>
       {confettiAt > 0 ? <ConfettiRain at={confettiAt} /> : null}
