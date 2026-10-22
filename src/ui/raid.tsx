@@ -1547,8 +1547,168 @@ function WarCard() {
       <Spacer />
       {line(`Every fighter banks ${rewardText(b.reward!.join)}`, MUTED, 20, 'wr-prize')}
       {line(`Top guild banks ${rewardText(b.reward!.win)} on top`, MUTED, 20, 'wr-prize2')}
+      <Button label="RULES  •  WALK THE FIELD" color={C.navySoft} textColor={C.yellow} size={S(20)} uiTransform={{ width: S(360), height: S(56), margin: { top: S(8) } }} onClick={() => openRules()} />
       {record}
     </IdleCard>
+  )
+}
+
+// --- Rules tour ------------------------------------------------------------------------------------------------------
+// RULES on the Guild War card (2026-10-21): the empty battlefield with the spawn strip, and a guided walk over it. One
+// stop at a time: the spot breathes gold, a card beside it says what it does, a pair of demo fighters act it out.
+let rulesOpen = false
+let rulesStep = 0
+export const openRules = () => { rulesOpen = true; rulesStep = 0 }
+const rulesAreOpen = () => rulesOpen
+interface TourStep {
+  title: string
+  text: string
+  /** A building or camp to halo. */
+  spot?: Spot
+  /** A screen area to frame (design px: x, y, w, h). */
+  frame?: [number, number, number, number]
+  /** Card centre (field %). */
+  card: [number, number]
+  /** Which side of the card the pointer sits on (toward the target). */
+  point: 'left' | 'right' | 'none'
+  demo?: 'spawn' | 'capture' | 'fight' | 'hold'
+}
+const TOUR_CARD_W = 620
+const tourSteps = (): TourStep[] => {
+  const b = raid.battle
+  const join = b?.reward?.join ? rewardText(b.reward.join) : '1500 Wood, 1500 Rock, 750 Meat, 750 Bone'
+  const win = b?.reward?.win ? rewardText(b.reward.win) : '3000 Wood, 3000 Rock, 1500 Meat, 1500 Bone'
+  return [
+    { title: 'ONE FIELD, ALL DAY', text: 'Every guild that signed up fights on this one map, all Thursday. Drop in, drop out, go gather: your fighter keeps standing where you left them.', card: [50, 50], point: 'none' },
+    { title: 'YOU START HERE', text: 'The spawn. Nothing moves until you tap a building. Knocked out? Five minutes on the bench, then you stand up here at full health and pick again.', frame: [0, H, W, SPAWN_H], card: [78, 86], point: 'left', demo: 'spawn' },
+    { title: 'THE CAMPS ARE FLAGS', text: 'Hold a camp and it pays like a building. West Camp is open from the first minute, East Camp opens at hour one. No armour, no healing, just points.', spot: 'camp1', card: [40, 58], point: 'left' },
+    { title: 'FLAGS OPEN ONE AN HOUR', text: 'Watchtower at hour two, then Bone Shrine, Sawmill, Quarry, and the Citadel at hour six. A locked flag says so when you hover it.', spot: 'watchtower', card: [50, 26], point: 'left' },
+    { title: 'TAKING A FLAG', text: 'Stand on a flag you do not hold and it starts to fall. Bring friends: two of you take it three times faster than one, five of you thirteen times. The holder has to stand on it to stop you.', spot: 'citadel', card: [76, 62], point: 'left', demo: 'capture' },
+    { title: 'SWORDS OUT', text: 'Two guilds on one flag and the fight is on, a clash every three seconds. Headcount wins fights. Sawmill and Quarry give their holder 15% armour; Watchtower and Shrine +15% attack.', spot: 'shrine', card: [45, 78], point: 'right', demo: 'fight' },
+    { title: 'THE RACE', text: 'Every flag pays its holder every minute: 10 points a pip, and the Citadel is worth two. The standings up here are the whole war. Lobby chat calls every capture.', frame: [W - 38 - ROSTER_W, STANDINGS_TOP, ROSTER_W, 300], card: [68, 40], point: 'right' },
+    { title: 'DO NOT GET GREEDY', text: 'Over three flags, taking and keeping more goes at half pace. Spread the guild out and guard what you have.', spot: 'quarry', card: [52, 70], point: 'left', demo: 'hold' },
+    { title: 'THE PAYOUT', text: `Everyone who fights banks ${join}. The top guild banks ${win} on top. Your own card lives up here; WAR MENU brings you back without leaving.`, frame: [38, STANDINGS_TOP, ROSTER_W, 160], card: [34, 36], point: 'left' }
+  ]
+}
+/** Gold frame around a screen area (design px). */
+function TourFrame(props: { box: [number, number, number, number] }) {
+  const [x, y, w, h] = props.box
+  const color = Color4.create(1, 0.82, 0.25, 0.45 + 0.5 * pulse(1200))
+  const t = S(4)
+  const edge = (l: number, tp: number, ww: number, hh: number, k: string) => (
+    <UiEntity key={k} uiTransform={{ positionType: 'absolute', position: { left: l, top: tp }, width: ww, height: hh, pointerFilter: 'none' }} uiBackground={{ color }} />
+  )
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>
+      {edge(S(x), S(y), S(w), t, 'top')}
+      {edge(S(x), S(y + h) - t, S(w), t, 'bottom')}
+      {edge(S(x), S(y), t, S(h), 'left')}
+      {edge(S(x + w) - t, S(y), t, S(h), 'right')}
+    </UiEntity>
+  )
+}
+/** The building-shaped halo the field uses, breathing gold. */
+function TourHalo(props: { spot: Spot }) {
+  const camp = props.spot === 'camp1' || props.spot === 'camp2'
+  const [cx, cy, w, h] = camp ? CAMP_FIELD[props.spot as CampId].glow : FIELD[props.spot as PointId].hit
+  const color = Color4.create(1, 0.82, 0.25, 0.5 + 0.5 * pulse(1200))
+  return (
+    <UiEntity
+      uiTransform={{ positionType: 'absolute', position: { left: px(cx) - S(w) / 2 - S(GLOW_PAD), top: py(cy) - S(h) / 2 - S(GLOW_PAD) }, width: S(w + GLOW_PAD * 2), height: S(h + GLOW_PAD * 2), pointerFilter: 'none' }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: `${ART}/glow_${props.spot}_v1.png` }, color }}
+    />
+  )
+}
+/** A demo fighter on the empty field: feet at (x, y) field %. */
+function TourToken(props: { key?: string; x: number; y: number; side: SideId; anim: 'idle' | 'attack' | 'ko'; phase?: number; flip?: boolean }) {
+  const now = Date.now()
+  const size = S(TOKEN)
+  const src = HERO_SHEET[props.side === 'a' ? 'knight' : 'assassin'][props.side === 'a' ? 'own' : 'enemy']
+  const phase = props.phase ?? 0
+  let frame = 0
+  let lift = 0
+  let x = props.x
+  if (props.anim === 'idle') { frame = loopFrame('idle', now, phase); lift = idlePose(now, phase).lift }
+  else if (props.anim === 'attack') { const a = attackPose(now, phase); frame = a.frame; x += a.travel * 2.2 * (props.side === 'a' ? 1 : -1) }
+  else frame = onceFrame('ko', now, 0)
+  const tint = props.anim === 'ko' ? Color4.create(0.6, 0.6, 0.7, 0.55) : C.white
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: px(x) - size / 2, top: py(props.y) - size - S(lift) }, width: size, height: size, pointerFilter: 'none' }}>
+      <Sprite src={src} anim={props.anim} frame={frame} flip={props.flip ?? props.side === 'b'} size={size} color={tint} />
+    </UiEntity>
+  )
+}
+const tourLayer = (children: ReactEcs.JSX.Element[]) => (
+  <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>{children}</UiEntity>
+)
+function TourDemo(props: { demo: TourStep['demo'] }) {
+  const d = props.demo
+  if (d === 'spawn') {
+    const [sx, sy] = SPAWN_STRIP
+    return tourLayer([<TourToken key="d1" x={sx - 7} y={sy} side="a" anim="idle" />, <TourToken key="d2" x={sx + 2} y={sy} side="a" anim="ko" phase={400} />])
+  }
+  if (d === 'capture') {
+    const [sx, sy] = FIELD.citadel.stand
+    return tourLayer([
+      <TourToken key="d1" x={sx - 4} y={sy} side="a" anim="idle" />,
+      <TourToken key="d2" x={sx} y={sy} side="a" anim="idle" phase={300} />,
+      <TourToken key="d3" x={sx + 4} y={sy} side="a" anim="idle" phase={700} />,
+      <UiEntity key="bar" uiTransform={{ positionType: 'absolute', position: { left: px(sx) - S(120), top: py(sy) + S(10) }, width: S(240), height: S(14) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: DARK }}>
+        <UiEntity uiTransform={{ width: `${Math.round(pulse(4000) * 100)}%`, height: '100%' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: GLOW_GOLD }} />
+      </UiEntity>
+    ])
+  }
+  if (d === 'fight') {
+    const [sx, sy] = FIELD.shrine.stand
+    return tourLayer([<TourToken key="d1" x={sx - 3} y={sy} side="a" anim="attack" />, <TourToken key="d2" x={sx + 3} y={sy} side="b" anim="attack" phase={600} />])
+  }
+  if (d === 'hold') {
+    return tourLayer((['camp1', 'watchtower', 'citadel', 'quarry'] as Spot[]).map((p, i) => <TourToken key={`h${i}`} x={spotField(p).stand[0]} y={spotField(p).stand[1]} side="a" anim="idle" phase={i * 250} />))
+  }
+  return null
+}
+function RulesTour() {
+  const steps = tourSteps()
+  const i = Math.max(0, Math.min(steps.length - 1, rulesStep))
+  const st = steps[i]
+  const last = i === steps.length - 1
+  const lines = Math.ceil(st.text.length / 44)
+  const cardH = 150 + lines * 30
+  const left = px(st.card[0]) - S(TOUR_CARD_W) / 2
+  const top = Math.max(S(16), Math.min(S(H + SPAWN_H) - S(cardH) - S(16), py(st.card[1]) - S(cardH) / 2))
+  const bob = S(8 * pulse(900))
+  const label = (text: string, at: [number, number], key: string, color = C.white) => (
+    <OutlinedText key={key} value={text} size={S(24)} color={color} uiTransform={{ positionType: 'absolute', position: { left: px(at[0]) - S(160), top: py(at[1]) - S(16) }, width: S(320), height: S(32) }} />
+  )
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%' }}>
+      {/* Names on the empty map so the stops have something to point at. */}
+      {POINT_IDS.map((p) => label(POINT_LABEL[p], FIELD[p].label, `tl-${p}`))}
+      {label('WEST CAMP', CAMP_FIELD.camp1.label, 'tl-camp1')}
+      {label('EAST CAMP', CAMP_FIELD.camp2.label, 'tl-camp2')}
+      <OutlinedText value="SPAWN" size={S(22)} color={MUTED} align="middle-left" uiTransform={{ positionType: 'absolute', position: { top: S(H + 12), left: S(38) }, width: S(200), height: S(28) }} />
+      {st.spot ? <TourHalo spot={st.spot} /> : null}
+      {st.frame ? <TourFrame box={st.frame} /> : null}
+      <TourDemo demo={st.demo} />
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { left, top }, width: S(TOUR_CARD_W), height: S(cardH), flexDirection: 'column', padding: S(24) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.07, 0.08, 0.13, 0.96) }}>
+        {st.point !== 'none' ? (
+          <OutlinedText value={st.point === 'left' ? '◀' : '▶'} size={S(44)} color={GLOW_GOLD} uiTransform={{ positionType: 'absolute', position: st.point === 'left' ? { left: -S(54) - bob, top: S(cardH) / 2 - S(28) } : { right: -S(54) - bob, top: S(cardH) / 2 - S(28) }, width: S(50), height: S(56) }} />
+        ) : null}
+        <UiEntity uiTransform={{ width: '100%', height: S(40), flexDirection: 'row', alignItems: 'center' }}>
+          <UiEntity uiTransform={{ width: S(40), height: S(40), alignItems: 'center', justifyContent: 'center', margin: { right: S(12) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: GLOW_GOLD }}>
+            <OutlinedText value={`${i + 1}`} size={S(24)} color={C.white} />
+          </UiEntity>
+          <OutlinedText value={st.title} size={S(30)} color={GLOW_GOLD} align="middle-left" uiTransform={{ flexGrow: 1, height: S(40) }} />
+        </UiEntity>
+        <Text value={st.text} size={S(22)} color={PALE} align="top-left" uiTransform={{ width: '100%', height: S(lines * 30), margin: { top: S(10) } }} />
+        <UiEntity uiTransform={{ width: '100%', height: S(56), flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
+          <Text value={`${i + 1} / ${steps.length}`} size={S(20)} color={MUTED} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(30) }} />
+          <Button label="SKIP" color={C.navySoft} sound="cancel" size={S(20)} uiTransform={{ width: S(120), height: S(52), margin: { right: S(8) } }} onClick={() => { rulesOpen = false }} />
+          {i > 0 ? <Button label="BACK" color={C.navySoft} size={S(20)} uiTransform={{ width: S(120), height: S(52), margin: { right: S(8) } }} onClick={() => { rulesStep = i - 1 }} /> : null}
+          <Button label={last ? 'GOT IT' : 'NEXT'} color={C.gold} size={S(22)} uiTransform={{ width: S(160), height: S(52) }} onClick={() => { if (last) rulesOpen = false; else rulesStep = i + 1 }} />
+        </UiEntity>
+      </UiEntity>
+    </UiEntity>
   )
 }
 
@@ -1598,6 +1758,8 @@ export function WarTab(props: { height: number }) {
     )
   }
   const idle = v === null || menuOverWar || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
+  // RULES from the war card: the empty field with the spawn strip and the guided tour over it (only where the menu would show).
+  const tour = idle && rulesOpen
   // War field: the spawn strip under the map (WarScreen made the window taller by SPAWN_H). The art keeps its own
   // height; the strip is a dark band with a gold rule, and the tokens of the spawn / knocked-out fan out inside it.
   const strip = props.height > H
@@ -1618,7 +1780,8 @@ export function WarTab(props: { height: number }) {
         {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
         {/* Regular Storm gets its own win / lose screen; CALLED OFF, guild raids and the war keep the shared card. */}
         {!idle && v && showResult ? (v.mode === 'pickup' && v.status === 'done' ? <StormResultScreen v={v} /> : <ResultCard v={v} />) : null}
-        {idle ? <IdleScreen /> : null}
+        {idle && !tour ? <IdleScreen /> : null}
+        {tour ? <RulesTour /> : null}
       </UiEntity>
     </UiEntity>
   )
@@ -1633,6 +1796,8 @@ export function WarTab(props: { height: number }) {
 /** The war field itself is on screen (not the WAR menu over it, not a Storm, not a result): the spawn strip is shown. */
 function warStripOn(): boolean {
   const v = raid.view
+  // The rules tour wants the strip too (it is drawn over the empty field wherever the menu would show).
+  if (rulesAreOpen() && !raid.conceded && (v === null || v.status !== 'live' || menuOverLiveWar(v))) return true
   if (v === null || raid.conceded || !isWar(v) || v.status !== 'live') return false
   return !menuOverLiveWar(v)
 }
@@ -1678,5 +1843,6 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
 
 export function resetWarTab() {
   hoverPoint = null
+  rulesOpen = false
   refreshRaid()
 }
