@@ -1,6 +1,6 @@
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
-import { C, FONT, glow, TEX, SLICE_PILL } from './theme'
+import { C, FONT, glow, pulse, TEX, SLICE_PILL } from './theme'
 import { OutlinedText, Panel, Button, Icon, IconButton } from './components'
 import { isMuted, setMuted, playButtonSound, playSuccessSound, soundOff } from '../uiSounds'
 import { player, SKILLS, SKILL_INFO, SKILL_ICON } from '../state'
@@ -168,18 +168,24 @@ export function Dock() {
           const active = working === skill
           // Idle (nothing picked yet): one profession breathes in its own colour so the eye lands somewhere.
           const nudge = !connecting && target === 'pick' && skill === suggestedSkill()
+          // A bobbing "CLICK ▶" sits outside the panel, left of the breathing button, so the glow reads as a prompt, not as "active".
+          const bob = S(10) * pulse(900)
           return (
-            <Button
-              key={skill}
-              label={active ? `${SKILL_INFO[skill].name.toUpperCase()}  (STOP)` : SKILL_INFO[skill].name.toUpperCase()}
-              icon={SKILL_ICON[skill]}
-              color={active ? skillColor(skill) : nudge ? glow(skillColor(skill)) : C.paper}
-              textColor={active || nudge ? C.white : C.text}
-              disabled={connecting}
-              size={S(22)}
-              uiTransform={{ width: '100%', height: S(78), margin: { bottom: S(10) } }}
-              onClick={() => toggleProfession(skill)}
-            />
+            <UiEntity key={skill} uiTransform={{ width: '100%', height: S(78), margin: { bottom: S(10) } }}>
+              <Button
+                label={active ? `${SKILL_INFO[skill].name.toUpperCase()}  (STOP)` : SKILL_INFO[skill].name.toUpperCase()}
+                icon={SKILL_ICON[skill]}
+                color={active ? skillColor(skill) : nudge ? glow(skillColor(skill)) : C.paper}
+                textColor={active || nudge ? C.white : C.text}
+                disabled={connecting}
+                size={S(22)}
+                uiTransform={{ width: '100%', height: '100%' }}
+                onClick={() => toggleProfession(skill)}
+              />
+              {nudge ? (
+                <OutlinedText value="CLICK  ▶" size={S(30)} color={C.yellow} align="middle-right" uiTransform={{ positionType: 'absolute', position: { left: -S(200) - bob, top: S(17) }, width: S(170), height: S(44) }} />
+              ) : null}
+            </UiEntity>
           )
         })}
         {/* Economy lives on the land once the camp opens (remote config). Until then the ring carries every station. */}
