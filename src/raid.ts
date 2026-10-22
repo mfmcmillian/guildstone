@@ -68,6 +68,8 @@ export type Reward = { wood: number; rock: number; meat: number; bone: number; c
 /** Day-long Guild War rules (server battle.war): fighter-minutes per flag, the unlock schedule, decay and pay. */
 export interface WarRules {
   tickMs: number
+  /** Combat (and pay) tick; the scoring minute is tickMs. Absent on older raids = 3000. */
+  combatMs?: number
   koWalkMs: number
   sideMax: number
   maxCapturers: number

@@ -510,7 +510,49 @@ function hitStrength(key: string, now: number): number {
 // Scoring feedback: when a poll shows the tick moved on, every building that paid its holder (not contested, not
 // being taken) floats its pips in the holder's colour.
 const lastTickSeen: Record<string, number> = {}
+// Guild War live pay (2026-10-21): the server pays every combat tick (3 s) and the field polls every 10 s, so the
+// field keeps its own clock between polls. A held flag nobody else is on floats its pay every PAY_BEATS combat ticks
+// ("+1" a pip, "+2" for the Citadel), and the standings count the ticks since the poll on top of the polled score.
+const PAY_BEATS = 2
+const warCombatMs = (v: RaidView) => v.battle?.war?.combatMs ?? 3000
+/** A held flag pays while nobody else is standing on it and no capture is under way. */
+const flagPaying = (v: RaidView, p: Spot): boolean => v.held[p] !== null && !v.clash?.[p] && !v.cap[p]
+/** Points a minute `tag` is earning from the flags it holds. */
+const payPerMinute = (v: RaidView, tag: string): number => {
+  const war = v.battle?.war
+  if (!war) return 0
+  let pips = 0
+  for (const p of flagsOf(v)) if (v.heldBy?.[p] === tag && flagPaying(v, p)) pips += v.points[p]?.pips ?? 1
+  return pips * war.pointsPerPip
+}
+/** The polled score plus what the flags have paid in the whole combat ticks since that poll (the next poll corrects it). */
+const liveScore = (v: RaidView, tag: string, score: number): number => {
+  const war = v.battle?.war
+  if (!war || v.status !== 'live') return score
+  const ticks = Math.max(0, Math.floor((serverNow() - v.serverNow) / warCombatMs(v)))
+  return score + Math.floor((payPerMinute(v, tag) * ticks * warCombatMs(v)) / war.tickMs)
+}
+const lastPayBeat: Record<string, number> = {}
 function noteScores(v: RaidView) {
+  if (isWar(v)) {
+    const war = v.battle!.war!
+    const beatMs = warCombatMs(v) * PAY_BEATS
+    const beat = Math.floor((serverNow() - v.startAt) / beatMs)
+    const prevBeat = lastPayBeat[v.id]
+    lastPayBeat[v.id] = beat
+    if (prevBeat === undefined || beat <= prevBeat || v.status !== 'live') return
+    const now = Date.now()
+    for (const point of flagsOf(v)) {
+      const holder = v.held[point]
+      if (!holder || !flagPaying(v, point)) continue
+      const pay = Math.round(((v.points[point]?.pips ?? 1) * war.pointsPerPip * beatMs) / war.tickMs)
+      if (pay < 1) continue
+      const [lx, ly] = spotField(point).label
+      floats.push({ id: `score:${point}:${now}`, text: `+${pay}`, color: sideColor(holder), x: lx, y: ly, at: now, lift: 20, size: 34 })
+    }
+    if (floats.length > 40) floats = floats.slice(-40)
+    return
+  }
   const prev = lastTickSeen[v.id]
   lastTickSeen[v.id] = v.tick
   if (prev === undefined || v.tick <= prev || v.status !== 'live') return
@@ -849,7 +891,7 @@ function Standings(props: { v: RaidView }) {
             <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'column', padding: { left: S(12), right: S(12), top: S(6) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: DARK }}>
               <UiEntity uiTransform={{ width: '100%', height: S(34), flexDirection: 'row', alignItems: 'center' }}>
                 <Text value={`${i + 1}.  [${g.tag}]`} size={S(26)} color={col} nowrap align="middle-left" uiTransform={{ flexGrow: 1, height: S(34) }} />
-                <Text value={`${g.score}`} size={S(28)} color={C.white} nowrap align="middle-right" uiTransform={{ width: S(110), height: S(34) }} />
+                <Text value={`${liveScore(v, g.tag, g.score)}`} size={S(28)} color={C.white} nowrap align="middle-right" uiTransform={{ width: S(110), height: S(34) }} />
               </UiEntity>
               <Text value={`${g.count} on the field  ·  ${g.flags} flag${g.flags === 1 ? '' : 's'}`} size={S(18)} color={C.gray} nowrap align="middle-left" uiTransform={{ height: S(24) }} />
             </UiEntity>
