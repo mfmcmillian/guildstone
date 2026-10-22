@@ -60,9 +60,15 @@ function confettiPieces(seed: number): Piece[] {
 export function Confetti() {
   const { at } = packs.celebration
   if (!at || ui.open !== 'shop') return null
+  if ((Date.now() - at) / 1000 > CONFETTI_SECS) return null
+  setScale(hudScale())
+  return <ConfettiRain at={at} />
+}
+/** The shower itself, filling its parent (a window can rain inside its own frame). Uses the caller's scale. */
+export function ConfettiRain(props: { at: number }) {
+  const at = props.at
   const elapsed = (Date.now() - at) / 1000
   if (elapsed > CONFETTI_SECS) return null
-  setScale(hudScale())
   const fade = Math.max(0, Math.min(1, (CONFETTI_SECS - elapsed) / 0.8))
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>

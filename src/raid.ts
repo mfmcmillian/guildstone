@@ -184,6 +184,21 @@ export interface BattleInfo {
   status?: 'scheduled' | 'live' | 'done' | 'cancelled'
   winnerTag?: string
   scores?: { tag: string; score: number }[]
+  /** The last finished war (SEE RESULTS), from when it ends until the next war goes live. */
+  results?: WarResults
+}
+export interface WarResultGuild { guildId: string; tag: string; name: string; place: number; score: number; fighters: number; captures: number; flags: number; kos: number; dealt: number; taken: number; minutes: number; leader: { name: string; hero: string } }
+export interface WarResultFighter { name: string; tag: string; hero: string; kos: number; dealt: number; taken: number; minutes: number }
+export interface WarResults {
+  raidId: string
+  week: string
+  mini: boolean
+  startAt: number
+  endAt: number
+  /** Ranked by score; ties share a place. */
+  guilds: WarResultGuild[]
+  fighters: number
+  stars: { kos: WarResultFighter | null; dealt: WarResultFighter | null; taken: WarResultFighter | null; minutes: WarResultFighter | null }
 }
 
 /** Balance numbers from the server. A raid view carries the snapshot it was called with; `raid.rules` is the current set. */

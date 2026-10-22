@@ -14,11 +14,12 @@ import { sanitizeHeroId } from '../hero'
 import { withVip } from '../vip'
 import { VipName } from './vipName'
 import {
-  BoardEntry, CampId, CAMP_IDS, Fighter, flagsOf, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId, Spot,
+  BoardEntry, WarResultGuild, CampId, CAMP_IDS, Fighter, flagsOf, HERO_LOCK_MS, PointId, POINT_IDS, POINT_LABEL, RaidView, Reward, Side, SideId, Spot,
   fighterName, myFighter, pollRaid, raid, refreshRaid, requestBattleSignup, requestGo, requestJoinRaid, requestLeaveRaid, requestSkip, requestStartRaid,
   serverNow, sideTag, spectateRaid, standingAt, stopSpectating
 } from '../raid'
 
+import { ConfettiRain } from './packBanner'
 import { ART, CYCLE_PX, HERO_SHEET, Sprite, WALK_FRAMES, attackPose, ease, gridUvs, idlePose, loopFrame, msUntilImpact, onceFrame, walkPose, type Anim } from './sprite'
 
 const BG = `${ART}/battlefield_v1.jpg`
@@ -1558,6 +1559,8 @@ function WarCard() {
   const n = b.signups?.length ?? 0
   const tags = (b.signups ?? []).map((x) => `[${x.tag}]`).join('   ')
   const rows: ReactEcs.JSX.Element[] = []
+  const results = !live && b.results && b.results.guilds.length > 0 ? b.results : null
+  if (results) rows.push(<Button key="wr-results" label={results.mini ? 'SEE MINI WAR RESULTS' : 'SEE THE RESULTS'} color={Color4.lerp(C.gold, C.white, 0.25 * pulse(1600))} size={S(28)} uiTransform={{ width: S(440), height: S(70), margin: { top: S(4) } }} onClick={() => openResults()} />)
   if (signupOpen) {
     rows.push(line(`Sign-ups close ${b.closeWhen}`, PALE, 22, 'wr-1'))
     rows.push(line(n > 0 ? `Signed up:   ${tags}` : 'No guild signed up yet. Be the first.', n > 0 ? C.white : MUTED, 22, 'wr-2'))
@@ -1570,7 +1573,7 @@ function WarCard() {
     else { rows.push(line(`[${g?.tag ?? ''}] is not in this week's war.`, PALE, 22, 'wr-1')); rows.push(line('Sign-ups for next week open after the event.', MUTED, 20, 'wr-1b')) }
     if (n > 0) rows.push(line(`Every one for itself:   ${tags}`, MUTED, 20, 'wr-2'))
     rows.push(line(b.allDay ? `Fight any time ${b.when}` : `Be on WAR at ${b.when}`, MUTED, 20, 'wr-4'))
-    rows.push(line(`Open from the first minute  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
+    if (!results) rows.push(line(`Open from the first minute  •  closes ${b.endWhen}`, MUTED, 20, 'wr-5'))
   } else {
     rows.push(line(b.mini ? `MINI WAR  •  until ${b.endWhen}` : `${b.allDay ? 'WAR DAY' : 'WAR NIGHT'}  •  until ${b.endWhen}`, C.gold, 26, 'wr-1'))
     if (b.mini && b.mainWhen) rows.push(line(`The full war follows ${b.mainWhen}`, MUTED, 20, 'wr-main'))
@@ -1591,8 +1594,8 @@ function WarCard() {
     <IdleCard title="GUILD WAR" sub={b.mini ? 'Mini war' : b.when ?? ''} color={C.gold}>
       {rows}
       <Spacer />
-      {line(`Every fighter banks ${rewardText(b.reward!.join)}`, MUTED, 20, 'wr-prize')}
-      {line(`Top guild banks ${rewardText(b.reward!.win)} on top`, MUTED, 20, 'wr-prize2')}
+      {results ? null : line(`Every fighter banks ${rewardText(b.reward!.join)}`, MUTED, 20, 'wr-prize')}
+      {results ? null : line(`Top guild banks ${rewardText(b.reward!.win)} on top`, MUTED, 20, 'wr-prize2')}
       <Button label="RULES  •  WALK THE FIELD" color={C.navySoft} textColor={C.yellow} size={S(20)} uiTransform={{ width: S(360), height: S(56), margin: { top: S(8) } }} onClick={() => openRules()} />
       {record}
     </IdleCard>
@@ -1758,6 +1761,219 @@ function RulesTour() {
   )
 }
 
+// --- Guild War results ------------------------------------------------------------------------------------------------
+// SEE RESULTS on the Guild War card (2026-10-21): after a war, until the next one goes live. A podium of the top three
+// guilds with each leader's hero standing on it (gold, silver, bronze), guild awards on the left, star fighters on the
+// right, the full table underneath. The blocks rise one after another; confetti the first time each war's results open.
+let resultsOpen = false
+let resultsOpenedAt = 0
+let confettiAt = 0
+const resultsSeen: Record<string, boolean> = {}
+export function openResults() {
+  const r = raid.battle?.results
+  if (!r) return
+  resultsOpen = true
+  resultsOpenedAt = Date.now()
+  if (!resultsSeen[r.raidId]) {
+    resultsSeen[r.raidId] = true
+    confettiAt = resultsOpenedAt
+    warSfx('bellEnd')
+  }
+}
+const MEDAL = [Color4.create(1, 0.8, 0.22, 1), Color4.create(0.8, 0.83, 0.9, 1), Color4.create(0.85, 0.52, 0.27, 1)]
+const MEDAL_DARK = [Color4.create(0.55, 0.38, 0.06, 1), Color4.create(0.36, 0.39, 0.47, 1), Color4.create(0.42, 0.22, 0.1, 1)]
+const MEDAL_NAME = ['GOLD', 'SILVER', 'BRONZE']
+const WR_BG = Color4.create(0.03, 0.02, 0.08, 0.86)
+const RES_CARD = Color4.create(0.08, 0.09, 0.15, 0.94)
+/** Podium slot per place (1st in the middle): x centre (design px), block height, hero size, rise delay. */
+const PODIUM = [
+  { dx: 0, h: 190, hero: 190, delay: 500 },
+  { dx: -300, h: 140, hero: 172, delay: 250 },
+  { dx: 300, h: 100, hero: 172, delay: 0 }
+]
+const PODIUM_W = 250
+const PODIUM_BASE = 680
+const RISE_MS = 650
+const easeBack = (t: number) => { const c = 1.70158; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2) }
+const num = (n: number) => n.toLocaleString('en-US')
+const hoursText = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`)
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const weekText = (week: string) => { const [, m, d] = week.split('-').map(Number); return m ? `${MONTHS[m - 1]} ${d}` : '' }
+
+/** A round medal with the place on it and a ribbon over it. */
+function Medal(props: { place: number; size: number }) {
+  const i = Math.min(2, props.place - 1)
+  const sz = S(props.size)
+  return (
+    <UiEntity uiTransform={{ width: sz, height: sz * 1.35, flexDirection: 'column', alignItems: 'center' }}>
+      <UiEntity uiTransform={{ flexDirection: 'row', height: sz * 0.42 }}>
+        <UiEntity uiTransform={{ width: sz * 0.2, height: '100%', margin: { right: sz * 0.06 } }} uiBackground={{ color: Color4.create(0.55, 0.2, 0.75, 1) }} />
+        <UiEntity uiTransform={{ width: sz * 0.2, height: '100%' }} uiBackground={{ color: Color4.create(0.4, 0.12, 0.6, 1) }} />
+      </UiEntity>
+      <UiEntity uiTransform={{ width: sz, height: sz, alignItems: 'center', justifyContent: 'center', margin: { top: -sz * 0.04 } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: MEDAL_DARK[i] }}>
+        <UiEntity uiTransform={{ width: sz * 0.82, height: sz * 0.82, alignItems: 'center', justifyContent: 'center' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: MEDAL[i] }}>
+          <OutlinedText value={`${props.place}`} size={sz * 0.5} color={C.white} raw />
+        </UiEntity>
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
+/** One step of the podium: the guild over its leader's hero, standing on a block in its medal colour. */
+function PodiumStep(props: { key?: string; g: WarResultGuild; slot: number; mine: boolean; now: number }) {
+  const { g, slot, mine, now } = props
+  const p = PODIUM[slot]
+  const i = Math.min(2, g.place - 1)
+  const t = Math.max(0, Math.min(1, (now - resultsOpenedAt - p.delay) / RISE_MS))
+  const k = t <= 0 ? 0 : Math.max(0, easeBack(t))
+  const h = p.h * k
+  const landed = t >= 1
+  const cx = W / 2 + p.dx
+  const left = S(cx - PODIUM_W / 2)
+  const top = S(PODIUM_BASE - h)
+  const hero = S(p.hero)
+  const sheet = HERO_SHEET[sanitizeHeroId(g.leader.hero)][mine ? 'own' : 'enemy']
+  // The champion swings now and then; the others breathe.
+  const swing = slot === 0 && (now % 3200) < 1100
+  const frame = swing ? attackPose(now, 0).frame : loopFrame('idle', now, slot * 300)
+  const lift = swing ? 0 : idlePose(now, slot * 300).lift
+  const heroTop = S(PODIUM_BASE - p.h) - hero - S(lift)
+  const glow = 0.5 + 0.5 * pulse(1800)
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', pointerFilter: 'none' }}>
+      {landed && slot === 0 ? (
+        // Spotlight: three soft discs behind the champion.
+        [380, 300, 220].map((d, n) => (
+          <UiEntity key={`spot-${n}`} uiTransform={{ positionType: 'absolute', position: { left: S(cx - d / 2), top: S(PODIUM_BASE - p.h - p.hero / 2 - d / 2) }, width: S(d), height: S(d) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.pillFlat }, textureSlices: SLICE_PILL, color: Color4.create(1, 0.82, 0.3, (0.05 + 0.04 * n) * (0.6 + 0.4 * glow)) }} />
+        ))
+      ) : null}
+      {landed ? (
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { left: S(cx) - hero / 2, top: heroTop }, width: hero, height: hero }}>
+          <Sprite src={sheet} anim={swing ? 'attack' : 'idle'} frame={frame} flip={slot === 2} size={hero} />
+        </UiEntity>
+      ) : null}
+      {landed ? (
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { left: S(cx - 170), top: heroTop - S(slot === 0 ? 124 : 96) }, width: S(340), flexDirection: 'column', alignItems: 'center' }}>
+          {slot === 0 ? <OutlinedText value="CHAMPIONS" size={S(24)} color={MEDAL[0]} uiTransform={{ height: S(28) }} /> : null}
+          <OutlinedText value={`[${g.tag}]`} size={S(slot === 0 ? 46 : 38)} color={mine ? PURPLE_LIGHT : MEDAL[i]} raw uiTransform={{ height: S(slot === 0 ? 50 : 42) }} />
+          <Text value={g.name} size={S(20)} color={C.white} nowrap raw uiTransform={{ height: S(24) }} />
+          {g.leader.name ? <Text value={`led by ${g.leader.name}`} size={S(17)} color={MUTED} nowrap raw uiTransform={{ height: S(22) }} /> : null}
+        </UiEntity>
+      ) : null}
+      {h > 1 ? (
+        <UiEntity uiTransform={{ positionType: 'absolute', position: { left, top }, width: S(PODIUM_W), height: S(h), flexDirection: 'column', alignItems: 'center', overflow: 'hidden' }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: MEDAL_DARK[i] }}>
+          <UiEntity uiTransform={{ width: '100%', height: S(12) }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: MEDAL[i] }} />
+          <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { top: S(10) } }}>
+            <Medal place={g.place} size={slot === 0 ? 66 : 54} />
+            <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-start', margin: { left: S(12) } }}>
+              <OutlinedText value={num(g.score)} size={S(slot === 0 ? 34 : 30)} color={C.white} align="middle-left" raw uiTransform={{ height: S(38) }} />
+              <Text value={`${MEDAL_NAME[i]}  •  POINTS`} size={S(16)} color={MEDAL[i]} nowrap align="middle-left" uiTransform={{ height: S(20) }} />
+            </UiEntity>
+          </UiEntity>
+        </UiEntity>
+      ) : null}
+    </UiEntity>
+  )
+}
+
+/** A card in a side column: label over a big value, optional hero sprite on the left. */
+function AwardCard(props: { key?: string; label: string; who: string; value: string; color: Color4; hero?: string; mine?: boolean }) {
+  const sz = S(84)
+  return (
+    <UiEntity uiTransform={{ width: S(430), height: S(104), flexDirection: 'row', alignItems: 'center', margin: { bottom: S(10) }, padding: { left: S(14), right: S(14) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: props.mine ? Color4.create(0.3, 0.16, 0.48, 0.95) : RES_CARD }}>
+      {props.hero ? (
+        <UiEntity uiTransform={{ width: sz, height: sz, margin: { right: S(10) } }}>
+          <Sprite src={HERO_SHEET[sanitizeHeroId(props.hero)][props.mine ? 'own' : 'enemy']} anim="idle" frame={loopFrame('idle', Date.now(), props.label.length * 97)} size={sz} />
+        </UiEntity>
+      ) : null}
+      <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column' }}>
+        <Text value={props.label} size={S(18)} color={props.color} nowrap align="middle-left" uiTransform={{ height: S(24) }} />
+        <OutlinedText value={props.who} size={S(28)} color={C.white} align="middle-left" raw uiTransform={{ height: S(36) }} />
+        <Text value={props.value} size={S(19)} color={PALE} nowrap align="middle-left" raw uiTransform={{ height: S(24) }} />
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
+function WarResultsScreen() {
+  const b = raid.battle
+  const r = b?.results
+  if (!r || r.guilds.length === 0) { resultsOpen = false; return null }
+  const now = Date.now()
+  const mine = player.guild?.tag ?? ''
+  const gs = r.guilds
+  const best = (f: (g: WarResultGuild) => number) => gs.slice().sort((p, q) => f(q) - f(p))[0]
+  const caps = best((g) => g.captures)
+  const kos = best((g) => g.kos)
+  const dealt = best((g) => g.dealt)
+  const time = best((g) => g.minutes)
+  const flagsTaken = gs.reduce((t, g) => t + g.captures, 0)
+  const totalKos = gs.reduce((t, g) => t + g.kos, 0)
+  const st = r.stars
+  const rows = gs.slice(0, 4)
+  const own = gs.find((g) => g.tag === mine)
+  if (own && !rows.includes(own)) rows[rows.length - 1] = own
+  const nextWar = b && b.startAt && b.startAt > serverNow() ? `Next Guild War: ${b.when}` : ''
+  const COLS = [70, 330, 150, 160, 120, 170, 140]
+  const cell = (text: string, w: number, color: Color4, key: string, size = 22, align: 'middle-left' | 'middle-center' = 'middle-center') => <Text key={key} value={text} size={S(size)} color={color} nowrap raw align={align} uiTransform={{ width: S(w), height: S(36) }} />
+  const tableW = COLS.reduce((t, w) => t + w, 0) + 40
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%' }} uiBackground={{ color: WR_BG }}>
+      <OutlinedText value={r.mini ? 'MINI WAR RESULTS' : 'GUILD WAR RESULTS'} size={S(62)} color={GLOW_GOLD} uiTransform={{ positionType: 'absolute', position: { top: S(24), left: 0 }, width: '100%', height: S(72) }} />
+      <Text value={`${weekText(r.week)}  •  ${gs.length} guilds  •  ${r.fighters} fighters  •  ${flagsTaken} flags taken  •  ${totalKos} knock-outs`} size={S(23)} color={PALE} nowrap raw uiTransform={{ positionType: 'absolute', position: { top: S(100), left: 0 }, width: '100%', height: S(30) }} />
+
+      {/* Guild awards, left. */}
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { left: S(40), top: S(162) }, width: S(430), flexDirection: 'column' }}>
+        <OutlinedText value="GUILD AWARDS" size={S(26)} color={GLOW_GOLD} align="middle-left" uiTransform={{ height: S(36), margin: { bottom: S(6) } }} />
+        <AwardCard key="aw-cap" label="MOST FLAGS TAKEN" who={`[${caps.tag}]`} value={`${caps.captures} capture${caps.captures === 1 ? '' : 's'}`} color={GLOW_GOLD} mine={caps.tag === mine} />
+        <AwardCard key="aw-ko" label="MOST KNOCK-OUTS" who={`[${kos.tag}]`} value={`${num(kos.kos)} KOs`} color={C.red} mine={kos.tag === mine} />
+        <AwardCard key="aw-dmg" label="MOST DAMAGE DEALT" who={`[${dealt.tag}]`} value={`${num(dealt.dealt)} damage`} color={C.orange} mine={dealt.tag === mine} />
+        <AwardCard key="aw-time" label="MOST TIME ON THE FIELD" who={`[${time.tag}]`} value={hoursText(time.minutes)} color={C.green} mine={time.tag === mine} />
+      </UiEntity>
+
+      {/* Star fighters, right. */}
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { right: S(40), top: S(162) }, width: S(430), flexDirection: 'column' }}>
+        <OutlinedText value="STAR FIGHTERS" size={S(26)} color={GLOW_GOLD} align="middle-left" uiTransform={{ height: S(36), margin: { bottom: S(6) } }} />
+        {st.kos ? <AwardCard key="st-mvp" label="MVP  •  MOST KOs" who={st.kos.name} value={`[${st.kos.tag}]  ${st.kos.kos} KOs`} color={GLOW_GOLD} hero={st.kos.hero} mine={st.kos.tag === mine} /> : null}
+        {st.dealt ? <AwardCard key="st-hit" label="HEAVY HITTER" who={st.dealt.name} value={`[${st.dealt.tag}]  ${num(st.dealt.dealt)} damage`} color={C.orange} hero={st.dealt.hero} mine={st.dealt.tag === mine} /> : null}
+        {st.taken ? <AwardCard key="st-wall" label="IRON WALL  •  TOOK THE MOST HITS" who={st.taken.name} value={`[${st.taken.tag}]  ${num(st.taken.taken)} damage taken`} color={C.blue} hero={st.taken.hero} mine={st.taken.tag === mine} /> : null}
+        {st.minutes ? <AwardCard key="st-time" label="NEVER LEFT THE FIELD" who={st.minutes.name} value={`[${st.minutes.tag}]  ${hoursText(st.minutes.minutes)}`} color={C.green} hero={st.minutes.hero} mine={st.minutes.tag === mine} /> : null}
+      </UiEntity>
+
+      {/* Podium: draw 3rd, 2nd, then 1st so the champion's name sits on top. */}
+      {[2, 1, 0].map((slot) => (gs[slot] ? <PodiumStep key={`pod-${slot}`} g={gs[slot]} slot={slot} mine={gs[slot].tag === mine} now={now} /> : null))}
+
+      {/* Every guild. */}
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { left: S((W - tableW) / 2), top: S(PODIUM_BASE + 16) }, width: S(tableW), flexDirection: 'column', padding: { left: S(20), right: S(20), top: S(6), bottom: S(8) } }} uiBackground={{ textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: RES_CARD }}>
+        <UiEntity uiTransform={{ flexDirection: 'row', height: S(32) }}>
+          {['#', 'GUILD', 'POINTS', 'FLAGS TAKEN', 'KOs', 'DAMAGE', 'FIGHTERS'].map((h, n) => cell(h, COLS[n], MUTED, `th-${n}`, 17, n === 1 ? 'middle-left' : 'middle-center'))}
+        </UiEntity>
+        {rows.map((g) => {
+          const you = g.tag === mine
+          const col = g.place <= 3 ? MEDAL[g.place - 1] : C.white
+          return (
+            <UiEntity key={`tr-${g.guildId}`} uiTransform={{ flexDirection: 'row', height: S(38) }} uiBackground={you ? { textureMode: 'nine-slices', texture: { src: TEX.panelFlat }, textureSlices: SLICE_128, color: Color4.create(0.36, 0.2, 0.58, 0.85) } : undefined}>
+              {cell(`${g.place}`, COLS[0], col, `td-${g.guildId}-0`, 24)}
+              {cell(`[${g.tag}]  ${g.name}`, COLS[1], you ? PURPLE_LIGHT : C.white, `td-${g.guildId}-1`, 21, 'middle-left')}
+              {cell(num(g.score), COLS[2], C.white, `td-${g.guildId}-2`)}
+              {cell(`${g.captures}`, COLS[3], PALE, `td-${g.guildId}-3`)}
+              {cell(`${g.kos}`, COLS[4], PALE, `td-${g.guildId}-4`)}
+              {cell(num(g.dealt), COLS[5], PALE, `td-${g.guildId}-5`)}
+              {cell(`${g.fighters}`, COLS[6], PALE, `td-${g.guildId}-6`)}
+            </UiEntity>
+          )
+        })}
+      </UiEntity>
+
+      <UiEntity uiTransform={{ positionType: 'absolute', position: { bottom: S(22), left: 0 }, width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+        {nextWar ? <OutlinedText value={nextWar} size={S(24)} color={GLOW_GOLD} align="middle-right" raw uiTransform={{ height: S(60), margin: { right: S(24) } }} /> : null}
+        <Button label="BACK TO WAR MENU" color={C.gold} size={S(24)} uiTransform={{ width: S(340), height: S(60) }} onClick={() => { resultsOpen = false }} />
+      </UiEntity>
+      {confettiAt > 0 ? <ConfettiRain at={confettiAt} /> : null}
+    </UiEntity>
+  )
+}
+
 function IdleScreen() {
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} uiBackground={{ color: Color4.create(0.04, 0.02, 0.09, 0.66) }}>
@@ -1806,6 +2022,7 @@ export function WarTab(props: { height: number }) {
   const idle = v === null || menuOverWar || ((v.status === 'done' || v.status === 'cancelled') && dismissedResult === v.id && !raid.spectating)
   // RULES from the war card: the empty field with the spawn strip and the guided tour over it (only where the menu would show).
   const tour = idle && rulesOpen
+  const results = idle && !tour && resultsOpen
   // War field: the spawn strip under the map (WarScreen made the window taller by SPAWN_H). The art keeps its own
   // height; the strip is a dark band with a gold rule, and the tokens of the spawn / knocked-out fan out inside it.
   const strip = props.height > H
@@ -1826,7 +2043,8 @@ export function WarTab(props: { height: number }) {
         {!idle && v && v.status === 'gathering' ? <LobbyCard v={v} /> : null}
         {/* Regular Storm gets its own win / lose screen; CALLED OFF, guild raids and the war keep the shared card. */}
         {!idle && v && showResult ? (v.mode === 'pickup' && v.status === 'done' ? <StormResultScreen v={v} /> : <ResultCard v={v} />) : null}
-        {idle && !tour ? <IdleScreen /> : null}
+        {idle && !tour && !results ? <IdleScreen /> : null}
+        {results ? <WarResultsScreen /> : null}
         {tour ? <RulesTour /> : null}
       </UiEntity>
     </UiEntity>
@@ -1896,5 +2114,6 @@ export function WarScreen(props: { title: string; onBack: () => void; onClose: (
 export function resetWarTab() {
   hoverPoint = null
   rulesOpen = false
+  resultsOpen = false
   refreshRaid()
 }
