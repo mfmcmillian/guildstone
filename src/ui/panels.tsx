@@ -356,7 +356,7 @@ function SuitsTab() {
 
 // ---------------------------------------------------------------- RELICS
 // Prestige wearables worn over the suit: one Relic per profession (own that L4 suit + Lv 50) and the Guildstone
-// Crown (all four Relics; only one will ever be forged). No effect on drops, capacity, gates or tools.
+// Crown (this account crafted all four Relics; only one will ever be forged). No effect on drops, capacity, gates or tools.
 const RELIC_CARD_H = 700
 
 function RelicCard(props: { key?: string; kind: RelicId }) {
@@ -373,10 +373,10 @@ function RelicCard(props: { key?: string; kind: RelicId }) {
   const mintingOther = pending !== null && !mintingThis && (pending.status === 'pending' || pending.status === 'minting')
   const holder = crown ? crownHolder() : null
   const forgedByOther = holder !== null && !owned && holder.address !== (profileState.walletAddress || '').toLowerCase()
-  // Requirements (the server re-checks every one of these against the wallet).
+  // Requirements. The server re-checks them: Relics count only if this account crafted them.
   const reqs: Array<{ text: string; ok: boolean }> = crown
     ? [
-        { text: 'Own all four Relics', ok: SKILLS.every((s) => ownsRelic(s)) },
+        { text: 'Craft all four Relics', ok: SKILLS.every((s) => player.craftedRelics.some((r) => r.relic === s)) },
         { text: 'All four professions at L4', ok: SKILLS.every((s) => canEquipLevel(s, 4)) }
       ]
     : [
@@ -460,7 +460,7 @@ function RelicsTab() {
         <UiEntity uiTransform={{ flexDirection: 'column', flexGrow: 1, flexShrink: 1, width: S(1100) }}>
           <Text value="RELICS & THE GUILDSTONE CROWN" size={S(30)} color={C.text} align="middle-left" nowrap uiTransform={{ height: S(40) }} />
           <Text
-            value="Worn over your suit to show you finished a profession's road. They change nothing about drops or bag space. The Crown needs all four Relics, and only one will ever be forged: first to finish the craft keeps it."
+            value="Worn over your suit to show you finished a profession's road. They change nothing about drops or bag space. The Crown goes to the account that crafted all four Relics. Only one will ever be forged: first to finish keeps it."
             size={S(22)}
             color={C.textMuted}
             align="middle-left"

@@ -750,7 +750,7 @@ export const RELIC_INFO: Record<RelicId, { id: string; name: string; slot: strin
   assassin: { id: 'reaper_veil', name: 'Reaper Veil', slot: 'Mask' },
   crown: { id: 'guildstone_crown', name: 'Guildstone Crown', slot: 'Head' }
 }
-/** Relic recipes. `level` is the profession level needed (0 for the Crown, which needs all four Relics instead). */
+/** Relic recipes. `level` is the profession level needed (0 for the Crown, which needs this account to have crafted all four Relics). */
 export function relicRecipe(kind: RelicId): SuitRecipe {
   if (kind === 'crown') return { cost: { guildstone_shard: 50, antrom_essence: 150, coins: 1_000_000 }, level: 0 }
   // Assassin has no combo of its own; Ghostwood (Lumberjack L3 + Assassin L3) stands in, same as guildstone.dev.
